@@ -30,8 +30,7 @@ export interface RailItem {
   requiredRoles?: string[];
   /**
    * Required organisation types (any-of), read from `user.organisation_type`.
-   * Empty/undefined = no org-type gate. Use sparingly — prefer the tenant
-   * gate (via tenants.json) for tenant-specific features. This is for
+   * Empty/undefined = no org-type gate. Use sparingly: it is for
    * cross-tenant rules like "all government" or "not commercial".
    */
   requiredOrgTypes?: OrgTypeGate[];
@@ -91,27 +90,6 @@ export const MODES: ModeConfig[] = [
           { id: 'filter-waiting', label: 'Wacht op mij', authRequired: true },
           { id: 'filter-today', label: 'Vandaag', authRequired: true },
           { id: 'filter-week', label: 'Deze week', authRequired: true },
-        ],
-      },
-      {
-        // DVTP is a demonstration-only flow scoped to municipality
-        // caseworkers (e.g. utrecht, amsterdam). Out of scope for
-        // Flevoland (province) and the national tenants. Gate by
-        // organisation type — `municipality` only.
-        label: 'DVTP',
-        items: [
-          {
-            id: 'dvtp-start',
-            label: 'DVTP starten',
-            authRequired: true,
-            requiredOrgTypes: ['municipality'],
-          },
-          {
-            id: 'dvtp-taken',
-            label: 'DVTP taken',
-            authRequired: true,
-            requiredOrgTypes: ['municipality'],
-          },
         ],
       },
     ],
@@ -320,8 +298,6 @@ const SHELL_GLOBAL_SECTION_IDS: ReadonlySet<string> = new Set([
   'filter-waiting',
   'filter-today',
   'filter-week',
-  'dvtp-start',
-  'dvtp-taken',
   'regelsimulatie',
 ]);
 

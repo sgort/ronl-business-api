@@ -74,48 +74,67 @@ describe('tenantAllows', () => {
 });
 
 describe('resolveStartTenant', () => {
-  it('untenanted deployment: stamps the caller tenant, for anyone', () => {
-    expect(resolveStartTenant(staff('utrecht'), null)).toEqual({
-      allowed: true,
-      municipality: 'utrecht',
-      originTenantId: 'utrecht',
-    });
-    expect(resolveStartTenant(citizen('unive'), null)).toEqual({
-      allowed: true,
-      municipality: 'unive',
-      originTenantId: 'unive',
-    });
-  });
-
   it('same tenant: stamps the caller tenant, for anyone', () => {
-    expect(resolveStartTenant(staff('flevoland'), 'flevoland')).toEqual({
+    expect(resolveStartTenant(staff('flevoland'), 'flevoland', 'AwbShellProcess')).toEqual({
       allowed: true,
       municipality: 'flevoland',
       originTenantId: 'flevoland',
     });
-    expect(resolveStartTenant(citizen('flevoland'), 'flevoland')).toEqual({
+    expect(resolveStartTenant(citizen('flevoland'), 'flevoland', 'AwbShellProcess')).toEqual({
       allowed: true,
       municipality: 'flevoland',
       originTenantId: 'flevoland',
     });
   });
 
-  it('different tenant, citizen: stamps the deployed tenant and records the origin', () => {
-    expect(resolveStartTenant(citizen('unive'), 'toeslagen')).toEqual({
+  it('another tenant, citizen, cross-tenant service: stamps the deployed tenant and records the origin', () => {
+    expect(resolveStartTenant(citizen('unive'), 'toeslagen', 'AwbZorgtoeslagProcess')).toEqual({
       allowed: true,
       municipality: 'toeslagen',
       originTenantId: 'unive',
     });
   });
 
-  it('different tenant, staff: refused', () => {
-    expect(resolveStartTenant(staff('utrecht'), 'flevoland')).toEqual({ allowed: false });
-  });
-
-  it('different tenant, no roles claim: treated as staff and refused', () => {
-    expect(resolveStartTenant({ tenantId: 'utrecht' } as never, 'flevoland')).toEqual({
+  // #344: an Amsterdam Kapvergunning became a case at Provincie Flevoland.
+  it('another tenant, citizen, own-tenant service: refused', () => {
+    expect(resolveStartTenant(citizen('amsterdam'), 'flevoland', 'AwbShellProcess')).toEqual({
       allowed: false,
     });
+  });
+
+  it('another tenant, citizen, a process the registry does not know: refused', () => {
+    expect(resolveStartTenant(citizen('amsterdam'), 'flevoland', 'HrOnboardingProcess')).toEqual({
+      allowed: false,
+    });
+  });
+
+  it('another tenant, staff: refused, even for a cross-tenant service', () => {
+    expect(resolveStartTenant(staff('utrecht'), 'flevoland', 'AwbShellProcess')).toEqual({
+      allowed: false,
+    });
+    expect(resolveStartTenant(staff('utrecht'), 'toeslagen', 'AwbZorgtoeslagProcess')).toEqual({
+      allowed: false,
+    });
+  });
+
+  it('no deployed tenant (untenanted, or the lookup failed): refused for a citizen', () => {
+    expect(resolveStartTenant(citizen('unive'), null, 'AwbZorgtoeslagProcess')).toEqual({
+      allowed: false,
+    });
+  });
+
+  it('no deployed tenant: unchanged for staff, who stamp their own tenant (HR onboarding is untenanted)', () => {
+    expect(resolveStartTenant(staff('utrecht'), null, 'HrOnboardingProcess')).toEqual({
+      allowed: true,
+      municipality: 'utrecht',
+      originTenantId: 'utrecht',
+    });
+  });
+
+  it('another tenant, no roles claim: treated as staff and refused', () => {
+    expect(
+      resolveStartTenant({ tenantId: 'utrecht' } as never, 'flevoland', 'AwbShellProcess')
+    ).toEqual({ allowed: false });
   });
 });
 
@@ -164,8 +183,14 @@ describe('reservedVariablesIn', () => {
     ]);
   });
 
-  it('RESERVED_PROCESS_VARIABLES is exactly the three tenant-decision keys', () => {
-    expect(RESERVED_PROCESS_VARIABLES).toEqual(['municipality', 'originTenantId', 'applicantId']);
+  it('RESERVED_PROCESS_VARIABLES is the tenant-decision keys plus the eDOCS author', () => {
+    expect(RESERVED_PROCESS_VARIABLES).toEqual([
+      'municipality',
+      'originTenantId',
+      'applicantId',
+      'edocsAuthor',
+      'edocsAuthorName',
+    ]);
   });
 });
 

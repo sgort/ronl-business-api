@@ -1298,6 +1298,49 @@ paths:
             `error.instance` before #216; `instance` is now the request path.)
           $ref: '#/components/responses/Error'
 
+  /process/available:
+    get:
+      operationId: getAvailableCitizenServices
+      tags: [Process]
+      summary: The citizen services the caller may start
+      description: |
+        Derived from where each citizen service's process is deployed (#344):
+        an own-tenant service when it is deployed under the caller's tenant,
+        a cross-tenant service when it is deployed under exactly one tenant.
+        An untenanted deployment never counts. Citizens only.
+      responses:
+        '200':
+          description: The service ids, in registry order.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [services]
+                    properties:
+                      services:
+                        type: array
+                        items:
+                          type: string
+                          enum: [zorgtoeslag, vergunningen, subsidies, heusdenpas]
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a citizen (`FORBIDDEN`).
+          $ref: '#/components/responses/Error'
+        '503':
+          description: Operaton could not be asked (`SERVICES_UNAVAILABLE`).
+          $ref: '#/components/responses/Error'
+
   /process/history:
     get:
       operationId: getProcessHistory
@@ -2204,8 +2247,8 @@ paths:
   #                             /v1 ignores the body and uses the token
   #   POST …/task/{id}/complete { taskId, completed }; /v1 sends { taskId, status }
   #   GET  /m2m/process         exists; there is no bare `GET /v1/process`
-  #   POST …/process/history    takes a filter BODY (the GET spelling is
-  #                             deprecated, #263); /v1's is a GET with a
+  #   POST …/process/history    takes a filter BODY (the GET spelling was
+  #                             removed, #263, #312); /v1's is a GET with a
   #                             required `applicantId` query parameter
   #   —                         403 OPERATION_NOT_PERMITTED, the curation gate
   #
@@ -2361,8 +2404,11 @@ paths:
         `variables`, `finished`, `startedAfter`, sorting, paging. An empty body,
         or none at all, returns the unfiltered history.
 
-        Until #263 this was a GET carrying a body. That spelling still answers,
-        deprecated, for one release; see the GET below.
+        Until #263 this was a GET carrying a body. That spelling answered,
+        deprecated, for one release (v2026.10.0) and is removed (#312): RFC 9110
+        gives a body on GET no meaning, and clients, proxies and generated SDKs
+        drop it, so a caller whose filter was dropped silently received the
+        unfiltered history.
 
         `GET /v1/process/history` is not this operation under another name. It
         takes a **required `applicantId` query parameter**, returns one
@@ -2374,33 +2420,6 @@ paths:
           $ref: '#/components/responses/M2mHistory'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/M2mForbidden'
-        '500':
-          description: '`PROCESS_HISTORY_FAILED`.'
-          $ref: '#/components/responses/Error'
-    get:
-      operationId: queryM2mProcessHistoryDeprecated
-      tags: [Machine-to-machine]
-      summary: Query instance history (deprecated GET)
-      security: [{ m2mOAuth: [] }]
-      deprecated: true
-      description: |
-        **Deprecated since 3 October 2026 (#263); use `POST` on this path.**
-        Every response carries `Deprecation: @1790985600` (RFC 9745). It
-        behaves exactly like the POST, and is kept for one release.
-
-        It is deprecated because it takes its filter as a request body. RFC 9110
-        gives a body on GET no meaning, and many clients, proxies and generated
-        SDKs drop it, so a caller whose filter was dropped silently received
-        the unfiltered history instead of an error.
-      requestBody:
-        $ref: '#/components/requestBodies/M2mHistoryQuery'
-      responses:
-        '200':
-          $ref: '#/components/responses/M2mHistory'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -3172,11 +3191,34 @@ paths:
                           authenticated: { type: boolean }
                           latencyMs: { type: integer, description: Present only when measured. }
                           error: { type: string, description: Present only when the check failed. }
+                          user:
+                            type: object
+                            description: Present for a person only -- can eDOCS be reached as them?
+                            required: [available]
+                            properties:
+                              available: { type: boolean }
+                              authenticated: { type: boolean }
+                              edocsUserId: { type: string }
+                              problem:
+                                type: string
+                                enum:
+                                  [
+                                    EDOCS_USER_TOKEN_UNAVAILABLE,
+                                    EDOCS_REAUTH_REQUIRED,
+                                    EDOCS_USER_LOOKUP_FAILED,
+                                    STUB_MODE,
+                                  ]
+                                description: >-
+                                  EDOCS_USER_LOOKUP_FAILED -- Keycloak or Entra ID could not be asked for the
+                                  person's token (an outage, not a decision); `error` says why.
+                              error: { type: string }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
 
   /edocs/workspaces:
     get:
@@ -3193,6 +3235,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: array
                         items: { $ref: '#/components/schemas/EdocsWorkspace' }
@@ -3200,7 +3246,9 @@ paths:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3231,6 +3279,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         required: [workspaceId, workspaceName, created]
@@ -3249,7 +3301,9 @@ paths:
           description: '`projectNumber` or `projectName` missing (`MISSING_FIELDS`).'
           $ref: '#/components/responses/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3289,6 +3343,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         required: [documentId, documentNumber]
@@ -3309,7 +3367,9 @@ paths:
             `metadata.department` missing (`MISSING_FIELDS`).
           $ref: '#/components/responses/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3333,6 +3393,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         required: [workspaceId, documents]
@@ -3347,7 +3411,9 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3372,6 +3438,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         description: The library's profile fields, verbatim.
@@ -3382,7 +3452,9 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3404,6 +3476,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         required: [documentId, versions]
@@ -3423,7 +3499,9 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3452,6 +3530,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         required: [contentBase64]
@@ -3463,7 +3545,9 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3484,6 +3568,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         required: [documentId, deleted]
@@ -3496,7 +3584,9 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3517,6 +3607,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         required: [workspaceId, deleted]
@@ -3529,7 +3623,9 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -6762,7 +6858,8 @@ components:
     ProcessLineage:
       type: object
       description: An instance's place in a call chain.
-      required: [processInstanceId, processDefinitionKey, processDefinitionId, superProcessInstanceId]
+      required:
+        [processInstanceId, processDefinitionKey, processDefinitionId, superProcessInstanceId]
       properties:
         processInstanceId: { type: string }
         processDefinitionKey: { type: string }
@@ -7344,6 +7441,11 @@ components:
           description: |
             False means chat cannot use it; selecting only disconnected
             sources answers 503.
+        actsAsPerson:
+          type: boolean
+          description: |
+            Present and true when the source acts as the signed-in person, with
+            their own rights (eDOCS), rather than as a service account.
 
     McpModel:
       type: object
@@ -7426,6 +7528,27 @@ components:
         upstream, not in this service.
 
         Error responses on these mounts carry no `timestamp`.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+    EdocsForbidden:
+      description: |
+        Refused before or by eDOCS. The codes:
+
+        - **`FORBIDDEN`** -- a person without the `caseworker` or `admin` realm role.
+        - **`EDOCS_CLIENT_NOT_ALLOWED`** -- a machine client not on `EDOCS_ALLOWED_CLIENTS`.
+        - **`EDOCS_USER_TOKEN_UNAVAILABLE`** -- a person with no Entra ID token
+          (a Keycloak account, or signed in before tokens were stored).
+        - **`EDOCS_ACCESS_DENIED`** -- eDOCS refused the person's token.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+    EdocsUnauthorized:
+      description: |
+        `MISSING_TOKEN` / `INVALID_TOKEN` as everywhere, or **`EDOCS_REAUTH_REQUIRED`**:
+        the person's Entra session can no longer be refreshed -- sign in again.
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }

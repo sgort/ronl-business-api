@@ -528,6 +528,16 @@ describe('isCallbackPath', () => {
 });
 
 describe('GET /v1/validsign/task/:taskId/spec', () => {
+  // Runs on every task the inbox opens, alongside the task pane's own read.
+  // A deserialising read can write an object variable back and collide with
+  // that one (ENGINE-03005); this route only needs strings.
+  it('reads the task variables without deserialising them', async () => {
+    mockGetTaskSignatureSpec.mockResolvedValue(null);
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
+    await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
+    expect(mockGetTaskVariables).toHaveBeenCalledWith('task-1', { deserializeValues: false });
+  });
+
   it('reports required:false for an untagged task', async () => {
     mockGetTaskSignatureSpec.mockResolvedValue(null);
     const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
@@ -683,6 +693,30 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
         validsignTaskId: { value: 'task-1', type: 'String' },
         validsignTemplateId: { value: 'tpl-1', type: 'String' },
         validsignTemplateName: { value: 'Uitgangspunten VO-fase', type: 'String' },
+      })
+    );
+  });
+
+  // The signer is the employee the signed document and its evidence are archived
+  // for (spec §6), not whoever completed the task before the signing task.
+  it('records the signer as edocsAuthor', async () => {
+    mockGetTaskSignatureSpec.mockResolvedValue({
+      templateId: 'tpl-1',
+      template: { name: 'Uitgangspunten VO-fase' },
+    });
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland', projectNumber: 'RIP-1' });
+    mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
+    mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
+    mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-1', roleId: 'role-1' });
+    mockValidsign.getSigningUrl.mockResolvedValue('/v1/validsign/stub/ceremony/pkg-1');
+
+    const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
+
+    expect(res.status).toBe(200);
+    expect(mockSetProcessVariables).toHaveBeenCalledWith(
+      'pi-1',
+      expect.objectContaining({
+        edocsAuthor: { value: 'signer@flevoland.nl', type: 'String' },
       })
     );
   });
@@ -941,6 +975,12 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
 });
 
 describe('GET /v1/validsign/task/:taskId/status', () => {
+  it('reads the task variables without deserialising them', async () => {
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
+    await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
+    expect(mockGetTaskVariables).toHaveBeenCalledWith('task-1', { deserializeValues: false });
+  });
+
   it('returns the status from process variables', async () => {
     mockGetTaskVariables.mockResolvedValue({
       municipality: 'flevoland',

@@ -21,6 +21,7 @@
 # This script fills in the tenant's endpoints, the client id and the secret.
 # A provider or mapper that exists is updated in place, never duplicated, so
 # the script is safe to re-run -- which is also how a rotated secret goes in.
+# It also adds the broker read-token role to the realm's default roles, so every user can read their own stored token.
 #
 # THE SECRET
 # ----------
@@ -272,4 +273,59 @@ done <<<"$AFTER"
 echo "→ verified: provider ${ALIAS} with $(wc -l <<<"$AFTER") mappers in realm ${REALM}"
 echo "→ redirect URI that must be registered in Entra (platform Web):"
 echo "  ${REDIRECT_URI}"
+
+# ── Every user may read their own stored token ───────────────────────────────
+# The backend reads a person's stored Entra token through the broker token
+# endpoint, which requires the broker client's read-token role.
+# addReadTokenRoleOnCreate covers only users Keycloak creates through this
+# provider; an existing user who links Entra later would never get it. The
+# realm's default roles reach every user, existing and future, so the role is
+# added there once. It grants nothing on its own: the endpoint only ever returns
+# the caller's own stored token, and only users linked to the provider have one.
+BROKER_ID=$(curl -sS "${AUTH[@]}" "${BASE}/clients?clientId=broker" | jqr -r '.[0].id // empty')
+ROLE_JSON=$(curl -sS "${AUTH[@]}" "${BASE}/clients/${BROKER_ID}/roles/read-token")
+[[ -n "$BROKER_ID" && "$(jqr -r '.name // empty' <<<"$ROLE_JSON")" == "read-token" ]] || {
+  echo "broker client or its read-token role not found in realm ${REALM}" >&2
+  exit 1
+}
+DEFAULT_ROLE="default-roles-${REALM}"
+HAS=$(curl -sS "${AUTH[@]}" "${BASE}/roles/${DEFAULT_ROLE}/composites/clients/${BROKER_ID}" \
+  | jqr -r '[.[].name] | index("read-token") // empty')
+if [[ -n "$HAS" ]]; then
+  echo "  present       broker read-token in ${DEFAULT_ROLE}"
+else
+  code=$(jq -c '[{id, name}]' <<<"$ROLE_JSON" | curl -sS -o "$TMPD/out" -w '%{http_code}' -X POST "${AUTH[@]}" \
+    -H 'Content-Type: application/json' "${BASE}/roles/${DEFAULT_ROLE}/composites" --data-binary @- || true)
+  [[ "$code" == "204" ]] && echo "  added         broker read-token to ${DEFAULT_ROLE}" \
+    || { echo "  FAILED        broker read-token in ${DEFAULT_ROLE} -> HTTP ${code}: $(head -c 200 "$TMPD/out")" >&2; exit 1; }
+fi
+
+# ── The application client: broker roles in the access token ─────────────────
+# The broker token endpoint hands a person their stored Entra token only when
+# their access token carries resource_access.broker.roles = [read-token]. The
+# application client has no client-role mapper and no "roles" client scope, so
+# its tokens carried realm_access only and the endpoint answered 403 even with
+# the role granted. This mapper (keycloak-entra-idp.json, clientMapper) adds the
+# broker client's roles. Created or updated by name, like the provider mappers.
+APP_CLIENT="${APP_CLIENT:-ronl-business-api}"
+APP_ID=$(curl -sS "${AUTH[@]}" "${BASE}/clients?clientId=${APP_CLIENT}" | jqr -r '.[0].id // empty')
+[[ -n "$APP_ID" ]] || { echo "client ${APP_CLIENT} not found in realm ${REALM}" >&2; exit 1; }
+CM_NAME=$(jqr -r '.clientMapper.name' "$IDP_FILE")
+CM_URL="${BASE}/clients/${APP_ID}/protocol-mappers/models"
+CM_ID=$(curl -sS "${AUTH[@]}" "$CM_URL" | jqr -r --arg n "$CM_NAME" '[.[] | select(.name == $n)][0].id // empty')
+if [[ -n "$CM_ID" ]]; then
+  code=$(jq -c --arg id "$CM_ID" '.clientMapper + {id: $id}' "$IDP_FILE" \
+    | curl -sS -o "$TMPD/out" -w '%{http_code}' -X PUT "${AUTH[@]}" \
+        -H 'Content-Type: application/json' "${CM_URL}/${CM_ID}" --data-binary @- || true)
+  [[ "$code" == "204" ]] && echo "  updated       client mapper ${CM_NAME} on ${APP_CLIENT}" \
+    || { echo "  FAILED        client mapper ${CM_NAME} -> HTTP ${code}: $(head -c 200 "$TMPD/out")" >&2; exit 1; }
+else
+  code=$(jq -c '.clientMapper' "$IDP_FILE" \
+    | curl -sS -o "$TMPD/out" -w '%{http_code}' -X POST "${AUTH[@]}" \
+        -H 'Content-Type: application/json' "$CM_URL" --data-binary @- || true)
+  [[ "$code" == "201" ]] && echo "  created       client mapper ${CM_NAME} on ${APP_CLIENT}" \
+    || { echo "  FAILED        client mapper ${CM_NAME} -> HTTP ${code}: $(head -c 200 "$TMPD/out")" >&2; exit 1; }
+fi
+
+echo "→ users who signed in before this run must sign in once more for Keycloak to store their tokens"
 echo "Done."

@@ -28,6 +28,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import keycloak, { getUser } from '../services/keycloak';
+import { landingUrl } from '../services/landing';
 import {
   initializeTenantTheme,
   loadTenantConfigs,
@@ -186,7 +187,7 @@ function CaseworkerDashboardV2Shell() {
   };
   const handleLogout = () => {
     if (keycloak.authenticated) {
-      keycloak.logout({ redirectUri: window.location.origin + '/' });
+      keycloak.logout({ redirectUri: landingUrl(user?.municipality) });
     } else {
       navigate('/dashboard/caseworker');
     }
@@ -350,7 +351,6 @@ function CaseworkerDashboardV2Shell() {
                   tenantConfig={tenantConfig}
                   onTaskCountChange={setTaskCount}
                   onIouCountChange={setIouCount}
-                  onNavigate={setActiveSection}
                 />
               </SectionErrorBoundary>
             </div>

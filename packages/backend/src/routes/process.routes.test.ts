@@ -29,6 +29,8 @@ jest.mock('@auth/jwt.middleware', () => ({
       ...(req.headers['x-test-no-roles'] ? {} : { roles }),
       organisationType: 'province',
       assuranceLevel: 'substantieel',
+      ...(req.headers['x-test-email'] ? { email: req.headers['x-test-email'] } : {}),
+      ...(req.headers['x-test-name'] ? { displayName: req.headers['x-test-name'] } : {}),
     } as unknown as Request['user'];
     next();
   },
@@ -44,6 +46,8 @@ jest.mock('@services/operaton.service', () => ({
     getProcessHistory: jest.fn(),
     getProcessInstance: jest.fn(),
     getProcessVariables: jest.fn(),
+    getAccessVariables: jest.fn(),
+    getLatestProcessDeployments: jest.fn(),
     getHistoricVariables: jest.fn(),
     getActivityHistory: jest.fn(),
     getDecisionDocument: jest.fn(),
@@ -93,9 +97,25 @@ beforeEach(() => {
   jest.clearAllMocks();
   // Default: the process is deployed under the caller's own tenant.
   svc.resolveDeployedTenant.mockResolvedValue('flevoland');
+  // The access check's own read, following whatever a test sets for the
+  // instance's variables (see the describe at the end of this file).
+  svc.getAccessVariables.mockImplementation(async (id: string) => {
+    const vars = (await svc.getProcessVariables(id)) ?? {};
+    return { municipality: vars.municipality?.value, applicantId: vars.applicantId?.value };
+  });
 });
 
 describe('POST /:key/start', () => {
+  it('403 TENANT_MISMATCH when a citizen starts an own-tenant service of another tenant (#344)', async () => {
+    svc.resolveDeployedTenant.mockResolvedValue('heusden');
+    const res = await auth(request(app).post('/v1/process/AwbShellProcess/start'))
+      .set('x-test-roles', 'citizen')
+      .send({ variables: {} });
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('TENANT_MISMATCH');
+    expect(svc.startProcess).not.toHaveBeenCalled();
+  });
+
   it('401 without a token', async () => {
     expect((await request(app).post('/v1/process/P/start').send({})).status).toBe(401);
   });
@@ -118,6 +138,38 @@ describe('POST /:key/start', () => {
       municipality: { value: 'flevoland', type: 'String' },
       originTenantId: { value: 'flevoland', type: 'String' },
     });
+  });
+
+  it('stamps the member of staff who started it as edocsAuthor', async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-a' });
+    await auth(request(app).post('/v1/process/P/start'))
+      .set('x-test-email', 'a@flevoland.nl')
+      .set('x-test-name', 'An Example')
+      .send({ variables: {} });
+    const vars = svc.startProcess.mock.calls[0][1].variables;
+    expect(vars.edocsAuthor).toEqual({ value: 'a@flevoland.nl', type: 'String' });
+    expect(vars.edocsAuthorName).toEqual({ value: 'An Example', type: 'String' });
+  });
+
+  it('overwrites an edocsAuthor the caller sent', async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-b' });
+    await auth(request(app).post('/v1/process/P/start'))
+      .set('x-test-email', 'a@flevoland.nl')
+      .send({ variables: { edocsAuthor: 'someone-else@x.nl', edocsAuthorName: 'Someone Else' } });
+    const vars = svc.startProcess.mock.calls[0][1].variables;
+    expect(vars.edocsAuthor).toEqual({ value: 'a@flevoland.nl', type: 'String' });
+    expect(vars.edocsAuthorName).toBeUndefined();
+  });
+
+  it('strips edocsAuthor from a citizen start', async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-c' });
+    await auth(request(app).post('/v1/process/P/start'))
+      .set('x-test-roles', 'citizen')
+      .set('x-test-email', 'c@example.nl')
+      .send({ variables: { edocsAuthor: 'a@flevoland.nl' } });
+    const vars = svc.startProcess.mock.calls[0][1].variables;
+    expect(vars.edocsAuthor).toBeUndefined();
+    expect(vars.edocsAuthorName).toBeUndefined();
   });
 
   it('applies AwbZorgtoeslag coercions; a citizen case goes to the toeslagen deployment', async () => {
@@ -246,6 +298,48 @@ describe('POST /:key/start', () => {
   });
 });
 
+describe('GET /available', () => {
+  const asCitizen = (r: request.Test) => auth(r).set('x-test-roles', 'citizen');
+
+  it('401 without a token', async () => {
+    expect((await request(app).get('/v1/process/available')).status).toBe(401);
+  });
+
+  it('403 FORBIDDEN for a caller who is not a citizen', async () => {
+    const res = await auth(request(app).get('/v1/process/available'));
+    expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/available');
+    expect(res.body.code).toBe('FORBIDDEN');
+    expect(svc.getLatestProcessDeployments).not.toHaveBeenCalled();
+  });
+
+  it('answers the services the citizen may start, from the deployments', async () => {
+    svc.getLatestProcessDeployments.mockResolvedValue([
+      { key: 'AwbZorgtoeslagProcess', tenantId: 'toeslagen' },
+      { key: 'AwbShellProcess', tenantId: 'flevoland' },
+    ]);
+    const res = await asCitizen(request(app).get('/v1/process/available'));
+    expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/process/available');
+    // The test user's tenant is flevoland (see the auth mock at the top).
+    expect(res.body.data).toEqual({ services: ['zorgtoeslag', 'vergunningen'] });
+    expect(svc.getLatestProcessDeployments).toHaveBeenCalledWith([
+      'AwbZorgtoeslagProcess',
+      'AwbShellProcess',
+      'ThuisbatterijSubsidieAanvraagProcess',
+      'HeusdenpasAanvraagProcess',
+    ]);
+  });
+
+  it('503 SERVICES_UNAVAILABLE when Operaton cannot be asked, never every service', async () => {
+    svc.getLatestProcessDeployments.mockRejectedValue(new Error('down'));
+    const res = await asCitizen(request(app).get('/v1/process/available'));
+    expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/process/available');
+    expect(res.body.code).toBe('SERVICES_UNAVAILABLE');
+  });
+});
+
 describe('GET /history', () => {
   it('400 without applicantId', async () => {
     const res = await auth(request(app).get('/v1/process/history'));
@@ -345,6 +439,18 @@ describe('GET /:id/variables', () => {
     expect(res.body.data).toEqual({ municipality: 'flevoland', amount: 42 });
   });
 
+  // The employee's e-mail and name are for archiving only, and a citizen reads
+  // their own case through this endpoint (#229).
+  it('never returns the eDOCS author', async () => {
+    svc.getProcessVariables.mockResolvedValue({
+      municipality: { value: 'flevoland', type: 'String' },
+      edocsAuthor: { value: 'a@flevoland.nl', type: 'String' },
+      edocsAuthorName: { value: 'An Example', type: 'String' },
+    });
+    const res = await auth(request(app).get('/v1/process/pi/variables'));
+    expect(res.body.data).toEqual({ municipality: 'flevoland' });
+  });
+
   it('403 on a tenant mismatch', async () => {
     svc.getProcessVariables.mockResolvedValue({
       municipality: { value: 'utrecht', type: 'String' },
@@ -368,6 +474,17 @@ describe('GET /:id/historic-variables', () => {
     expect(res.status).toBe(200);
     expectToMatchOperation(res, 'get', '/process/{id}/historic-variables');
     expect(res.body.data.decision).toBe('granted');
+  });
+
+  it('never returns the eDOCS author', async () => {
+    svc.getHistoricVariables.mockResolvedValue({
+      municipality: 'flevoland',
+      decision: 'granted',
+      edocsAuthor: 'a@flevoland.nl',
+      edocsAuthorName: 'An Example',
+    });
+    const res = await auth(request(app).get('/v1/process/pi/historic-variables'));
+    expect(res.body.data).toEqual({ municipality: 'flevoland', decision: 'granted' });
   });
 
   it('allows the applicant even under a different authority', async () => {
@@ -945,5 +1062,46 @@ describe('GET /:id/lineage', () => {
     expect(res.status).toBe(500);
     expectToMatchOperation(res, ...op);
     expect(res.body.code).toBe('PROCESS_LINEAGE_FAILED');
+  });
+});
+
+// A deserialising read of every variable can write an object variable back
+// and collide with another read of the same instance (ENGINE-03005). The
+// access check reads municipality and applicantId alone, without
+// deserialising; the full read stays only where the variables are returned.
+describe('the access check does not read every variable', () => {
+  beforeEach(() => {
+    svc.getProcessVariables.mockRejectedValue(new Error('ENGINE-03005 OptimisticLockingException'));
+    svc.getAccessVariables.mockResolvedValue({ municipality: 'flevoland', applicantId: 'u-9' });
+  });
+
+  it('GET /:id/status', async () => {
+    svc.getProcessInstance.mockResolvedValue({
+      id: 'pi',
+      definitionId: 'd',
+      ended: false,
+      suspended: false,
+    });
+    const res = await auth(request(app).get('/v1/process/pi/status'));
+    expect(res.status).toBe(200);
+    expect(svc.getAccessVariables).toHaveBeenCalledWith('pi');
+    expect(svc.getProcessVariables).not.toHaveBeenCalled();
+  });
+
+  it('DELETE /:id', async () => {
+    svc.deleteProcessInstance.mockResolvedValue(undefined);
+    const res = await auth(request(app).delete('/v1/process/pi')).send({ reason: 'obsolete' });
+    expect(res.status).toBe(200);
+    expect(svc.getProcessVariables).not.toHaveBeenCalled();
+  });
+
+  it('GET /:id/variables reads them all only after access is settled', async () => {
+    svc.getAccessVariables.mockResolvedValue({
+      municipality: 'utrecht',
+      applicantId: 'someone-else',
+    });
+    const res = await auth(request(app).get('/v1/process/pi/variables'));
+    expect(res.status).toBe(403);
+    expect(svc.getProcessVariables).not.toHaveBeenCalled();
   });
 });

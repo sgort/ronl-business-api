@@ -4,6 +4,7 @@ import { createLogger } from '@utils/logger';
 import { getErrorMessage } from '@utils/errors';
 import { edocsService } from '@services/edocs.service';
 import { operatonService } from '@services/operaton.service';
+import { edocsAuthorFrom } from '@services/edocs-author';
 import { renderTemplate } from '@services/document/renderTemplate';
 import { toMarkdown } from '@services/document/toMarkdown';
 
@@ -163,6 +164,9 @@ export class ExternalTaskWorker {
           lockDuration: this.lockDuration,
           variables: [
             'edocsWorkspaceId',
+            // The employee who acted, recorded as "namens …" (spec §6).
+            'edocsAuthor',
+            'edocsAuthorName',
             'projectNumber',
             'projectName',
             'documentTemplateId',
@@ -331,9 +335,11 @@ export class ExternalTaskWorker {
     const filename = `${templateId}-${projectNumber}.${extension}`;
     const docName = `${projectNumber} — ${this.templateIdToLabel(templateId)} — ${projectName}`;
 
+    const author = edocsAuthorFrom(task.variables);
     const result = await edocsService.uploadDocument(workspaceId, filename, contentBase64, {
       docName,
       department,
+      ...(author && { author }),
     });
 
     return {

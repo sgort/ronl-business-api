@@ -20,7 +20,7 @@ These are GitHub settings, not files. Without them parts of the policy are inert
 | Dependabot **security updates** | **disabled**                                                                    | it opens competing PRs that ignore the 14-day cooldown                                         |
 | Merge methods                   | merge commits only                                                              | squash and rebase rewrite the SHAs a changelog entry names                                     |
 | `acc` ruleset                   | PR + `audit` + `scan` + the four build checks + `deletion` + `non_fast_forward` | a workflow that runs but cannot block is advice, not a gate                                    |
-| `main` ruleset                  | PR + `audit` + `deletion` + `non_fast_forward`                                  | `main` is promoted from `acc`; the branch that deploys production must not be the weaker one   |
+| `main` ruleset                  | PR + `audit` + `scan` + `deletion` + `non_fast_forward`                         | `main` is promoted from `acc`; the branch that deploys production must not be the weaker one   |
 
 The four build checks on `acc` are `build`, `Build and Deploy ACC Frontend`,
 `Build and Deploy ACC PA Demo` and `Build and Deploy ACC Public Site`, added with
@@ -39,15 +39,16 @@ carries commits that already passed every check on `acc`.
 
 ## Pinned
 
-**39 `uses:` references across 13 workflows, all 39 digest-pinned.** Verified on
-`acc` at `4e9bd9d`, 26 September 2026 — by `npm run check-supply-chain`, which
+**41 `uses:` references across 13 workflows, all 41 digest-pinned.** Verified on
+6 October 2026, when `lockfile-review` added one `checkout` and one `setup-node`
+(sgort/linked-data-explorer#248) — by `npm run check-supply-chain`, which
 blocks the `audit` job, so this headline cannot drift from the workflows without
 failing a merge.
 
 | Dependency                          | Pin                                                 | Version           | Maintained by                                                                                 |
 | ----------------------------------- | --------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------- |
-| `actions/checkout` (×13)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
-| `actions/setup-node` (×11)          | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                                      |
+| `actions/checkout` (×14)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
+| `actions/setup-node` (×12)          | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                                      |
 | `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                                  |
 | `actions/upload-artifact` (×3)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                                      |
 | `azure/login` (×2)                  | `a641126d1b8aa4d1fa005f4f92df94a3a4c4c906`          | v3.1.0            | Renovate                                                                                      |
@@ -452,7 +453,7 @@ Pinning the file is not the same as pinning the branch that runs it.
 The Pinned table is the only part of this document a machine reads.
 `scripts/check-supply-chain.mjs` runs in the `audit` job and compares it with
 the workflows — digests, versions, the `(×N)` multiplicities, and the
-`39 uses: references across 13 workflows` headline — then resolves every digest
+`41 uses: references across 13 workflows` headline — then resolves every digest
 against the GitHub API to confirm it is the version its comment claims. Run it
 by hand with `npm run check-supply-chain`; `--offline` skips the API and checks
 format and register agreement only.

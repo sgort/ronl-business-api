@@ -529,10 +529,14 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
                     loadTasks();
                   }}
                   onDeclined={() => {
-                    // The task completed server-side and the case loops back.
+                    // The task completed server-side. Where the case goes next is
+                    // the process's to say, and they differ: R2.1 loops back to
+                    // "Aanvullen Projectplan", besluitvorming escalates to the
+                    // bevoegde bestuursautoriteit. So the message names neither
+                    // (#312 item 1).
                     setActionMessage({
                       type: 'success',
-                      text: 'Niet ondertekend — de taak gaat terug naar de indiener.',
+                      text: 'Niet ondertekend — het proces gaat verder via de afwijzingsroute.',
                     });
                     loadTasks();
                   }}

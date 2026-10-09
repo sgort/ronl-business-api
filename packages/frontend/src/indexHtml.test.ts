@@ -121,8 +121,12 @@ describe('index.html link-preview tags', () => {
     expect(html).toContain('<title>ronl. werkomgeving</title>');
   });
 
-  it('ships both card images', () => {
-    for (const f of ['og-image-prod.png', 'og-image-acc.png']) {
+  it('ships both card images, and both cards of every tenant page', () => {
+    const tenantCards = ['amsterdam', 'heusden', 'toeslagen', 'unive'].flatMap((id) => [
+      `og-image-${id}-prod.png`,
+      `og-image-${id}-acc.png`,
+    ]);
+    for (const f of ['og-image-prod.png', 'og-image-acc.png', ...tenantCards]) {
       const png = readFileSync(resolve(ROOT, 'public', f));
       // PNG signature, and the 1200×630 the tags declare (IHDR width/height).
       expect(png.subarray(1, 4).toString()).toBe('PNG');

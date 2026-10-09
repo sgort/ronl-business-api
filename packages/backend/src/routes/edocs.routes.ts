@@ -1,20 +1,50 @@
 import { Router, Request, Response } from 'express';
 import { jwtMiddleware } from '@auth/jwt.middleware';
+import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
 import { sendProblem } from '@utils/problem';
 import { edocsService } from '@services/edocs.service';
+import { edocsAccess, edocsOf, requireEdocsPrincipal, sendEdocsError } from './edocs.access';
 
 const router = Router();
 const logger = createLogger('edocs-routes');
 
-router.use(jwtMiddleware);
+router.use(jwtMiddleware, edocsAccess);
 
 /**
  * GET /v1/edocs/status
  */
-router.get('/status', async (_req: Request, res: Response) => {
+router.get('/status', async (req: Request, res: Response) => {
   const health = await edocsService.healthCheck();
   logger.info('eDOCS status requested', health);
+
+  // For a person: can eDOCS be reached as them? Machine clients get the service view only.
+  let user:
+    | {
+        available: boolean;
+        authenticated?: boolean;
+        edocsUserId?: string;
+        problem?: string;
+        error?: string;
+      }
+    | undefined;
+  if (req.auth?.azp === config.keycloak.clientId) {
+    if (config.edocs.stubMode) user = { available: false, problem: 'STUB_MODE' };
+    else if (req.edocsActingAs === 'user' && req.edocs)
+      user = { available: true, ...(await req.edocs.probeUser()) };
+    else if (req.edocsLookupError)
+      user = {
+        available: false,
+        problem: 'EDOCS_USER_LOOKUP_FAILED',
+        error:
+          req.edocsLookupError instanceof Error
+            ? req.edocsLookupError.message
+            : String(req.edocsLookupError),
+      };
+    else
+      user = { available: false, ...(req.edocsUserProblem && { problem: req.edocsUserProblem }) };
+  }
+
   res.json({
     success: true,
     data: {
@@ -26,10 +56,14 @@ router.get('/status', async (_req: Request, res: Response) => {
       authenticated: health.authenticated,
       ...(health.latency !== undefined && { latencyMs: health.latency }),
       ...(health.error !== undefined && { error: health.error }),
+      ...(user && { user }),
     },
     timestamp: new Date().toISOString(),
   });
 });
+
+// Every route below needs an eDOCS client: the person's own, or the service.
+router.use(requireEdocsPrincipal);
 
 /**
  * GET /v1/edocs/workspaces
@@ -37,17 +71,18 @@ router.get('/status', async (_req: Request, res: Response) => {
  */
 router.get('/workspaces', async (req: Request, res: Response) => {
   try {
-    const documents = await edocsService.listWorkspaces();
-    res.json({ success: true, data: documents, timestamp: new Date().toISOString() });
+    const documents = await edocsOf(req).listWorkspaces();
+    res.json({
+      success: true,
+      actingAs: req.edocsActingAs,
+      data: documents,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     logger.error('listWorkspaces failed', {
       error: error instanceof Error ? error.message : String(error),
     });
-    sendProblem(res, req, {
-      status: 502,
-      code: 'EDOCS_ERROR',
-      detail: 'Failed to list eDOCS workspaces.',
-    });
+    return sendEdocsError(req, res, error, 'Failed to list eDOCS workspaces.');
   }
 });
 
@@ -70,18 +105,19 @@ router.post('/workspaces/ensure', async (req: Request, res: Response) => {
   }
 
   try {
-    const result = await edocsService.ensureWorkspace(projectNumber, projectName);
-    res.json({ success: true, data: result, timestamp: new Date().toISOString() });
+    const result = await edocsOf(req).ensureWorkspace(projectNumber, projectName);
+    res.json({
+      success: true,
+      actingAs: req.edocsActingAs,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     logger.error('ensureWorkspace failed', {
       projectNumber,
       error: error instanceof Error ? error.message : String(error),
     });
-    sendProblem(res, req, {
-      status: 502,
-      code: 'EDOCS_ERROR',
-      detail: 'Failed to ensure eDOCS workspace.',
-    });
+    return sendEdocsError(req, res, error, 'Failed to ensure eDOCS workspace.');
   }
 });
 
@@ -110,24 +146,25 @@ router.post('/documents', async (req: Request, res: Response) => {
   }
 
   try {
-    const result = await edocsService.uploadDocument(
+    const result = await edocsOf(req).uploadDocument(
       workspaceId ?? null,
       filename,
       contentBase64,
       metadata
     );
-    res.json({ success: true, data: result, timestamp: new Date().toISOString() });
+    res.json({
+      success: true,
+      actingAs: req.edocsActingAs,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     logger.error('uploadDocument failed', {
       workspaceId,
       filename,
       error: error instanceof Error ? error.message : String(error),
     });
-    sendProblem(res, req, {
-      status: 502,
-      code: 'EDOCS_ERROR',
-      detail: 'Failed to upload document to eDOCS.',
-    });
+    return sendEdocsError(req, res, error, 'Failed to upload document to eDOCS.');
   }
 });
 
@@ -138,9 +175,10 @@ router.get('/workspaces/:workspaceId/documents', async (req: Request, res: Respo
   const { workspaceId } = req.params;
 
   try {
-    const documents = await edocsService.getWorkspaceDocuments(workspaceId);
+    const documents = await edocsOf(req).getWorkspaceDocuments(workspaceId);
     res.json({
       success: true,
+      actingAs: req.edocsActingAs,
       data: { workspaceId, documents },
       timestamp: new Date().toISOString(),
     });
@@ -149,11 +187,7 @@ router.get('/workspaces/:workspaceId/documents', async (req: Request, res: Respo
       workspaceId,
       error: error instanceof Error ? error.message : String(error),
     });
-    sendProblem(res, req, {
-      status: 502,
-      code: 'EDOCS_ERROR',
-      detail: 'Failed to retrieve workspace documents.',
-    });
+    return sendEdocsError(req, res, error, 'Failed to retrieve workspace documents.');
   }
 });
 
@@ -164,18 +198,19 @@ router.get('/documents/:documentId/profile', async (req: Request, res: Response)
   const { documentId } = req.params;
 
   try {
-    const profile = await edocsService.getDocumentProfile(documentId);
-    res.json({ success: true, data: profile, timestamp: new Date().toISOString() });
+    const profile = await edocsOf(req).getDocumentProfile(documentId);
+    res.json({
+      success: true,
+      actingAs: req.edocsActingAs,
+      data: profile,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     logger.error('getDocumentProfile failed', {
       documentId,
       error: error instanceof Error ? error.message : String(error),
     });
-    sendProblem(res, req, {
-      status: 502,
-      code: 'EDOCS_ERROR',
-      detail: 'Failed to retrieve document profile.',
-    });
+    return sendEdocsError(req, res, error, 'Failed to retrieve document profile.');
   }
 });
 
@@ -186,9 +221,10 @@ router.get('/documents/:documentId/versions', async (req: Request, res: Response
   const { documentId } = req.params;
 
   try {
-    const versions = await edocsService.getDocumentVersions(documentId);
+    const versions = await edocsOf(req).getDocumentVersions(documentId);
     res.json({
       success: true,
+      actingAs: req.edocsActingAs,
       data: { documentId, versions },
       timestamp: new Date().toISOString(),
     });
@@ -197,11 +233,7 @@ router.get('/documents/:documentId/versions', async (req: Request, res: Response
       documentId,
       error: error instanceof Error ? error.message : String(error),
     });
-    sendProblem(res, req, {
-      status: 502,
-      code: 'EDOCS_ERROR',
-      detail: 'Failed to retrieve document versions.',
-    });
+    return sendEdocsError(req, res, error, 'Failed to retrieve document versions.');
   }
 });
 
@@ -213,19 +245,20 @@ router.get('/documents/:documentId/versions/:version', async (req: Request, res:
   const { documentId, version } = req.params;
 
   try {
-    const result = await edocsService.downloadDocumentVersion(documentId, version);
-    res.json({ success: true, data: result, timestamp: new Date().toISOString() });
+    const result = await edocsOf(req).downloadDocumentVersion(documentId, version);
+    res.json({
+      success: true,
+      actingAs: req.edocsActingAs,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     logger.error('downloadDocumentVersion failed', {
       documentId,
       version,
       error: error instanceof Error ? error.message : String(error),
     });
-    sendProblem(res, req, {
-      status: 502,
-      code: 'EDOCS_ERROR',
-      detail: 'Failed to download document content.',
-    });
+    return sendEdocsError(req, res, error, 'Failed to download document content.');
   }
 });
 
@@ -236,9 +269,10 @@ router.delete('/documents/:documentId', async (req: Request, res: Response) => {
   const { documentId } = req.params;
 
   try {
-    await edocsService.deleteDocument(documentId);
+    await edocsOf(req).deleteDocument(documentId);
     res.json({
       success: true,
+      actingAs: req.edocsActingAs,
       data: { documentId, deleted: true },
       timestamp: new Date().toISOString(),
     });
@@ -247,11 +281,7 @@ router.delete('/documents/:documentId', async (req: Request, res: Response) => {
       documentId,
       error: error instanceof Error ? error.message : String(error),
     });
-    sendProblem(res, req, {
-      status: 502,
-      code: 'EDOCS_ERROR',
-      detail: 'Failed to delete document.',
-    });
+    return sendEdocsError(req, res, error, 'Failed to delete document.');
   }
 });
 
@@ -262,9 +292,10 @@ router.delete('/workspaces/:workspaceId', async (req: Request, res: Response) =>
   const { workspaceId } = req.params;
 
   try {
-    await edocsService.deleteWorkspace(workspaceId);
+    await edocsOf(req).deleteWorkspace(workspaceId);
     res.json({
       success: true,
+      actingAs: req.edocsActingAs,
       data: { workspaceId, deleted: true },
       timestamp: new Date().toISOString(),
     });
@@ -273,11 +304,7 @@ router.delete('/workspaces/:workspaceId', async (req: Request, res: Response) =>
       workspaceId,
       error: error instanceof Error ? error.message : String(error),
     });
-    sendProblem(res, req, {
-      status: 502,
-      code: 'EDOCS_ERROR',
-      detail: 'Failed to delete workspace.',
-    });
+    return sendEdocsError(req, res, error, 'Failed to delete workspace.');
   }
 });
 

@@ -38,8 +38,30 @@ describe('BoardCard', () => {
     const user = userEvent.setup();
     render(<BoardCard board={board} onOpen={onOpen} />);
 
-    await user.click(screen.getByRole('button', { name: /Openen/ }));
+    await user.click(screen.getByRole('button', { name: 'Openen' }));
 
     expect(onOpen).toHaveBeenCalled();
+  });
+
+  it('offers no Flevoland-account button without onOpenWithEntra', () => {
+    render(<BoardCard board={board} onOpen={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: /Flevoland-account/ })).not.toBeInTheDocument();
+  });
+
+  it('"Flevoland-account" opens the board with Entra ID, named for screen readers', async () => {
+    const onOpen = vi.fn();
+    const onOpenWithEntra = vi.fn();
+    const user = userEvent.setup();
+    render(<BoardCard board={board} onOpen={onOpen} onOpenWithEntra={onOpenWithEntra} />);
+
+    const button = screen.getByRole('button', {
+      name: 'Caseworker Dashboard openen met uw Flevoland-account',
+    });
+    expect(button).toHaveTextContent('Flevoland-account');
+    await user.click(button);
+
+    expect(onOpenWithEntra).toHaveBeenCalled();
+    expect(onOpen).not.toHaveBeenCalled();
   });
 });

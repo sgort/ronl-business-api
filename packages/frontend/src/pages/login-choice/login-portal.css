@@ -473,6 +473,27 @@
   text-decoration: none;
 }
 
+/* Opens the board with the Flevoland account (Entra ID), next to "Openen".
+   margin-left: auto keeps the two together on the right of the meta row. */
+.lcp .entra-link {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--blue);
+  background: #fff;
+  border: 1px solid #ccdafb;
+  border-radius: 6px;
+  padding: 4px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.lcp .entra-link:hover { background: #f0f4ff; border-color: var(--blue); }
+
 .lcp .open-link svg { transition: transform 0.15s ease; }
 .lcp .card:hover .open-link svg { transform: translateX(3px); }
 

@@ -17,7 +17,32 @@ const ArrowRight = () => (
   </svg>
 );
 
-export default function BoardCard({ board, onOpen }: { board: BoardEntry; onOpen: () => void }) {
+const KeyIcon = () => (
+  <svg
+    width="13"
+    height="13"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="7.5" cy="15.5" r="5.5" />
+    <path d="m21 2-9.6 9.6" />
+    <path d="m15.5 7.5 3 3L22 7l-3-3" />
+  </svg>
+);
+
+interface Props {
+  board: BoardEntry;
+  onOpen: () => void;
+  /** Set for boards with an Entra ID role: opens the board with the Flevoland account. */
+  onOpenWithEntra?: () => void;
+}
+
+export default function BoardCard({ board, onOpen, onOpenWithEntra }: Props) {
   return (
     <article className="card">
       <BoardPreview kind={board.preview} />
@@ -30,6 +55,17 @@ export default function BoardCard({ board, onOpen }: { board: BoardEntry; onOpen
             <span className="led" />
             Beschikbaar
           </span>
+          {onOpenWithEntra && (
+            <button
+              type="button"
+              className="entra-link"
+              aria-label={`${board.title} openen met uw Flevoland-account`}
+              onClick={onOpenWithEntra}
+            >
+              <KeyIcon />
+              Flevoland-account
+            </button>
+          )}
           <button type="button" className="open-link" onClick={onOpen}>
             Openen
             <ArrowRight />

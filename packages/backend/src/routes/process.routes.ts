@@ -1,6 +1,7 @@
 import axios from 'axios';
 import express, { type Request, type Response } from 'express';
 import { jwtMiddleware, requireAssuranceLevel } from '@auth/jwt.middleware';
+import { CITIZEN_SERVICE_PROCESS_KEYS, citizenServicesAvailable } from '@auth/citizen-services';
 import { tenantMiddleware, addTenantToProcessVariables } from '@middleware/tenant.middleware';
 import {
   caseReadAllowed,
@@ -10,6 +11,11 @@ import {
   tenantAllows,
 } from '@auth/tenant-access';
 import { operatonService } from '@services/operaton.service';
+import {
+  EDOCS_AUTHOR_VARIABLES,
+  edocsAuthorVariables,
+  withoutEdocsAuthor,
+} from '@services/edocs-author';
 import { createLogger } from '@utils/logger';
 import { sendProblem } from '@utils/problem';
 import { AmbiguousDeploymentError } from '@utils/errors';
@@ -102,12 +108,13 @@ router.post(
         }
       }
 
-      // Tenant rule (#218): the municipality variable is the only tenant label
-      // access checks read, so it must equal the tenant Operaton runs the
+      // Tenant rule (#218, #344): the municipality variable is the only tenant
+      // label access checks read, so it must equal the tenant Operaton runs the
       // instance under. Staff may start only their own tenant's processes; a
-      // citizen's case goes to the deployment's tenant.
+      // citizen's case goes to another tenant only for a cross-tenant citizen
+      // service (Zorgtoeslag), and never to an untenanted deployment.
       const deployedTenant = await operatonService.resolveDeployedTenant(key, req.user.tenantId);
-      const startTenant = resolveStartTenant(req.user, deployedTenant);
+      const startTenant = resolveStartTenant(req.user, deployedTenant, key);
       if (!startTenant.allowed) {
         auditLog(req, `process.start.${key}`, 'failure', {
           reason: 'TENANT_MISMATCH',
@@ -117,6 +124,11 @@ router.post(
       }
       operatonVariables.municipality = { value: startTenant.municipality, type: 'String' };
       operatonVariables.originTenantId = { value: startTenant.originTenantId, type: 'String' };
+
+      // Who acted, for background eDOCS archiving (spec §6): from the token only,
+      // never from the body -- a sent value is dropped, as municipality is.
+      for (const name of EDOCS_AUTHOR_VARIABLES) delete operatonVariables[name];
+      Object.assign(operatonVariables, edocsAuthorVariables(req.user));
 
       // The business key is the case's human-facing handle, so it names the
       // organisation that owns the case (#234). A caller-supplied key is kept:
@@ -199,6 +211,48 @@ router.post(
 /**
  * Routing order - literal single-segment route, always before :param routes first
  */
+
+/**
+ * GET /v1/process/available
+ * The citizen services the signed-in citizen may start (#344), derived from
+ * where each registry process is deployed (see auth/citizen-services.ts).
+ * Citizens only. If Operaton cannot be asked, 503: the dashboard shows an
+ * error rather than every service.
+ */
+router.get('/available', async (req, res) => {
+  if (!req.user) {
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
+  }
+  if (!isCitizen(req.user)) {
+    return sendProblem(res, req, {
+      status: 403,
+      code: 'FORBIDDEN',
+      detail: 'Only citizens have citizen services',
+    });
+  }
+
+  try {
+    const deployments = await operatonService.getLatestProcessDeployments(
+      CITIZEN_SERVICE_PROCESS_KEYS
+    );
+    const services = citizenServicesAvailable(deployments, req.user.tenantId);
+    res.json({ success: true, data: { services } });
+  } catch (error) {
+    logger.error('Failed to determine available citizen services', {
+      tenantId: req.user.tenantId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    sendProblem(res, req, {
+      status: 503,
+      code: 'SERVICES_UNAVAILABLE',
+      detail: 'The available services could not be determined',
+    });
+  }
+});
 
 /**
  * GET /v1/process/history?applicantId=xxx
@@ -295,11 +349,12 @@ router.get('/:id/status', async (req, res) => {
   try {
     const processInstance = await operatonService.getProcessInstance(id);
 
-    // The owning tenant, or the applicant themselves (#229)
-    const variables = await operatonService.getProcessVariables(id);
-    const processTenant = variables.municipality?.value;
+    // The owning tenant, or the applicant themselves (#229). The access read,
+    // which never deserialises (see getAccessVariables).
+    const access = await operatonService.getAccessVariables(id);
+    const processTenant = access.municipality;
 
-    if (!caseReadAllowed(req.user, processTenant, variables.applicantId?.value)) {
+    if (!caseReadAllowed(req.user, processTenant, access.applicantId)) {
       return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
@@ -349,18 +404,21 @@ router.get('/:id/variables', async (req, res) => {
   }
 
   try {
-    const variables = await operatonService.getProcessVariables(id);
+    // The owning tenant, or the applicant themselves (#229). Checked with the
+    // access read, which never deserialises (see getAccessVariables); every
+    // variable is read only once access is settled, because these are returned.
+    const access = await operatonService.getAccessVariables(id);
+    const processTenant = access.municipality;
 
-    // The owning tenant, or the applicant themselves (#229)
-    const processTenant = variables.municipality?.value;
-
-    if (!caseReadAllowed(req.user, processTenant, variables.applicantId?.value)) {
+    if (!caseReadAllowed(req.user, processTenant, access.applicantId)) {
       return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
-    // Extract plain values
+    const variables = await operatonService.getProcessVariables(id);
+
+    // Extract plain values; the eDOCS author is the backend's own (spec §6)
     const plainVariables: Record<string, unknown> = {};
-    for (const [key, variable] of Object.entries(variables)) {
+    for (const [key, variable] of Object.entries(withoutEdocsAuthor(variables))) {
       plainVariables[key] = variable.value;
     }
 
@@ -408,7 +466,7 @@ router.get('/:id/historic-variables', async (req, res) => {
       return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
-    res.json({ success: true, data: variables });
+    res.json({ success: true, data: withoutEdocsAuthor(variables) });
   } catch (error) {
     logger.error('Failed to get historic variables', {
       processInstanceId: id,
@@ -743,9 +801,8 @@ router.delete('/:id', async (req, res) => {
   }
 
   try {
-    // Verify tenant ownership first
-    const variables = await operatonService.getProcessVariables(id);
-    const processTenant = variables.municipality?.value;
+    // Verify tenant ownership first, with the access read (see getAccessVariables)
+    const { municipality: processTenant } = await operatonService.getAccessVariables(id);
 
     if (!tenantAllows(req.user, processTenant)) {
       return denyTenant(req, res, { processInstanceId: id, processTenant });

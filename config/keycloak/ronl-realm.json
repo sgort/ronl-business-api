@@ -270,7 +270,7 @@
       "description": "Machine-to-machine client for MCP-based Operaton interaction via the RONL Business API",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
-      "secret": "change-me-in-keycloak-console",
+      "secret": "JwdJQcPDCtbkqPeggujXeWVYJr4W1UlZ",
       "protocol": "openid-connect",
       "publicClient": false,
       "standardFlowEnabled": false,
@@ -625,6 +625,50 @@
         "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-002"]
+      },
+      "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-citizen-heusden",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Heusdenaar",
+      "email": "test@heusden.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["heusden"],
+        "organisation_type": ["municipality"],
+        "assurance_level": ["hoog"],
+        "opaque_id": ["opaque-citizen-009"]
+      },
+      "realmRoles": ["citizen"]
+    },
+    {
+      "username": "test-caseworker-heusden",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Medewerker Heusden",
+      "email": "medewerker@heusden.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["heusden"],
+        "organisation_type": ["municipality"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-009"]
       },
       "realmRoles": ["caseworker"]
     },
@@ -1078,6 +1122,28 @@
         "opaque_id": ["opaque-citizen-008"]
       },
       "realmRoles": ["citizen"]
+    },
+    {
+      "username": "test-caseworker-unive",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Medewerker Univé",
+      "email": "medewerker@unive.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["unive"],
+        "organisation_type": ["commercial"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-008"]
+      },
+      "realmRoles": ["caseworker"]
     },
     {
       "username": "test-pa-flevoland",

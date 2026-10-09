@@ -3,6 +3,7 @@
  * connection guards and system prompt. MCP SDK mocked; mock client injected.
  */
 
+const mockWarn = jest.fn();
 const mockClientCtor = jest.fn();
 const mockTransportCtor = jest.fn();
 jest.mock('@modelcontextprotocol/sdk/client/index.js', () => ({ Client: mockClientCtor }));
@@ -17,7 +18,7 @@ jest.mock('@utils/config', () => ({
   },
 }));
 jest.mock('@utils/logger', () => ({
-  createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
+  createLogger: () => ({ info: jest.fn(), warn: mockWarn, error: jest.fn(), debug: jest.fn() }),
 }));
 
 import { EdocsMcpProvider } from './EdocsMcpProvider';
@@ -98,6 +99,47 @@ describe('EdocsMcpProvider', () => {
     const result = { content: [{ type: 'text', text: 'ok' }] };
     inject(p, { callTool: jest.fn().mockResolvedValue(result) });
     await expect(p.callTool('workspace_list', {})).resolves.toBe(result);
+  });
+
+  it('sends the caller’s token in _meta, never in the tool arguments', async () => {
+    const p = new EdocsMcpProvider();
+    const callTool = jest.fn().mockResolvedValue({ content: [] });
+    inject(p, { callTool });
+    await p.callTool('workspace_list', { a: 1 }, { userToken: 'kc-a' });
+    expect(callTool).toHaveBeenCalledWith({
+      name: 'workspace_list',
+      arguments: { a: 1 },
+      _meta: { userToken: 'kc-a' },
+    });
+  });
+
+  it('declares that it acts as the person, so the registry passes it the caller', () => {
+    expect(new EdocsMcpProvider().meta.actsAsPerson).toBe(true);
+  });
+
+  it('sends no _meta without a caller', async () => {
+    const p = new EdocsMcpProvider();
+    const callTool = jest.fn().mockResolvedValue({ content: [] });
+    inject(p, { callTool });
+    await p.callTool('workspace_list', {});
+    expect(callTool).toHaveBeenCalledWith({ name: 'workspace_list', arguments: {} });
+  });
+
+  it('warns when a call has no caller, because it then runs as the service account', async () => {
+    const p = new EdocsMcpProvider();
+    inject(p, { callTool: jest.fn().mockResolvedValue({ content: [] }) });
+    await p.callTool('workspace_list', {});
+    expect(mockWarn).toHaveBeenCalledWith(
+      expect.stringContaining('service account'),
+      expect.objectContaining({ tool: 'workspace_list' })
+    );
+  });
+
+  it('does not warn when the call is made for a person', async () => {
+    const p = new EdocsMcpProvider();
+    inject(p, { callTool: jest.fn().mockResolvedValue({ content: [] }) });
+    await p.callTool('workspace_list', {}, { userToken: 'kc-a' });
+    expect(mockWarn).not.toHaveBeenCalled();
   });
 
   it('throws when not connected', async () => {

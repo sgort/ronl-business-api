@@ -46,5 +46,13 @@
   "RipR61Process.bpmn": {
     "source": "examples/organizations/flevoland/rip-phase-61/RipR61Process.bpmn",
     "sha256": "ab3f09938a9bf40915cfe7910c056717efc337864e91b9bf0f878258c0fc8645"
+  },
+  "GedelegeerdBesluitProcess.bpmn": {
+    "source": "packages/frontend/public/examples/flevoland/besluitvorming-gedelegeerd/GedelegeerdBesluitProcess.bpmn",
+    "sha256": "8c378b73ee058a6cfd85c8cf50fd2a044bb49a73371891e3700ec1b58bcc24b3"
+  },
+  "ManagementCapacityClaimProcess.bpmn": {
+    "source": "examples/organizations/flevoland/HR-capacity/ManagementCapacityClaimProcess.bpmn",
+    "sha256": "608ff4f5030269e30fc30a26c7eb4b9a9aae994e12bed83ee9074d5768316366"
   }
 }

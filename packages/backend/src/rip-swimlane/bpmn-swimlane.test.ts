@@ -197,6 +197,53 @@ describe('parseSwimlane — defensive parsing', () => {
   });
 });
 
+describe('parseSwimlane — character references in names', () => {
+  // bpmn-js, and so LDE's Modeler, writes `&` and a line break as numeric
+  // references (`&#38;`, `&#10;`). fast-xml-parser decodes the named ones
+  // (`&amp;`) by default but left numeric ones as text, so ACC showed the lane
+  // "Registratie &#38; Beheer" and every RIP task carried a literal "&#10;"
+  // (#312 item 2).
+  const ENTITY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Entities">
+  <bpmn:process id="EntityProcess">
+    <bpmn:laneSet id="LaneSet_Entities">
+      <bpmn:lane id="Lane_Numeric" name="Registratie &#38; Beheer">
+        <bpmn:flowNodeRef>Task_1</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Named" name="Juridisch &amp; &lt;Compliance&gt;">
+        <bpmn:flowNodeRef>Task_2</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:userTask id="Task_1" name="Aanleveren Projectplan&#10;1. Intake-formulier" />
+    <bpmn:userTask id="Task_2" name="Toets &#60;wettelijk&#62; &#x26; inhoudelijk" />
+  </bpmn:process>
+</bpmn:definitions>`;
+
+  it('decodes numeric and named references in lane names', () => {
+    expect(parseSwimlane(ENTITY_BPMN, 'X.1').lanes.map((l) => l.label)).toEqual([
+      'Registratie & Beheer',
+      'Juridisch & <Compliance>',
+    ]);
+  });
+
+  it('decodes numeric references, decimal and hex, in task names', () => {
+    const labels = parseSwimlane(ENTITY_BPMN, 'X.1').nodes.map((n) => n.label);
+    expect(labels).toContain('Aanleveren Projectplan\n1. Intake-formulier');
+    expect(labels).toContain('Toets <wettelijk> & inhoudelijk');
+  });
+
+  it('leaves no character reference in any label of the RIP fixtures', () => {
+    const leftover = ALL.flatMap(([code, key]) => {
+      const model = parseSwimlane(xml(key), code);
+      return [...model.lanes, ...model.nodes]
+        .map((x) => x.label)
+        .filter((label) => /&#?\w+;/.test(label))
+        .map((label) => `${key}: ${label}`);
+    });
+    expect(leftover).toEqual([]);
+  });
+});
+
 describe('parseSwimlane — edges and layering', () => {
   it.each(ALL)('%s reads sequence flows', (code, key) => {
     expect(parseSwimlane(xml(key), code).edges.length).toBeGreaterThan(0);
@@ -913,7 +960,7 @@ describe('parseSwimlane — phase set', () => {
 // twelve RIP phases.
 describe('parseSwimlane — HR capacity claim, declared phases', () => {
   const key = 'ManagementCapacityClaimProcess';
-  const m = parseSwimlane(readFileSync(join(FIXTURES, 'declared', `${key}.nl.bpmn`), 'utf-8'), key);
+  const m = parseSwimlane(readFileSync(join(FIXTURES, 'declared', `${key}.bpmn`), 'utf-8'), key);
 
   it('reads the eight phases the process declares, numbered under "Fase"', () => {
     expect(m.phaseSet?.scheme).toBe('bpmn');

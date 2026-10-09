@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import {
   applyTenantTheme,
   getDefaultTenantConfig,
   getTenantConfig,
   initializeTenantTheme,
   loadTenantConfigs,
+  RESERVED_TENANT_IDS,
+  resolveLandingTenant,
   type TenantConfig,
 } from './tenant';
 
@@ -21,7 +25,6 @@ const utrechtConfig: TenantConfig = {
     secondary: '#333333',
     accent: '#444444',
   },
-  features: { zorgtoeslag: true, vergunningen: true, subsidies: true, meldingen: true, dvtp: true },
   contact: {
     phone: '030',
     email: 'info@utrecht.nl',
@@ -122,6 +125,110 @@ describe('tenant service', () => {
     });
   });
 
+  describe('resolveLandingTenant', () => {
+    const single = (id: string, extra: Partial<TenantConfig> = {}): TenantConfig => ({
+      ...utrechtConfig,
+      id,
+      boards: ['caseworker'],
+      ...extra,
+    });
+
+    beforeEach(async () => {
+      mockFetchOnce({
+        tenants: {
+          utrecht: utrechtConfig,
+          amsterdam: single('amsterdam'),
+          'den-bosch': single('den-bosch'),
+          oldtown: single('oldtown', { enabled: false }),
+          multi: single('multi', { boards: ['caseworker', 'woo'] }),
+          auth: single('auth'),
+        },
+        default: 'utrecht',
+      });
+      await loadTenantConfigs();
+    });
+
+    describe('/<id>', () => {
+      it('resolves a single-board tenant', () => {
+        const r = resolveLandingTenant('/amsterdam', '');
+        expect(r).toEqual({ kind: 'single', tenant: expect.objectContaining({ id: 'amsterdam' }) });
+      });
+
+      it('accepts a trailing slash and ids with a hyphen', () => {
+        expect(resolveLandingTenant('/amsterdam/', '').kind).toBe('single');
+        expect(resolveLandingTenant('/den-bosch', '').kind).toBe('single');
+      });
+
+      it('wins over ?tenant=', () => {
+        const r = resolveLandingTenant('/amsterdam', '?tenant=den-bosch');
+        expect(r).toEqual({ kind: 'single', tenant: expect.objectContaining({ id: 'amsterdam' }) });
+      });
+
+      it('redirects a mixed-case id to its lower-case path', () => {
+        expect(resolveLandingTenant('/Amsterdam', '')).toEqual({
+          kind: 'redirect',
+          to: '/amsterdam',
+        });
+      });
+
+      it.each([
+        ['an unknown tenant', '/nowhere'],
+        ['a disabled tenant', '/oldtown'],
+        ['a tenant with several boards', '/multi'],
+        ['the default tenant', '/utrecht'],
+        ['a reserved id, even when tenants.json lists it', '/auth'],
+        ['an inherited object key', '/constructor'],
+        ['__proto__', '/__proto__'],
+        ['an id that breaks the pattern', '/a'],
+        ['an undecodable segment', '/%E0%A4%A'],
+      ])('sends %s to /', (_label, path) => {
+        expect(resolveLandingTenant(path, '')).toEqual({ kind: 'redirect', to: '/' });
+      });
+    });
+
+    describe('legacy ?tenant=', () => {
+      it('redirects a single-board tenant to /<id>', () => {
+        expect(resolveLandingTenant('/', '?tenant=amsterdam')).toEqual({
+          kind: 'redirect',
+          to: '/amsterdam',
+        });
+      });
+
+      it('lower-cases the id', () => {
+        expect(resolveLandingTenant('/', '?tenant=AMSTERDAM')).toEqual({
+          kind: 'redirect',
+          to: '/amsterdam',
+        });
+      });
+
+      it.each([
+        ['an unknown tenant', '?tenant=nowhere'],
+        ['a disabled tenant', '?tenant=oldtown'],
+        ['a tenant with several boards', '?tenant=multi'],
+        ['an inherited object key', '?tenant=constructor'],
+        ['__proto__', '?tenant=__proto__'],
+      ])('shows the default grid for %s', (_label, search) => {
+        expect(resolveLandingTenant('/', search)).toEqual({
+          kind: 'grid',
+          tenant: expect.objectContaining({ id: 'utrecht' }),
+        });
+      });
+    });
+
+    it('shows the default grid on /', () => {
+      expect(resolveLandingTenant('/', '')).toEqual({
+        kind: 'grid',
+        tenant: expect.objectContaining({ id: 'utrecht' }),
+      });
+    });
+
+    it('reserves the paths the app and the static host already use', () => {
+      for (const id of ['auth', 'dashboard', 'assets', 'tenants', 'api', 't']) {
+        expect(RESERVED_TENANT_IDS).toContain(id);
+      }
+    });
+  });
+
   describe('applyTenantTheme', () => {
     it('sets the CSS custom properties on the document root', () => {
       applyTenantTheme(utrechtConfig.theme);
@@ -136,6 +243,47 @@ describe('tenant service', () => {
       );
       expect(root.style.getPropertyValue('--color-secondary')).toBe(utrechtConfig.theme.secondary);
       expect(root.style.getPropertyValue('--color-accent')).toBe(utrechtConfig.theme.accent);
+    });
+
+    it('sets the page background when the theme has one', () => {
+      applyTenantTheme({ ...utrechtConfig.theme, background: '#eef1ee' });
+
+      expect(document.documentElement.style.getPropertyValue('--color-background')).toBe('#eef1ee');
+    });
+
+    it('removes a previous tenant’s background when the theme has none', () => {
+      applyTenantTheme({ ...utrechtConfig.theme, background: '#eef1ee' });
+      applyTenantTheme(utrechtConfig.theme);
+
+      expect(document.documentElement.style.getPropertyValue('--color-background')).toBe('');
+    });
+  });
+
+  // The real tenants.json, so a typo in Heusden's entry fails here rather than
+  // on the deployed page.
+  describe('the real tenants.json', () => {
+    beforeEach(async () => {
+      const real = JSON.parse(
+        readFileSync(resolve(__dirname, '../../public/tenants.json'), 'utf-8')
+      );
+      mockFetchOnce(real);
+      await loadTenantConfigs();
+    });
+
+    it('gives Heusden its own single-board page at /heusden', () => {
+      expect(resolveLandingTenant('/heusden', '')).toEqual({
+        kind: 'single',
+        tenant: expect.objectContaining({ id: 'heusden', displayName: 'Gemeente Heusden' }),
+      });
+    });
+
+    it('sends /Heusden to /heusden', () => {
+      expect(resolveLandingTenant('/Heusden', '')).toEqual({ kind: 'redirect', to: '/heusden' });
+    });
+
+    it('gives Heusden a page background, and Amsterdam none', () => {
+      expect(getTenantConfig('heusden')?.theme.background).toBe('#eef1ee');
+      expect(getTenantConfig('amsterdam')?.theme.background).toBeUndefined();
     });
   });
 

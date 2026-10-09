@@ -16,6 +16,18 @@ export interface McpProviderMeta {
   displayName: string;
   /** Short description shown as tooltip/helper text in the UI */
   description: string;
+  /**
+   * The provider acts as the caller (their own token) rather than as a service.
+   * Only such a provider receives the McpCallContext; every other one gets the
+   * two-argument call, so it can never forward the caller's token (#326).
+   */
+  actsAsPerson?: boolean;
+}
+
+/** Who a tool call is made for. Never part of the tool arguments the model sees. */
+export interface McpCallContext {
+  /** The caller's raw Keycloak access token — only for providers that act as the person. */
+  userToken?: string;
 }
 
 export interface McpProvider {
@@ -24,7 +36,11 @@ export interface McpProvider {
   disconnect(): Promise<void>;
   /** Returns the curated, allowed tool definitions for this provider */
   getToolDefinitions(): Promise<ToolDefinition[]>;
-  callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult>;
+  callTool(
+    name: string,
+    args: Record<string, unknown>,
+    context?: McpCallContext
+  ): Promise<McpToolResult>;
   isConnected(): boolean;
   /** Contributes a block to the shared system prompt describing this provider's capabilities */
   systemPromptContribution(): string;

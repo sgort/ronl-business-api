@@ -366,10 +366,25 @@ ICTU recommendation 10 asks for SBOMs of released versions, kept analysable:
 when an advisory lands against something that shipped months ago, the question
 is what that version contained, and only a document written at the time can
 answer it. `.github/workflows/sbom.yml` uploads the same document as an
-artifact on the promotion, and checks there that the committed copy matches
-the lockfile — a stale file fails the promotion rather than quietly
-misdescribing what shipped. Artifacts expire after 90 days on a public
+artifact on the promotion. Artifacts expire after 90 days on a public
 repository; the committed copy is the durable one.
+
+**The strict check is yours, here, and again on the pull request.** Confirm the
+file describes the lockfile it will ship with:
+
+```bash
+npm run sbom:check
+```
+
+Run it after `npm run sbom`, and again after anything that can move the
+lockfile before the commit: a rebase, a late dependency merge, a manual
+`npm install`. It exits 1 on a missing or stale file; the fix is
+`npm run sbom`. `sbom.yml` runs the same check on the release pull request,
+the one that changes this version's file, and re-runs it on every push to
+that pull request. On the promotion it only asserts the file exists: a
+promotion carries commits merged after the release, so drift there is a
+warning, not a failure. Until sgort/linked-data-explorer#255 nothing ran the
+strict check at all, and this paragraph claimed the promotion did.
 
 The previous release's file stays where it is. One document per released
 version is the point.

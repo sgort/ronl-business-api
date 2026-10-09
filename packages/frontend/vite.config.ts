@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import tenantPages from './vite-plugin-tenant-pages';
 
 // The released version of this build. bump-release writes it to package.json,
 // so it changes exactly when a release ships — which is what the mock demo
@@ -12,7 +13,9 @@ const pkgVersion = (createRequire(import.meta.url)('./package.json') as { versio
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  // tenantPages writes dist/<id>/index.html with each single-board tenant's
+  // link preview; see vite-plugin-tenant-pages.ts.
+  plugins: [react(), tenantPages()],
   define: {
     __APP_VERSION__: JSON.stringify(pkgVersion),
   },

@@ -82,6 +82,60 @@ describe('passthrough queries', () => {
     expect(mockClient.get).toHaveBeenCalledWith('/process-instance/pi/variables');
   });
 
+  // A deserialising read can write an object variable back (ENGINE-03005 on
+  // ACC, when a claim's tenant check and the task pane read one instance at
+  // once). The access check needs two strings and must never write.
+  it('getLatestProcessDeployments asks for the latest version per tenant of the given keys', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [
+        { id: 'a:1', key: 'AwbShellProcess', tenantId: 'flevoland', version: 11 },
+        { id: 'b:1', key: 'AwbZorgtoeslagProcess', tenantId: null, version: 2 },
+      ],
+    });
+
+    await expect(
+      svc.getLatestProcessDeployments(['AwbShellProcess', 'AwbZorgtoeslagProcess'])
+    ).resolves.toEqual([
+      { key: 'AwbShellProcess', tenantId: 'flevoland' },
+      { key: 'AwbZorgtoeslagProcess', tenantId: null },
+    ]);
+    expect(mockClient.get).toHaveBeenCalledWith('/process-definition', {
+      params: { keysIn: 'AwbShellProcess,AwbZorgtoeslagProcess', latestVersion: true },
+    });
+  });
+
+  it('getLatestProcessDeployments rethrows, so the caller can answer 503', async () => {
+    mockClient.get.mockRejectedValueOnce(new Error('down'));
+    await expect(svc.getLatestProcessDeployments(['AwbShellProcess'])).rejects.toThrow('down');
+  });
+
+  it('getAccessVariables reads municipality and applicantId without deserialising', async () => {
+    mockClient.get.mockResolvedValue({
+      data: {
+        municipality: { value: 'heusden', type: 'String' },
+        applicantId: { value: 'u-1', type: 'String' },
+        svbResult: { value: 'rO0ABXNy...', type: 'Object' },
+      },
+    });
+
+    await expect(svc.getAccessVariables('pi')).resolves.toEqual({
+      municipality: 'heusden',
+      applicantId: 'u-1',
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/process-instance/pi/variables', {
+      params: { deserializeValues: false },
+    });
+  });
+
+  it('getAccessVariables leaves out what the instance does not have', async () => {
+    mockClient.get.mockResolvedValue({ data: {} });
+
+    await expect(svc.getAccessVariables('pi')).resolves.toEqual({
+      municipality: undefined,
+      applicantId: undefined,
+    });
+  });
+
   it('getTask GETs /task/:id', async () => {
     mockClient.get.mockResolvedValue({ data: { id: 't1' } });
     await expect(svc.getTask('t1')).resolves.toEqual({ id: 't1' });
@@ -596,8 +650,18 @@ describe('getProcessHistory', () => {
         { name: 'applicantId', operator: 'eq', value: 'app-1' },
         { name: 'municipality', operator: 'eq', value: 'flevoland' },
       ],
+      rootProcessInstances: true,
       sorting: [{ sortBy: 'startTime', sortOrder: 'desc' }],
     });
+  });
+
+  // A called sub-process inherits applicantId (camunda:in variables="all"), so
+  // without this a Thuisbatterij or Heusdenpas application listed twice: once
+  // as itself and once as its decision sub-process.
+  it('lists only root instances, not the sub-processes an application calls', async () => {
+    mockClient.post.mockResolvedValue({ data: [] });
+    await svc.getProcessHistory('app-1', 'flevoland');
+    expect(mockClient.post.mock.calls[0][1].rootProcessInstances).toBe(true);
   });
 
   it('filters only by applicantId for citizens', async () => {
@@ -684,6 +748,19 @@ describe('getTaskVariables', () => {
     await expect(svc.getTaskVariables('t1')).resolves.toEqual({ amount: 42, name: 'Bob' });
     expect(mockClient.get).toHaveBeenNthCalledWith(1, '/task/t1');
     expect(mockClient.get).toHaveBeenNthCalledWith(2, '/process-instance/pi-9/variables');
+  });
+
+  it('can read them without deserialising, for callers that need only strings', async () => {
+    mockClient.get
+      .mockResolvedValueOnce({ data: { id: 't1', processInstanceId: 'pi-9' } })
+      .mockResolvedValueOnce({ data: { municipality: { value: 'heusden', type: 'String' } } });
+
+    await expect(svc.getTaskVariables('t1', { deserializeValues: false })).resolves.toEqual({
+      municipality: 'heusden',
+    });
+    expect(mockClient.get).toHaveBeenNthCalledWith(2, '/process-instance/pi-9/variables', {
+      params: { deserializeValues: false },
+    });
   });
 });
 
@@ -1529,6 +1606,34 @@ describe('findInstanceByValidsignPackage', () => {
     });
   });
 
+  it('reads the employee who acted as the author', async () => {
+    routeGet([
+      ['/process-instance', { data: [{ id: 'pi-1' }] }],
+      [
+        /\/process-instance\/pi-1\/variables$/,
+        {
+          data: {
+            edocsAuthor: { value: 'a@flevoland.nl', type: 'String' },
+            edocsAuthorName: { value: 'An Example', type: 'String' },
+          },
+        },
+      ],
+      ['/task', { data: [{ id: 'task-1' }] }],
+    ]);
+    const result = await svc.findInstanceByValidsignPackage('pkg-1');
+    expect(result?.author).toEqual({ email: 'a@flevoland.nl', name: 'An Example' });
+  });
+
+  it('has no author when the instance names none', async () => {
+    routeGet([
+      ['/process-instance', { data: [{ id: 'pi-1' }] }],
+      [/\/process-instance\/pi-1\/variables$/, { data: {} }],
+      ['/task', { data: [{ id: 'task-1' }] }],
+    ]);
+    const result = await svc.findInstanceByValidsignPackage('pkg-1');
+    expect(result?.author).toBeUndefined();
+  });
+
   it('returns null when no running instance carries that package id', async () => {
     routeGet([['/process-instance', { data: [] }]]);
     expect(await svc.findInstanceByValidsignPackage('pkg-missing')).toBeNull();
@@ -1962,6 +2067,8 @@ describe('failures that are not Error instances', () => {
     ['getDeployedProcessKeys', () => svc.getDeployedProcessKeys(['K'], 'flevoland')],
     ['getProcessInstance', () => svc.getProcessInstance('pi-1')],
     ['getProcessVariables', () => svc.getProcessVariables('pi-1')],
+    ['getAccessVariables', () => svc.getAccessVariables('pi-1')],
+    ['getLatestProcessDeployments', () => svc.getLatestProcessDeployments(['K'])],
     ['getActivityHistory', () => svc.getActivityHistory('pi-1')],
     ['deleteProcessInstance', () => svc.deleteProcessInstance('pi-1', 'reason')],
     ['getProcessHistory', () => svc.getProcessHistory('applicant-1', 'flevoland')],

@@ -69,6 +69,15 @@
 #   SKIP_LOCAL_PROBE=1                     # skip pre-flight (local .env ≠ target)
 #   NODE_ENV=development                   # which .env the pre-flight loads
 #   EDOCS_PORTAL_URL=https://<host>/infocenter   # printed as a browsable link in the closing summary
+#   SMOKE_USER=test-caseworker-flevoland   # a Keycloak person WITHOUT an Entra token (section 1b);
+#   SMOKE_PASSWORD=…                        # on local, from SMOKE_TEST_PASSWORD in .env.<NODE_ENV>
+#   USER_CLIENT_ID=ronl-business-api        # public client for that password grant
+#   EXPECT_FALLBACK=false                   # true when the backend runs EDOCS_ALLOW_SERVICE_FALLBACK=true
+#   PERSON_TOKEN=<Keycloak access token>    # optional: a person signed in with the Flevoland
+#                                           # button (DevTools → Network → any /v1 request →
+#                                           # Authorization header, without "Bearer "). Enables 1c.
+#                                           # scripts/test-edocs-person.sh live takes it from
+#                                           # the clipboard and runs this script with it.
 #
 # NOTE: a successful run creates two REAL standalone documents in eDOCS (one
 # per route) and downloads each back to verify the round-trip. Neither is
@@ -219,6 +228,7 @@ ERRORS=()
 
 pass() { echo "  ✓ $1"; ((PASS++)); }
 fail() { echo "  ✗ $1"; ERRORS+=("$1"); ((FAIL++)); }
+skip() { echo "  ~ $1"; }
 
 check_status() {
   local label="$1" actual="$2" expected="$3"
@@ -344,6 +354,93 @@ if [[ "$STATUS_CODE" != "200" ]] || \
   echo ""
   echo "  Results: $PASS passed, $FAIL failed"
   exit 1
+fi
+
+# ─── 1b. A person without an Entra token (Keycloak test account) ──────────────
+# The spec's rule: a person never silently becomes the service account. With the
+# fallback off they are refused on data routes; with it on they act as the
+# service and the response says so.
+echo ""
+echo "── 1b. Person without an Entra token (${SMOKE_USER:-test-caseworker-flevoland}) ──"
+SMOKE_USER="${SMOKE_USER:-test-caseworker-flevoland}"
+USER_CLIENT_ID="${USER_CLIENT_ID:-ronl-business-api}"
+if [[ -z "${SMOKE_PASSWORD:-}" && -f "$ENV_FILE" && "$BASE_URL" =~ ^https?://(localhost|127\.0\.0\.1) ]]; then
+  SMOKE_PASSWORD="$(read_env_var SMOKE_TEST_PASSWORD "$ENV_FILE")"
+fi
+if [[ -z "${SMOKE_PASSWORD:-}" ]]; then
+  skip "1b — no SMOKE_PASSWORD"
+else
+  USER_TOKEN=$(curl -s -X POST "${KEYCLOAK_URL}/realms/ronl/protocol/openid-connect/token" \
+    -d grant_type=password -d "client_id=${USER_CLIENT_ID}" \
+    --data-urlencode "username=${SMOKE_USER}" --data-urlencode "password=${SMOKE_PASSWORD}" \
+    | jq -r '.access_token // empty' | tr -d '\r')
+  if [[ -z "$USER_TOKEN" ]]; then
+    fail "1b — no token for ${SMOKE_USER} (password grant)"
+  else
+    U_CODE=$(curl -s -o /tmp/edocs_1b.json -w '%{http_code}' "${BASE_URL}/v1/edocs/workspaces" \
+      -H "Authorization: Bearer ${USER_TOKEN}")
+    if [[ "${EXPECT_FALLBACK:-false}" == "true" ]]; then
+      check_status "GET /v1/edocs/workspaces as ${SMOKE_USER} (fallback on)" "$U_CODE" "200"
+      check_field "acts as the service, visibly" "$(cat /tmp/edocs_1b.json)" '.actingAs' 'service'
+    else
+      check_status "GET /v1/edocs/workspaces as ${SMOKE_USER} (fallback off)" "$U_CODE" "403"
+      check_field "refused for want of an Entra token" "$(cat /tmp/edocs_1b.json)" '.code' 'EDOCS_USER_TOKEN_UNAVAILABLE'
+    fi
+    S_CODE=$(curl -s -o /tmp/edocs_1b_status.json -w '%{http_code}' "${BASE_URL}/v1/edocs/status" \
+      -H "Authorization: Bearer ${USER_TOKEN}")
+    check_status "GET /v1/edocs/status as ${SMOKE_USER}" "$S_CODE" "200"
+    check_field "status says the person has no eDOCS identity" "$(cat /tmp/edocs_1b_status.json)" '.data.user.available' 'false'
+  fi
+fi
+
+# ─── 1c. A person signed in with the Flevoland button (optional) ──────────────
+echo ""
+echo "── 1c. Person with an Entra token (PERSON_TOKEN) ──"
+if [[ -z "${PERSON_TOKEN:-}" ]]; then
+  skip "1c — no PERSON_TOKEN (see the header for how to copy one)"
+else
+  P_CODE=$(curl -s -o /tmp/edocs_1c_status.json -w '%{http_code}' "${BASE_URL}/v1/edocs/status" \
+    -H "Authorization: Bearer ${PERSON_TOKEN}")
+  check_status "GET /v1/edocs/status as the person" "$P_CODE" "200"
+  check_field "eDOCS knows the person" "$(cat /tmp/edocs_1c_status.json)" '.data.user.authenticated' 'true'
+  echo "  · eDOCS user: $(jq -r '.data.user.edocsUserId // "?"' /tmp/edocs_1c_status.json)"
+  W_CODE=$(curl -s -o /tmp/edocs_1c.json -w '%{http_code}' "${BASE_URL}/v1/edocs/workspaces" \
+    -H "Authorization: Bearer ${PERSON_TOKEN}")
+  check_status "GET /v1/edocs/workspaces as the person" "$W_CODE" "200"
+  check_field "acts as the person" "$(cat /tmp/edocs_1c.json)" '.actingAs' 'user'
+
+  # A person's own write names them as author, never the service account (#338):
+  # eDOCS lets an account record only itself as AUTHOR_ID. The cleanup is
+  # best-effort: the Flevoland library only queues a document for deletion (in
+  # InfoCenter), and the API's delete answers 502, so a refusal is a skip.
+  P_USER_ID=$(jq -r '.data.user.edocsUserId // empty' /tmp/edocs_1c_status.json)
+  P_B64=$(printf 'eDOCS CLI person author check %s' "$(date -u +%FT%TZ)" | base64 | tr -d '\n')
+  PU_CODE=$(curl -s -o /tmp/edocs_1c_upload.json -w '%{http_code}' \
+    -X POST "${BASE_URL}/v1/edocs/documents" -H "Authorization: Bearer ${PERSON_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{\"filename\":\"person-author-check.txt\",\"contentBase64\":\"${P_B64}\",\"metadata\":{\"docName\":\"eDOCS CLI person author check\",\"department\":\"${EDOCS_DEPARTMENT}\"}}")
+  check_status "POST /v1/edocs/documents as the person" "$PU_CODE" "200"
+  P_DOC_ID=$(jq -r '.data.documentId // empty' /tmp/edocs_1c_upload.json)
+  if [[ -n "$P_DOC_ID" ]]; then
+    check_field "uploads as the person" "$(cat /tmp/edocs_1c_upload.json)" '.actingAs' 'user'
+    PP_CODE=$(curl -s -o /tmp/edocs_1c_profile.json -w '%{http_code}' \
+      "${BASE_URL}/v1/edocs/documents/${P_DOC_ID}/profile" -H "Authorization: Bearer ${PERSON_TOKEN}")
+    check_status "GET the person's document profile" "$PP_CODE" "200"
+    # Wherever the profile nests it: the first string AUTHOR_ID.
+    P_AUTHOR=$(jq -r '[.. | objects | .AUTHOR_ID? | strings] | first // empty' /tmp/edocs_1c_profile.json)
+    if [[ -n "$P_USER_ID" && "$P_AUTHOR" == "$P_USER_ID" ]]; then
+      pass "the person is the author (AUTHOR_ID = $P_AUTHOR)"
+    else
+      fail "AUTHOR_ID is '${P_AUTHOR}', expected the person ('${P_USER_ID}')"
+    fi
+    PD_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE \
+      "${BASE_URL}/v1/edocs/documents/${P_DOC_ID}" -H "Authorization: Bearer ${PERSON_TOKEN}")
+    if [[ "$PD_CODE" == "200" ]]; then
+      pass "deleted the person's document again (cleanup)"
+    else
+      skip "cleanup: eDOCS did not delete ${P_DOC_ID} (HTTP ${PD_CODE}); queue it for deletion in InfoCenter"
+    fi
+  fi
 fi
 
 # ─── 2. List workspaces (view-only — no create/delete, see header) ────────────

@@ -1,16 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import keycloak, { getUser } from '../services/keycloak';
+import { landingUrl } from '../services/landing';
+import { HEUSDENPAS_TEST_CASES } from './citizen/heusdenpasTestCases';
 import { businessApi } from '../services/api';
-import type { KeycloakUser, OperatonVariable } from '@ronl/shared';
+import type { CitizenServiceId, KeycloakUser, OperatonVariable } from '@ronl/shared';
 import type { ApiResponse } from '@ronl/shared';
 import { initializeTenantTheme, loadTenantConfigs, getTenantConfig } from '../services/tenant';
 import type { TenantConfig } from '../services/tenant';
 import ProcessStartFormViewer, { type StartFailure } from '../components/ProcessStartFormViewer';
 import StartFailureNotice from '../components/StartFailureNotice';
 import DecisionViewer from '../components/DecisionViewer';
-import DvtpStartSection from '../components/CaseworkerDashboard/DvtpStartSection';
-import DvtpTakenSection from '../components/CaseworkerDashboard/DvtpTakenSection';
+import { CITIZEN_SERVICE_UI } from './citizen/citizenServiceUi';
 
 import { Timeline } from '../components/TimeLine';
 import { PersonalDataPanel } from '../components/PersonalDataPanel';
@@ -18,36 +19,13 @@ import { getPersonTimeline, calculateHistoricalState } from '../services/brp.tim
 import type { TimelineConfig, BRPPersonHistoricalData, PersonState } from '../types/brp.types';
 import { getUserBSN } from '../services/bsn.mapping';
 
-type Tab = 'diensten' | 'aanvragen' | 'tijdlijn' | 'mijn-toestemming';
-type DvtpSubView = 'start' | 'taken';
-
-const SERVICE_LABELS: Record<string, { label: string; description: string; icon: string }> = {
-  zorgtoeslag: {
-    label: 'Zorgtoeslag',
-    description: 'Bereken uw recht op zorgtoeslag op basis van inkomen en persoonlijke situatie.',
-    icon: '💊',
-  },
-  vergunningen: {
-    label: 'Vergunningen',
-    description: 'Vraag vergunningen aan voor bouw, verbouw of evenementen.',
-    icon: '📋',
-  },
-  subsidies: {
-    label: 'Subsidies',
-    description: 'Overzicht van beschikbare subsidies voor uw situatie.',
-    icon: '💶',
-  },
-  meldingen: {
-    label: 'Meldingen',
-    description: 'Doe een melding over uw woonomgeving of openbare ruimte.',
-    icon: '📢',
-  },
-};
+type Tab = 'diensten' | 'aanvragen' | 'tijdlijn';
 
 const PROCESS_DEFINITION_LABELS: Record<string, string> = {
   AwbShellProcess: 'Kapvergunning aanvragen',
   AwbZorgtoeslagProcess: 'Zorgtoeslag aanvragen',
   ThuisbatterijSubsidieAanvraagProcess: 'Thuisbatterij subsidie aanvragen',
+  HeusdenpasAanvraagProcess: 'Heusdenpas aanvragen',
 };
 
 function VergunningForm({
@@ -123,6 +101,113 @@ function VergunningForm({
             applicantId: user?.sub ?? 'unknown',
             productType: 'TreeFellingPermit',
           }}
+          onStarted={(dossier) => setSuccess({ dossier })}
+          onError={setStartFailure}
+        />
+      </div>
+    </div>
+  );
+}
+
+function HeusdenpasForm({
+  user,
+  onBack,
+  onSubmitted,
+}: {
+  user: KeycloakUser | null;
+  onBack: () => void;
+  onSubmitted: () => void;
+}) {
+  const [success, setSuccess] = useState<{ dossier: string } | null>(null);
+  const [startFailure, setStartFailure] = useState<StartFailure | null>(null);
+  const [testCaseId, setTestCaseId] = useState('');
+  const applicantId = user?.sub ?? 'unknown';
+  // Memoised: the viewer re-imports the form whenever initialData changes, so
+  // a new object on every render would wipe what the person typed.
+  const initialData = useMemo(() => {
+    const testCase = HEUSDENPAS_TEST_CASES.find((c) => c.id === testCaseId);
+    return { ...testCase?.values, applicantId };
+  }, [testCaseId, applicantId]);
+
+  if (success) {
+    return (
+      <div>
+        <button
+          onClick={onBack}
+          className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+        >
+          ← Terug naar diensten
+        </button>
+        <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-lg">
+          <div className="text-5xl mb-4">✅</div>
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Aanvraag ingediend</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Uw aanvraag voor de Heusdenpas is ontvangen en wordt behandeld.
+          </p>
+          <div className="bg-gray-50 rounded-lg p-4 text-left mb-6">
+            <p className="text-sm font-medium text-gray-700">
+              Dossiernummer: <span className="font-mono">{success.dossier}</span>
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              U ontvangt bericht zodra de aanvraag is beoordeeld (wettelijke termijn: 8 weken, Awb
+              4:13).
+            </p>
+          </div>
+          <button
+            onClick={onSubmitted}
+            className="w-full py-3 text-white font-semibold rounded-lg transition-opacity"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            Naar mijn aanvragen
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={onBack}
+        className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+      >
+        ← Terug naar diensten
+      </button>
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-lg">
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-3xl">🎟️</span>
+          <div>
+            <h2 className="text-xl font-bold text-gray-800">Heusdenpas aanvragen</h2>
+            <p className="text-sm text-gray-500">
+              Vraag de Heusdenpas en het Kindpakket aan als u een laag inkomen heeft.
+            </p>
+          </div>
+        </div>
+        <label
+          className="block text-sm font-medium text-gray-700 mb-1"
+          htmlFor="heusdenpas-testgeval"
+        >
+          Vul in met een testgeval
+        </label>
+        <select
+          id="heusdenpas-testgeval"
+          value={testCaseId}
+          onChange={(e) => setTestCaseId(e.target.value)}
+          className="w-full mb-6 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+        >
+          <option value="">Geen (leeg formulier)</option>
+          {HEUSDENPAS_TEST_CASES.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        {startFailure && <StartFailureNotice failure={startFailure} />}
+        {/* Gemeente Heusden's own process, deployed under tenant heusden. The
+            start event sets productType itself. */}
+        <ProcessStartFormViewer
+          processKey="HeusdenpasAanvraagProcess"
+          initialData={initialData}
           onStarted={(dossier) => setSuccess({ dossier })}
           onError={setStartFailure}
         />
@@ -225,9 +310,6 @@ export default function Dashboard() {
   } | null>(null);
   const [zorgtoeslagStartFailure, setZorgtoeslagStartFailure] = useState<StartFailure | null>(null);
 
-  // DvTP sub-view state
-  const [dvtpSubView, setDvtpSubView] = useState<DvtpSubView>('start');
-
   // Zorgtoeslag calculator state
   const [calcLoading, setCalcLoading] = useState(false);
   const [calcResult, setCalcResult] = useState<ApiResponse | null>(null);
@@ -241,6 +323,13 @@ export default function Dashboard() {
     toetsingsinkomen: 30000,
     woonlandfactorBuitenland: 1.0,
   });
+
+  // The cards (#344): what the backend says this citizen may start, derived
+  // from where each service's process is deployed. On failure an error and a
+  // retry, never every card.
+  const [services, setServices] = useState<CitizenServiceId[] | null>(null);
+  const [servicesError, setServicesError] = useState<string | null>(null);
+  const [servicesAttempt, setServicesAttempt] = useState(0);
 
   // My applications state
   const [appsLoading, setAppsLoading] = useState(false);
@@ -300,6 +389,28 @@ export default function Dashboard() {
       setHistoricalState(calculateHistoricalState(timelineData.currentState, selectedDate));
     }
   }, [selectedDate, timelineData]);
+
+  useEffect(() => {
+    if (!user) return;
+    let live = true;
+    setServicesError(null);
+    businessApi.process
+      .available()
+      .then((res) => {
+        if (!live) return;
+        // Skip an id this bundle has no card for: the backend can ship a new
+        // service before the frontend does (they release separately).
+        if (res.success && res.data)
+          setServices(res.data.services.filter((id) => id in CITIZEN_SERVICE_UI));
+        else setServicesError('De diensten konden niet worden geladen.');
+      })
+      .catch(() => {
+        if (live) setServicesError('De diensten konden niet worden geladen.');
+      });
+    return () => {
+      live = false;
+    };
+  }, [user, servicesAttempt]);
 
   // Load applications when tab becomes active
   useEffect(() => {
@@ -370,21 +481,12 @@ export default function Dashboard() {
     }
   };
 
-  const handleLogout = () => keycloak.logout({ redirectUri: window.location.origin });
-
-  const enabledServices = tenant
-    ? Object.entries(tenant.features)
-        .filter(([, enabled]) => enabled)
-        .map(([key]) => key)
-    : [];
-
-  const showDvtp = tenant?.features.dvtp === true;
+  const handleLogout = () => keycloak.logout({ redirectUri: landingUrl(user?.municipality) });
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'diensten', label: 'Diensten' },
     { id: 'aanvragen', label: 'Mijn aanvragen' },
     { id: 'tijdlijn', label: 'Tijdlijn' },
-    ...(showDvtp ? [{ id: 'mijn-toestemming' as Tab, label: 'Mijn toestemming' }] : []),
   ];
 
   return (
@@ -454,13 +556,29 @@ export default function Dashboard() {
         {activeTab === 'diensten' && !activeService && (
           <div>
             <h2 className="text-xl font-bold text-gray-800 mb-6">Beschikbare diensten</h2>
-            {enabledServices.length === 0 ? (
+            {servicesError ? (
+              <div>
+                <p className="text-gray-500 mb-3">{servicesError}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setServices(null);
+                    setServicesAttempt((n) => n + 1);
+                  }}
+                  className="text-sm font-medium underline"
+                  style={{ color: 'var(--color-primary)' }}
+                >
+                  Opnieuw proberen
+                </button>
+              </div>
+            ) : services === null ? (
+              <p className="text-gray-500">Diensten laden…</p>
+            ) : services.length === 0 ? (
               <p className="text-gray-500">Geen diensten beschikbaar voor uw gemeente.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {enabledServices.map((key) => {
-                  const svc = SERVICE_LABELS[key];
-                  if (!svc) return null;
+                {services.map((key) => {
+                  const svc = CITIZEN_SERVICE_UI[key];
                   return (
                     <button
                       key={key}
@@ -806,26 +924,20 @@ export default function Dashboard() {
           />
         )}
 
-        {/* ── Other services (stub) ── */}
-        {activeTab === 'diensten' &&
-          activeService &&
-          !['zorgtoeslag', 'vergunningen', 'subsidies'].includes(activeService) && (
-            <div>
-              <button
-                onClick={() => setActiveService(null)}
-                className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
-              >
-                ← Terug naar diensten
-              </button>
-              <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-lg">
-                <div className="text-4xl mb-4">{SERVICE_LABELS[activeService]?.icon}</div>
-                <h2 className="text-xl font-bold text-gray-800 mb-2">
-                  {SERVICE_LABELS[activeService]?.label}
-                </h2>
-                <p className="text-gray-500">Deze dienst is in ontwikkeling.</p>
-              </div>
-            </div>
-          )}
+        {/* ── Heusdenpas (Gemeente Heusden) ── */}
+        {activeTab === 'diensten' && activeService === 'heusdenpas' && (
+          <HeusdenpasForm
+            user={user}
+            onBack={() => {
+              setActiveService(null);
+            }}
+            onSubmitted={() => {
+              setActiveService(null);
+              setActiveTab('aanvragen');
+              setApplications(null);
+            }}
+          />
+        )}
 
         {/* ── Mijn aanvragen ── */}
         {activeTab === 'aanvragen' && (
@@ -975,41 +1087,6 @@ export default function Dashboard() {
                 </p>
               </div>
             )}
-          </div>
-        )}
-
-        {/* ── Mijn toestemming (DvTP) ── */}
-        {activeTab === 'mijn-toestemming' && (
-          <div>
-            <div className="flex items-center gap-3 mb-6">
-              <h2 className="text-xl font-bold text-gray-800">Mijn toestemming</h2>
-              <div className="flex gap-1 bg-white rounded-lg border border-gray-200 p-1">
-                <button
-                  onClick={() => setDvtpSubView('start')}
-                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                    dvtpSubView === 'start' ? 'text-white' : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                  style={dvtpSubView === 'start' ? { backgroundColor: 'var(--color-primary)' } : {}}
-                >
-                  Procedure starten
-                </button>
-                <button
-                  onClick={() => setDvtpSubView('taken')}
-                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                    dvtpSubView === 'taken' ? 'text-white' : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                  style={dvtpSubView === 'taken' ? { backgroundColor: 'var(--color-primary)' } : {}}
-                >
-                  Mijn taken
-                </button>
-              </div>
-            </div>
-
-            {dvtpSubView === 'start' && (
-              <DvtpStartSection user={user} onNavigateToTasks={() => setDvtpSubView('taken')} />
-            )}
-
-            {dvtpSubView === 'taken' && <DvtpTakenSection user={user} />}
           </div>
         )}
       </main>

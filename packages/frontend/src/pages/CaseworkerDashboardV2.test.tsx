@@ -109,7 +109,26 @@ describe('CaseworkerDashboardV2', () => {
     });
   });
 
-  it('logout calls keycloak.logout with the app origin as redirect', async () => {
+  it("logout returns to the landing page of the user's own tenant", async () => {
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({
+      sub: '1',
+      name: 'Test User',
+      roles: [],
+      municipality: 'amsterdam',
+    });
+    const user = userEvent.setup();
+
+    render(<CaseworkerDashboardV2 />);
+    await waitFor(() => expect(screen.getByTitle('Uitloggen')).toBeInTheDocument());
+    await user.click(screen.getByTitle('Uitloggen'));
+
+    expect(mockKeycloak.logout).toHaveBeenCalledWith({
+      redirectUri: window.location.origin + '/amsterdam',
+    });
+  });
+
+  it('logout without a tenant claim returns to the plain landing page', async () => {
     mockKeycloak.authenticated = true;
     mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: [] });
     const user = userEvent.setup();

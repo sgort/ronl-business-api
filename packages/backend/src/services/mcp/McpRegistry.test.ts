@@ -25,10 +25,16 @@ function makeProvider(
     prompt?: string;
     connect?: jest.Mock;
     disconnect?: jest.Mock;
+    actsAsPerson?: boolean;
   } = {}
 ): McpProvider {
   return {
-    meta: { id, displayName: `${id} name`, description: `${id} desc` },
+    meta: {
+      id,
+      displayName: `${id} name`,
+      description: `${id} desc`,
+      ...(opts.actsAsPerson && { actsAsPerson: true }),
+    },
     connect: opts.connect ?? jest.fn().mockResolvedValue(undefined),
     disconnect: opts.disconnect ?? jest.fn().mockResolvedValue(undefined),
     isConnected: jest.fn(() => opts.connected ?? true),
@@ -53,6 +59,29 @@ describe('connectAll / callTool', () => {
 
     expect(p.connect).toHaveBeenCalled();
     expect(p.callTool).toHaveBeenCalledWith('search', { q: 'x' });
+  });
+
+  it('passes the call context to a provider that acts as the person', async () => {
+    const p = makeProvider('edocs', { tools: [tool('workspace_list')], actsAsPerson: true });
+    registry.register(p);
+
+    await registry.connectAll();
+    await registry.callTool('workspace_list', {}, { userToken: 'kc-a' });
+
+    expect(p.callTool).toHaveBeenCalledWith('workspace_list', {}, { userToken: 'kc-a' });
+  });
+
+  // #326 item 7: the context holds the caller's token; a provider that does not
+  // act as the person never receives it, so it cannot forward it by accident.
+  it('withholds the call context from a provider that does not act as the person', async () => {
+    const p = makeProvider('op', { tools: [tool('search')] });
+    registry.register(p);
+
+    await registry.connectAll();
+    await registry.callTool('search', { q: 'x' }, { userToken: 'kc-a' });
+
+    expect(p.callTool).toHaveBeenCalledWith('search', { q: 'x' });
+    expect((p.callTool as jest.Mock).mock.calls[0]).toHaveLength(2);
   });
 
   it('continues when one provider fails to connect', async () => {

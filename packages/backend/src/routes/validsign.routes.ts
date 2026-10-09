@@ -56,6 +56,7 @@ import { sendProblem } from '@utils/problem';
 import { getErrorMessage } from '@utils/errors';
 import { rateLimitKey } from '@utils/client-ip';
 import { operatonService } from '@services/operaton.service';
+import { edocsAuthorVariables } from '@services/edocs-author';
 import { validsignService } from '@services/validsign.service';
 import { completeSignature } from '@services/validsignCompletion.service';
 import { renderTemplate } from '@services/document/renderTemplate';
@@ -670,7 +671,9 @@ router.get('/task/:taskId/spec', async (req, res) => {
   const { taskId } = req.params;
   try {
     const task = await operatonService.getTask(taskId);
-    const variables = await operatonService.getTaskVariables(taskId);
+    // Strings only, so no deserialising read: this runs on every task the
+    // inbox opens, beside the task pane's own read (see getAccessVariables).
+    const variables = await operatonService.getTaskVariables(taskId, { deserializeValues: false });
     if (!taskTenantAllowed(req, variables)) {
       return denyTenant(req, res, { taskId, taskTenant: variables['municipality'] });
     }
@@ -858,6 +861,9 @@ router.post('/task/:taskId/package', async (req, res) => {
       validsignTaskId: { value: taskId, type: 'String' },
       validsignTemplateId: { value: spec.templateId, type: 'String' },
       validsignTemplateName: { value: spec.template.name, type: 'String' },
+      // The signer is who the signed document and its evidence are archived for
+      // (spec §6) -- not whoever completed the task before this one.
+      ...edocsAuthorVariables(user),
     };
 
     if (delivery === 'email') {
@@ -924,7 +930,8 @@ router.post('/task/:taskId/package', async (req, res) => {
 router.get('/task/:taskId/status', async (req, res) => {
   const { taskId } = req.params;
   try {
-    const variables = await operatonService.getTaskVariables(taskId);
+    // Strings only, so no deserialising read (see the spec route above).
+    const variables = await operatonService.getTaskVariables(taskId, { deserializeValues: false });
     if (!taskTenantAllowed(req, variables)) {
       return denyTenant(req, res, { taskId, taskTenant: variables['municipality'] });
     }

@@ -4,7 +4,13 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { createLogger } from '@utils/logger';
 import { config } from '@utils/config';
 import path from 'path';
-import type { McpProvider, McpProviderMeta, McpToolResult, ToolDefinition } from './McpProvider';
+import type {
+  McpCallContext,
+  McpProvider,
+  McpProviderMeta,
+  McpToolResult,
+  ToolDefinition,
+} from './McpProvider';
 
 const logger = createLogger('edocs-mcp-provider');
 
@@ -33,6 +39,8 @@ export class EdocsMcpProvider implements McpProvider {
     displayName: 'eDOCS',
     description:
       "OpenText eDOCS DM — workspaces and documents, via this backend's own /v1/edocs API",
+    // Its tools reach /v1/edocs as the caller (#332), so it receives their token.
+    actsAsPerson: true,
   };
 
   private client: Client | null = null;
@@ -99,10 +107,27 @@ export class EdocsMcpProvider implements McpProvider {
       }));
   }
 
-  async callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
+  async callTool(
+    name: string,
+    args: Record<string, unknown>,
+    context?: McpCallContext
+  ): Promise<McpToolResult> {
     this.assertConnected();
-    logger.info('Calling eDOCS tool', { tool: name });
-    const result = await this.client!.callTool({ name, arguments: args });
+    logger.info('Calling eDOCS tool', { tool: name, asPerson: Boolean(context?.userToken) });
+    if (!context?.userToken) {
+      // Without a caller the MCP server falls back to its own client token, so
+      // eDOCS sees the service account rather than a person.
+      logger.warn('eDOCS tool called without a caller: runs as the service account', {
+        tool: name,
+      });
+    }
+    const result = await this.client!.callTool({
+      name,
+      arguments: args,
+      // The caller's token goes in _meta: the eDOCS MCP server reaches /v1/edocs as
+      // that person, and the language model — which only produces `arguments` — never sees it.
+      ...(context?.userToken && { _meta: { userToken: context.userToken } }),
+    });
     return result as McpToolResult;
   }
 

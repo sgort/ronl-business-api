@@ -3,6 +3,7 @@ import FormData from 'form-data';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
 import { getErrorMessage } from '@utils/errors';
+import { ReauthRequiredError, UserTokenUnavailableError } from '@auth/entra-token.service';
 
 const logger = createLogger('edocs-service');
 
@@ -31,6 +32,34 @@ export interface EdocsDocumentMetadata {
   appId?: string;
   formName?: string;
   extra?: Record<string, string>;
+  /** The employee a service write is done for — recorded as "namens …", never as AUTHOR_ID. */
+  author?: EdocsAuthor;
+}
+
+/** The employee who caused a background write (spec §6). */
+export interface EdocsAuthor {
+  email: string;
+  name?: string;
+}
+
+/** eDOCS' title (DOCNAME) limit, kept below so a long name never makes eDOCS reject the upload. */
+const MAX_DOCNAME_LENGTH = 254;
+
+/**
+ * The title with "namens <naam> (<e-mail>)" appended. The service account may only
+ * record itself as AUTHOR_ID (probe and Flevoland IT, 6 October 2026), and the title
+ * ("Onderwerp") is the one free-text field InfoCenter shows on the D_INTERN_NIEUW
+ * form, so the employee goes there. The only place that knows how attribution is
+ * written: a later move to another field, or to AUTHOR_ID (spec §6), changes this
+ * function and nothing else.
+ */
+export function attributedDocName(docName: string, author?: EdocsAuthor): string {
+  const email = author?.email.trim();
+  if (!email) return docName;
+  const name = author?.name?.trim();
+  const suffix = ` — namens ${name ? `${name} (${email})` : email}`;
+  const room = Math.max(0, MAX_DOCNAME_LENGTH - suffix.length);
+  return (docName.slice(0, room) + suffix).slice(0, MAX_DOCNAME_LENGTH);
 }
 
 export interface EdocsDocumentVersion {
@@ -44,14 +73,142 @@ export interface EdocsDownloadResult {
   contentBase64: string;
 }
 
+export interface EdocsUserPrincipal {
+  kind: 'user';
+  /** Keycloak `sub` — the session key. */
+  sub: string;
+  /** For recording `email → eDOCS USER_ID` (PR 3 attribution). */
+  email?: string;
+  /** The person's Entra ID token for X-DM-AUTH. `forceRefresh` after eDOCS rejected a session. */
+  getIdToken: (opts?: { forceRefresh?: boolean }) => Promise<string>;
+}
+export type EdocsPrincipal = { kind: 'service' } | EdocsUserPrincipal;
+
+/** eDOCS refused a person's Entra token (not an expired session). */
+export class EdocsAccessDeniedError extends Error {
+  readonly code = 'EDOCS_ACCESS_DENIED';
+  constructor(message: string) {
+    super(message);
+    this.name = 'EdocsAccessDeniedError';
+  }
+}
+
+interface EdocsSession {
+  /** "X-DM-DST=…; X-DM-CSRF-TOKEN=…" */
+  cookies: string;
+  /** eDOCS USER_ID, for a person's session. */
+  edocsUserId?: string;
+}
+
+const SERVICE_KEY = 'service';
+
+/**
+ * Sessions per principal key ('service' | 'user:<sub>'). People's sessions are
+ * bounded, least recently used evicted first; the service session never counts
+ * against the bound, so a busy day cannot push the archiving session out (#326).
+ * An evicted session is not closed at eDOCS; it lapses after SESSION_DURATION.
+ */
+export class EdocsSessionStore {
+  private readonly sessions = new Map<string, EdocsSession>();
+  /** In-flight connects per key: concurrent first requests share one session (#326). */
+  readonly connecting = new Map<string, Promise<void>>();
+  /** A person's last failed status probe, so polling does not reconnect each time (#326). */
+  readonly probeFailures = new Map<string, { at: number; error: string }>();
+  constructor(private readonly maxEntries = 500) {}
+  rememberProbeFailure(key: string, failure: { at: number; error: string }): void {
+    this.probeFailures.delete(key);
+    this.probeFailures.set(key, failure);
+    if (this.probeFailures.size > this.maxEntries) {
+      const oldest = this.probeFailures.keys().next().value;
+      if (oldest !== undefined) this.probeFailures.delete(oldest);
+    }
+  }
+  get(key: string): EdocsSession | undefined {
+    const session = this.sessions.get(key);
+    if (session) {
+      this.sessions.delete(key);
+      this.sessions.set(key, session);
+    }
+    return session;
+  }
+  set(key: string, session: EdocsSession): void {
+    this.sessions.delete(key);
+    this.sessions.set(key, session);
+    const people = this.sessions.size - (this.sessions.has(SERVICE_KEY) ? 1 : 0);
+    if (people > this.maxEntries) {
+      for (const candidate of this.sessions.keys()) {
+        if (candidate !== SERVICE_KEY) {
+          this.sessions.delete(candidate);
+          break;
+        }
+      }
+    }
+  }
+  delete(key: string): void {
+    this.sessions.delete(key);
+  }
+}
+
+// email (lower case) → eDOCS USER_ID, learned from every person's connect. Bounded.
+const edocsUserIds = new Map<string, string>();
+const MAX_KNOWN_USERS = 2000;
+
+function rememberEdocsUser(email: string, userId: string): void {
+  const key = email.toLowerCase();
+  edocsUserIds.delete(key);
+  edocsUserIds.set(key, userId);
+  if (edocsUserIds.size > MAX_KNOWN_USERS) {
+    const oldest = edocsUserIds.keys().next().value;
+    if (oldest !== undefined) edocsUserIds.delete(oldest);
+  }
+}
+
+/** The eDOCS USER_ID last seen for this e-mail address, if any person connected with it. */
+export function lookupEdocsUserId(email: string): string | undefined {
+  return edocsUserIds.get(email.toLowerCase());
+}
+
+/**
+ * A cookie's value from a "A=1; B=2" string. Everything after the FIRST "=":
+ * a base64-like value can end in "=" padding (#326).
+ */
+function cookieValue(cookies: string, name: string): string | undefined {
+  const pair = cookies.split('; ').find((c) => c.startsWith(`${name}=`));
+  return pair?.slice(name.length + 1);
+}
+
+/** The HTTP status of an axios-style error, if it carries a response. */
+function httpStatus(err: unknown): number | undefined {
+  return (err as { response?: { status?: number } })?.response?.status;
+}
+
+/**
+ * InfoCenter's connect body carries the client's time zone. The backend runs in
+ * UTC on Azure, so the offset is computed for Europe/Amsterdam, not taken from the
+ * process: -120 in summer, -60 in winter (the sign of Date#getTimezoneOffset).
+ */
+function amsterdamTimeZone(at = new Date()): {
+  tzOffset: number;
+  timezone: string;
+  tzDST: boolean;
+} {
+  const local = new Date(at.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam' }));
+  const utc = new Date(at.toLocaleString('en-US', { timeZone: 'UTC' }));
+  const tzOffset = Math.round((utc.getTime() - local.getTime()) / 60_000);
+  return { tzOffset, timezone: 'Europe/Amsterdam', tzDST: tzOffset === -120 };
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 /**
  * EdocsService — wrapper around the OpenText eDOCS REST API.
  *
- * Authentication:
- *   POST /connect  →  X-DM-DST session token  →  cached in memory.
- *   Automatically re-authenticates on 401/403.
+ * Authentication — one session per principal:
+ *   service → POST /connect {userid, password} (EDOCS_USER_ID, a service account)
+ *   person  → POST /connect with their Entra ID token in X-DM-AUTH (no password)
+ *   Each yields X-DM-DST (+ X-DM-CSRF-TOKEN), kept in a shared, bounded store keyed
+ *   'service' or 'user:<sub>'. A 401/403 reconnects once — for a person with a
+ *   forced-fresh ID token — and retries.
  *
  * Stub mode:
  *   When EDOCS_STUB_MODE=true (default) all methods return realistic fake
@@ -59,7 +216,8 @@ export interface EdocsDownloadResult {
  */
 export class EdocsService {
   private client: AxiosInstance;
-  private sessionToken: string | null = null;
+  private readonly principal: EdocsPrincipal;
+  private readonly store: EdocsSessionStore;
   private readonly stubMode: boolean;
 
   // Cache the last login probe so /health polling cannot hammer the login
@@ -67,7 +225,14 @@ export class EdocsService {
   private authProbe: { at: number; authenticated: boolean; error?: string } | null = null;
   private readonly authProbeTtlMs = 30_000;
 
-  constructor() {
+  /**
+   * Without arguments: the service principal with its own session store — the
+   * exported singleton, and what the archiving callers use. A person's client is
+   * derived with forUser() and shares the singleton's store.
+   */
+  constructor(principal: EdocsPrincipal = { kind: 'service' }, store = new EdocsSessionStore()) {
+    this.principal = principal;
+    this.store = store;
     this.stubMode = config.edocs.stubMode;
 
     this.client = axios.create({
@@ -81,12 +246,13 @@ export class EdocsService {
         // Send all cookies back as Cookie header
         cfg.headers['Cookie'] = this.sessionToken;
         // Also send X-DM-DST value alone as a header (some endpoints require this)
-        const dstValue = this.sessionToken
-          .split('; ')
-          .find((c) => c.startsWith('X-DM-DST='))
-          ?.split('=')[1];
+        const dstValue = cookieValue(this.sessionToken, 'X-DM-DST');
         if (dstValue) {
           cfg.headers['X-DM-DST'] = dstValue;
+        }
+        const csrfValue = cookieValue(this.sessionToken, 'X-DM-CSRF-TOKEN');
+        if (csrfValue) {
+          cfg.headers['X-DM-CSRF-TOKEN'] = csrfValue;
         }
       }
       return cfg;
@@ -97,59 +263,144 @@ export class EdocsService {
     }
   }
 
+  private get sessionKey(): string {
+    return this.principal.kind === 'service' ? SERVICE_KEY : `user:${this.principal.sub}`;
+  }
+
+  private get sessionToken(): string | null {
+    return this.store.get(this.sessionKey)?.cookies ?? null;
+  }
+
+  private set sessionToken(cookies: string | null) {
+    if (cookies === null) this.store.delete(this.sessionKey);
+    else this.store.set(this.sessionKey, { ...this.store.get(this.sessionKey), cookies });
+  }
+
+  private get edocsUserId(): string | undefined {
+    return this.store.get(this.sessionKey)?.edocsUserId;
+  }
+
+  /**
+   * AUTHOR_ID / TYPIST_ID of a write. eDOCS lets an account record only itself
+   * as author (probe, 6 October 2026), so each principal names itself: the
+   * service account, or the person as connect reported them (#338). A person
+   * whose connect named no USER_ID leaves the fields to eDOCS rather than guess.
+   */
+  private authorFields(): Record<string, string> {
+    const id = this.principal.kind === 'service' ? config.edocs.userId : this.edocsUserId;
+    return id ? { AUTHOR_ID: id, TYPIST_ID: id } : {};
+  }
+
+  get actingAs(): 'user' | 'service' {
+    return this.principal.kind;
+  }
+
+  /** A client acting as this person. Shares this instance's session store. */
+  forUser(principal: Omit<EdocsUserPrincipal, 'kind'>): EdocsService {
+    return new EdocsService({ kind: 'user', ...principal }, this.store);
+  }
+
+  /** A client acting as the service account. */
+  forService(): EdocsService {
+    return this.principal.kind === 'service'
+      ? this
+      : new EdocsService({ kind: 'service' }, this.store);
+  }
+
   // ─── Authentication ──────────────────────────────────────────────────────────
 
-  private async connect(): Promise<void> {
+  private async connect(opts: { forceRefresh?: boolean } = {}): Promise<void> {
+    const principal = this.principal;
     if (this.stubMode) {
       this.sessionToken = 'stub-session-token';
+      if (principal.kind === 'user') {
+        this.store.set(this.sessionKey, {
+          cookies: 'stub-session-token',
+          edocsUserId: 'STUB-USER',
+        });
+      }
       return;
     }
 
     logger.info('Connecting to eDOCS DM Server', {
       baseUrl: config.edocs.baseUrl,
       library: config.edocs.library,
-      userId: config.edocs.userId,
+      as: principal.kind === 'user' ? 'user' : config.edocs.userId,
     });
 
     let response;
     try {
-      response = await this.client.post('connect', {
-        data: {
-          userid: config.edocs.userId,
-          password: config.edocs.password,
-          library: config.edocs.library,
-        },
-      });
+      if (principal.kind === 'user') {
+        // Throws UserTokenUnavailableError / ReauthRequiredError untouched — no
+        // `response` on those, so the catch below passes them through.
+        const idToken = await principal.getIdToken(opts);
+        response = await this.client.post(
+          'connect',
+          { data: { library: config.edocs.library, ...amsterdamTimeZone() } },
+          { params: { library: config.edocs.library }, headers: { 'X-DM-AUTH': idToken } }
+        );
+      } else {
+        response = await this.client.post('connect', {
+          data: {
+            userid: config.edocs.userId,
+            password: config.edocs.password,
+            library: config.edocs.library,
+          },
+        });
+      }
     } catch (err) {
       this.logUpstreamError('connect', err);
+      // A 4xx on a person's connect is eDOCS deciding about them (unknown user,
+      // disabled account, token refused). A 5xx is eDOCS failing, not a decision.
+      const status = httpStatus(err);
+      if (principal.kind === 'user' && status !== undefined && status >= 400 && status < 500) {
+        throw new EdocsAccessDeniedError(this.upstreamMessage(err));
+      }
       throw err;
     }
 
     const setCookies = response.headers['set-cookie'] ?? [];
     const cookieArray = Array.isArray(setCookies) ? setCookies : [setCookies];
-
-    // Extract each cookie value by name
     const findCookie = (name: string): string | undefined => {
       const match = cookieArray.find((c) => c.startsWith(`${name}=`));
       return match?.split(';')[0]; // returns "NAME=VALUE"
     };
-
     const dmDst = findCookie('X-DM-DST');
     const dmCsrf = findCookie('X-DM-CSRF-TOKEN');
-
     if (!dmDst) {
       throw new Error('eDOCS connect() succeeded but X-DM-DST cookie was absent from response');
     }
 
-    // Store both cookies to send on subsequent requests
-    this.sessionToken = [dmDst, dmCsrf].filter(Boolean).join('; ');
-    logger.info('Connected to eDOCS — session token cached');
+    const cookies = [dmDst, dmCsrf].filter(Boolean).join('; ');
+    if (principal.kind === 'user') {
+      const sessionData = (response.data?.data ?? {}) as {
+        USER_ID?: unknown;
+        SESSION_DURATION?: unknown;
+      };
+      const edocsUserId = typeof sessionData.USER_ID === 'string' ? sessionData.USER_ID : undefined;
+      this.store.set(this.sessionKey, { cookies, edocsUserId });
+      if (edocsUserId && principal.email) rememberEdocsUser(principal.email, edocsUserId);
+      logger.info('Connected to eDOCS as a person', {
+        edocsUserId,
+        sessionDuration: sessionData.SESSION_DURATION,
+      });
+    } else {
+      this.sessionToken = cookies;
+      logger.info('Connected to eDOCS — session token cached');
+    }
   }
 
   private async ensureConnected(): Promise<void> {
-    if (!this.sessionToken) {
-      await this.connect();
+    if (this.sessionToken) return;
+    // Concurrent first requests for one principal share one connect, so no
+    // second eDOCS session is opened and orphaned (#326).
+    const key = this.sessionKey;
+    let pending = this.store.connecting.get(key);
+    if (!pending) {
+      pending = this.connect().finally(() => this.store.connecting.delete(key));
+      this.store.connecting.set(key, pending);
     }
+    await pending;
   }
 
   private async withAuth<T>(fn: () => Promise<T>): Promise<T> {
@@ -157,8 +408,28 @@ export class EdocsService {
     try {
       return await fn();
     } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 401 || status === 403) {
+      const status = httpStatus(err);
+      if (this.principal.kind === 'user') {
+        // For a person, 403 is eDOCS refusing *them* — no rights on this workspace
+        // or document — not an expired session. Only a 401 is worth a fresh ID
+        // token and one retry; whatever still refuses after that is a refusal.
+        if (status === 403) throw new EdocsAccessDeniedError(this.upstreamMessage(err));
+        if (status === 401) {
+          logger.warn('eDOCS session expired — reconnecting the person with a fresh ID token');
+          this.sessionToken = null;
+          await this.connect({ forceRefresh: true });
+          try {
+            return await fn();
+          } catch (retryErr: unknown) {
+            const retryStatus = httpStatus(retryErr);
+            if (retryStatus === 401 || retryStatus === 403) {
+              throw new EdocsAccessDeniedError(this.upstreamMessage(retryErr));
+            }
+            this.logUpstreamError('request', retryErr);
+            throw retryErr;
+          }
+        }
+      } else if (status === 401 || status === 403) {
         logger.warn('eDOCS session expired — re-authenticating');
         this.sessionToken = null;
         await this.connect();
@@ -243,8 +514,7 @@ export class EdocsService {
         {
           data: {
             DOCNAME: workspaceName,
-            AUTHOR_ID: config.edocs.userId,
-            TYPIST_ID: config.edocs.userId,
+            ...this.authorFields(),
           },
         },
         { params: { library: config.edocs.library } }
@@ -287,6 +557,7 @@ export class EdocsService {
         workspaceId,
         filename,
         docName: metadata.docName,
+        attributed: Boolean(metadata.author),
       });
       return { documentId: stubDocId, documentNumber: stubDocNumber, workspaceId };
     }
@@ -296,6 +567,7 @@ export class EdocsService {
         workspaceId,
         filename,
         docName: metadata.docName,
+        attributed: Boolean(metadata.author),
       });
 
       // Standalone (no workspace ref) uploads need an explicit form to select a
@@ -307,9 +579,8 @@ export class EdocsService {
       // 400s expecting a "copy" source); it only accepts a true multipart body,
       // matching the OpenAPI spec's declared content-type.
       const profileData = {
-        DOCNAME: metadata.docName,
-        AUTHOR_ID: config.edocs.userId,
-        TYPIST_ID: config.edocs.userId,
+        DOCNAME: attributedDocName(metadata.docName, metadata.author),
+        ...this.authorFields(),
         APP_ID: metadata.appId ?? 'DEFAULT',
         UV_AFD_NAAM: metadata.department,
         _restapi: {
@@ -526,6 +797,32 @@ export class EdocsService {
       latency,
       ...(auth.error ? { error: auth.error } : {}),
     };
+  }
+
+  /** Can an eDOCS session be opened as this person? For /v1/edocs/status. */
+  async probeUser(): Promise<{ authenticated: boolean; edocsUserId?: string; error?: string }> {
+    if (this.principal.kind !== 'user') throw new Error('probeUser() needs a person’s client');
+    // A failed probe is remembered per person for authProbeTtlMs, as probeAuth()
+    // does for the service, so a polling dashboard does not reconnect on every
+    // load while the person cannot connect (#326).
+    const failed = this.store.probeFailures.get(this.sessionKey);
+    if (failed && Date.now() - failed.at < this.authProbeTtlMs) {
+      return { authenticated: false, error: failed.error };
+    }
+    try {
+      await this.ensureConnected();
+      this.store.probeFailures.delete(this.sessionKey);
+      return { authenticated: true, edocsUserId: this.edocsUserId };
+    } catch (err) {
+      const error =
+        err instanceof UserTokenUnavailableError || err instanceof ReauthRequiredError
+          ? err.code
+          : err instanceof EdocsAccessDeniedError
+            ? err.message
+            : this.upstreamMessage(err);
+      this.store.rememberProbeFailure(this.sessionKey, { at: Date.now(), error });
+      return { authenticated: false, error };
+    }
   }
 
   /**

@@ -184,6 +184,31 @@
     },
     {
       "description": [
+        "The local Redis image is held on the 7.2 line, the last BSD-3-Clause",
+        "release. Redis 7.4 and later are RSALv2/SSPLv1, and 8.x adds AGPLv3 as",
+        "a third option; none of these is BSD-3, which is what docker-compose.yml",
+        "and the standards-compliance docs state (#302). ACC and PROD run Azure",
+        "Cache for Redis 6.0, which is unaffected.",
+        "allowedVersions is a regex rather than a range on purpose: the tags are",
+        "docker versioning with an -alpine suffix (7.2-alpine), and a semver",
+        "range would not compare them the way it reads. It admits 7.0, 7.1 and",
+        "7.2 tags only, so digest updates within 7.2-alpine keep flowing; that is",
+        "how 7.2's security patches arrive. Scoped to the docker datasource",
+        "because the backend's npm client is ALSO named redis, and that is a",
+        "different package with its own versions.",
+        "Lift this only together with a licence decision: Valkey is the BSD fork,",
+        "and AGPLv3 is OSI-approved but a different obligation.",
+        "minimumReleaseAge repeats the top-level 14 days and changes nothing; it is",
+        "here because Semgrep's renovate-missing-minimum-release-age flags a rule",
+        "that does not set it locally."
+      ],
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["redis"],
+      "allowedVersions": "/^7\\.[0-2](\\.|-|$)/",
+      "minimumReleaseAge": "14 days"
+    },
+    {
+      "description": [
         "Major updates wait in the Dependency Dashboard (#16) as checkboxes and",
         "hold no slot in prConcurrentLimit until someone ticks one. This is what",
         "replaces the global dependencyDashboardApproval that governed every",

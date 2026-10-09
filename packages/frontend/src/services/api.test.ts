@@ -278,6 +278,19 @@ describe('businessApi.process', () => {
     expect(url).toContain(`applicantId=${encodeURIComponent('user with spaces')}`);
   });
 
+  it('process.available fetches the available citizen services', async () => {
+    server.use(
+      http.get('*/process/available', () =>
+        HttpResponse.json({ success: true, data: { services: ['zorgtoeslag'] } })
+      )
+    );
+
+    await expect(businessApi.process.available()).resolves.toEqual({
+      success: true,
+      data: { services: ['zorgtoeslag'] },
+    });
+  });
+
   it('historicVariables fetches historic variables', async () => {
     server.use(
       http.get('*/process/pi-1/historic-variables', () =>

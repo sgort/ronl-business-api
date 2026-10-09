@@ -15,13 +15,6 @@
         "secondary": "#2C5F2D",
         "accent": "#FF6B00"
       },
-      "features": {
-        "zorgtoeslag": true,
-        "vergunningen": true,
-        "subsidies": true,
-        "meldingen": true,
-        "dvtp": true
-      },
       "contact": {
         "phone": "14 030",
         "email": "info@utrecht.nl",
@@ -104,6 +97,15 @@
       "organisationType": "municipality",
       "municipalityCode": "GM0363",
       "enabled": true,
+      "boards": ["caseworker"],
+      "logo": {
+        "src": "/tenants/amsterdam/logo.png",
+        "shape": "wide"
+      },
+      "share": {
+        "title": "Uw werkvoorraad, overzichtelijk op één plek",
+        "description": "Aanvragen, meldingen en vergunningen behandelen in één werkomgeving van Gemeente Amsterdam. Log in als medewerker."
+      },
       "theme": {
         "primary": "#EC0000",
         "primaryDark": "#B80000",
@@ -111,18 +113,106 @@
         "secondary": "#000000",
         "accent": "#FFD700"
       },
-      "features": {
-        "zorgtoeslag": true,
-        "vergunningen": true,
-        "subsidies": true,
-        "meldingen": true,
-        "dvtp": true
-      },
       "contact": {
         "phone": "14 020",
         "email": "info@amsterdam.nl",
         "address": "Amstel 1, 1011 PN Amsterdam",
         "openingHours": "Ma-Vr 08:00-18:00"
+      },
+      "leftPanelSections": {
+        "home": [
+          {
+            "id": "nieuws",
+            "label": "Nieuws",
+            "isPublic": true
+          },
+          {
+            "id": "berichten",
+            "label": "Berichten",
+            "isPublic": true
+          },
+          {
+            "id": "regelcatalogus",
+            "label": "Regelcatalogus",
+            "isPublic": true
+          },
+          {
+            "id": "procesbibliotheek",
+            "label": "Procesbibliotheek",
+            "isPublic": true
+          }
+        ],
+        "personal-info": [
+          {
+            "id": "profiel",
+            "label": "Profiel",
+            "isPublic": false
+          },
+          {
+            "id": "rollen",
+            "label": "Rollen & rechten",
+            "isPublic": false
+          },
+          {
+            "id": "hr-onboarding",
+            "label": "Medewerker onboarden",
+            "isPublic": false
+          },
+          {
+            "id": "onboarding-archief",
+            "label": "Afgeronde onboardingen",
+            "isPublic": false
+          }
+        ],
+        "projects": [
+          {
+            "id": "taken",
+            "label": "Taken",
+            "isPublic": false
+          },
+          {
+            "id": "actief",
+            "label": "Actieve zaken",
+            "isPublic": false
+          },
+          {
+            "id": "archief",
+            "label": "Archief",
+            "isPublic": false
+          }
+        ]
+      }
+    },
+    "heusden": {
+      "id": "heusden",
+      "name": "Heusden",
+      "displayName": "Gemeente Heusden",
+      "organisationType": "municipality",
+      "municipalityCode": "GM0797",
+      "enabled": true,
+      "boards": ["caseworker"],
+      "logo": {
+        "src": "/tenants/heusden/logo.jpg",
+        "shape": "wide",
+        "height": 58
+      },
+      "share": {
+        "title": "Uw werkvoorraad, overzichtelijk op één plek",
+        "description": "Aanvragen, meldingen en vergunningen behandelen in één werkomgeving van Gemeente Heusden. Log in als medewerker."
+      },
+      "theme": {
+        "primary": "#00505c",
+        "primaryDark": "#003a43",
+        "primaryLight": "#009ee0",
+        "secondary": "#7ab929",
+        "accent": "#009ee0",
+        "background": "#eef1ee"
+      },
+      "contact": {
+        "phone": "14 073",
+        "email": "gemeente@heusden.nl",
+        "address": "Burgemeester van Kempenstraat 1, 5251 CN Vlijmen",
+        "openingHours": "Ma-Vr 08:30-17:00"
       },
       "leftPanelSections": {
         "home": [
@@ -201,13 +291,6 @@
         "primaryLight": "#00A828",
         "secondary": "#0F6CB6",
         "accent": "#FFB81C"
-      },
-      "features": {
-        "zorgtoeslag": true,
-        "vergunningen": true,
-        "subsidies": true,
-        "meldingen": true,
-        "dvtp": true
       },
       "contact": {
         "phone": "14 010",
@@ -293,13 +376,6 @@
         "secondary": "#E17000",
         "accent": "#6EC4E8"
       },
-      "features": {
-        "zorgtoeslag": true,
-        "vergunningen": true,
-        "subsidies": true,
-        "meldingen": true,
-        "dvtp": true
-      },
       "contact": {
         "phone": "14 070",
         "email": "info@denhaag.nl",
@@ -377,19 +453,13 @@
       "organisationType": "province",
       "organisationCode": "PV24",
       "enabled": true,
+      "boards": ["caseworker", "public-affairs", "infra-board", "woo"],
       "theme": {
         "primary": "#0046ad",
         "primaryDark": "#134F7D",
         "primaryLight": "#4A8FC0",
         "secondary": "#e70077",
         "accent": "#F5A623"
-      },
-      "features": {
-        "zorgtoeslag": false,
-        "vergunningen": true,
-        "subsidies": true,
-        "meldingen": true,
-        "dvtp": false
       },
       "contact": {
         "phone": "0320 265 265",
@@ -540,19 +610,21 @@
       "organisationType": "national",
       "organisationCode": "OIN-00000001003214345000",
       "enabled": true,
+      "boards": ["caseworker"],
+      "logo": {
+        "src": "/tenants/toeslagen/logo.png",
+        "shape": "square"
+      },
+      "share": {
+        "title": "Aanvragen, wijzigingen en bezwaren in één werkvoorraad",
+        "description": "Toeslagdossiers op wettelijke termijn behandelen in één werkomgeving van Dienst Toeslagen. Log in als medewerker."
+      },
       "theme": {
         "primary": "#154273",
         "primaryDark": "#0d2f52",
         "primaryLight": "#4a7aad",
         "secondary": "#6EC4E8",
         "accent": "#FFB81C"
-      },
-      "features": {
-        "zorgtoeslag": false,
-        "vergunningen": false,
-        "subsidies": false,
-        "meldingen": false,
-        "dvtp": false
       },
       "contact": {
         "phone": "0800 0543",
@@ -602,23 +674,21 @@
     "unive": {
       "id": "unive",
       "name": "Unive",
-      "displayName": "Unive Verzekeringen",
+      "displayName": "Univé Verzekeringen",
       "organisationType": "commercial",
       "organisationCode": "KVK-12345678",
       "enabled": true,
+      "boards": ["caseworker"],
+      "share": {
+        "title": "Al je claims en aanvragen, helder op een rij",
+        "description": "Schadeclaims, polisaanvragen en wijzigingen afhandelen in één werkomgeving van Univé. Log in als medewerker."
+      },
       "theme": {
         "primary": "#E4007D",
         "primaryDark": "#B3005F",
         "primaryLight": "#FF4DAF",
         "secondary": "#1A1A2E",
         "accent": "#FF6B6B"
-      },
-      "features": {
-        "zorgtoeslag": true,
-        "vergunningen": false,
-        "subsidies": false,
-        "meldingen": false,
-        "dvtp": false
       },
       "contact": {
         "phone": "0900 1513",
@@ -663,13 +733,6 @@
         "primaryLight": "#3D8DC4",
         "secondary": "#E85612",
         "accent": "#FFB81C"
-      },
-      "features": {
-        "zorgtoeslag": false,
-        "vergunningen": false,
-        "subsidies": true,
-        "meldingen": true,
-        "dvtp": true
       },
       "contact": {
         "phone": "088 898 20 00",

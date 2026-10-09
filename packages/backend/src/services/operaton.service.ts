@@ -12,6 +12,8 @@ import {
 } from '@ronl/shared';
 import type { PhaseSwimlaneModel } from '@ronl/shared';
 import type { DocumentTemplate } from '@services/document/documentTemplate.types';
+import type { EdocsAuthor } from '@services/edocs.service';
+import { edocsAuthorFrom } from '@services/edocs-author';
 import { parseSwimlane } from '../rip-swimlane/bpmn-swimlane';
 
 const logger = createLogger('operaton-service');
@@ -227,6 +229,31 @@ export class OperatonService {
   }
 
   /**
+   * The latest version of each given process key, per tenant (latestVersion
+   * returns one row per tenant), as key and tenant. For the citizen-service
+   * check (#344). Throws on failure: the caller answers 503 rather than guess.
+   */
+  async getLatestProcessDeployments(
+    keys: string[]
+  ): Promise<Array<{ key: string; tenantId: string | null }>> {
+    try {
+      const response = await this.client.get('/process-definition', {
+        params: { keysIn: keys.join(','), latestVersion: true },
+      });
+      return (response.data as Array<{ key: string; tenantId?: string | null }>).map((d) => ({
+        key: d.key,
+        tenantId: d.tenantId ?? null,
+      }));
+    } catch (error) {
+      logger.error('Failed to query latest process deployments', {
+        keys,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
    * For each given process-definition key, the count of active (WIP) and
    * completed (Gereed) instances on this environment's Operaton instance.
    * Count-only queries — no instance payloads.
@@ -405,12 +432,54 @@ export class OperatonService {
   /**
    * Get process variables
    */
-  async getProcessVariables(processInstanceId: string): Promise<Record<string, OperatonVariable>> {
+  async getProcessVariables(
+    processInstanceId: string,
+    options: { deserializeValues?: boolean } = {}
+  ): Promise<Record<string, OperatonVariable>> {
     try {
-      const response = await this.client.get(`/process-instance/${processInstanceId}/variables`);
+      // deserializeValues: false for a caller that needs only primitive values:
+      // a deserialising read can write an object variable back (see
+      // getAccessVariables).
+      const response =
+        options.deserializeValues === false
+          ? await this.client.get(`/process-instance/${processInstanceId}/variables`, {
+              params: { deserializeValues: false },
+            })
+          : await this.client.get(`/process-instance/${processInstanceId}/variables`);
       return response.data;
     } catch (error) {
       logger.error('Failed to get process variables', {
+        processInstanceId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * The two variables an access check reads, municipality and applicantId,
+   * without deserialising any object variable. A deserialising read is not
+   * read-only: Operaton writes an object variable back when it re-serialises
+   * differently, and two such reads of one instance at once collide
+   * (ENGINE-03005, optimistic locking). On ACC that failed a claim whose tenant
+   * check ran alongside the task pane's own read of the same sub-process,
+   * which keeps decision results (svbResult and the like) as Java-serialised
+   * maps. This read never writes.
+   */
+  async getAccessVariables(
+    processInstanceId: string
+  ): Promise<{ municipality: unknown; applicantId: unknown }> {
+    try {
+      const response = await this.client.get(`/process-instance/${processInstanceId}/variables`, {
+        params: { deserializeValues: false },
+      });
+      const variables = response.data as Record<string, OperatonVariable>;
+      return {
+        municipality: variables.municipality?.value,
+        applicantId: variables.applicantId?.value,
+      };
+    } catch (error) {
+      logger.error('Failed to get access variables', {
         processInstanceId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -544,6 +613,10 @@ export class OperatonService {
       }
       const response = await this.client.post('/history/process-instance', {
         variables: filters,
+        // Applications only: a called sub-process inherits applicantId and
+        // municipality (camunda:in variables="all") and would otherwise list
+        // as a second application.
+        rootProcessInstances: true,
         sorting: [{ sortBy: 'startTime', sortOrder: 'desc' }],
       });
 
@@ -889,6 +962,8 @@ export class OperatonService {
     edocsWorkspaceId?: string;
     department?: string;
     documentId?: string;
+    /** The employee who last acted through RBA, for "namens …" (spec §6). */
+    author?: EdocsAuthor;
   } | null> {
     try {
       const instancesRes = await this.client.get('/process-instance', {
@@ -923,6 +998,7 @@ export class OperatonService {
         edocsWorkspaceId: value('edocsWorkspaceId') as string | undefined,
         department: value('department') as string | undefined,
         documentId: value('validsignDocumentId') as string | undefined,
+        author: edocsAuthorFrom(variables),
       };
     } catch (error) {
       logger.error('Failed to find process instance by ValidSign package', {
@@ -1333,9 +1409,12 @@ export class OperatonService {
   /**
    * Get all process variables for a task, resolved via the task's processInstanceId.
    */
-  async getTaskVariables(taskId: string): Promise<Record<string, unknown>> {
+  async getTaskVariables(
+    taskId: string,
+    options: { deserializeValues?: boolean } = {}
+  ): Promise<Record<string, unknown>> {
     const task = await this.getTask(taskId);
-    const variables = await this.getProcessVariables(task.processInstanceId);
+    const variables = await this.getProcessVariables(task.processInstanceId, options);
     const plain: Record<string, unknown> = {};
     for (const [key, variable] of Object.entries(variables)) {
       plain[key] = variable.value;

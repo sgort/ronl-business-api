@@ -16,23 +16,15 @@ vi.mock('../services/keycloak', () => ({ default: mockKeycloak, getUser: mockGet
 
 const mockEvaluateDecision = vi.hoisted(() => vi.fn());
 const mockProcessHistory = vi.hoisted(() => vi.fn());
+const mockAvailable = vi.hoisted(() => vi.fn());
 vi.mock('../services/api', () => ({
   businessApi: {
     evaluateDecision: mockEvaluateDecision,
-    process: { history: mockProcessHistory },
+    process: { history: mockProcessHistory, available: mockAvailable },
   },
 }));
 
-const TENANT_UTRECHT = {
-  displayName: 'Gemeente Utrecht',
-  features: {
-    zorgtoeslag: true,
-    vergunningen: true,
-    subsidies: true,
-    meldingen: false,
-    dvtp: false,
-  },
-};
+const TENANT_UTRECHT = { displayName: 'Gemeente Utrecht' };
 const mockTenant = vi.hoisted(() => ({
   initializeTenantTheme: vi.fn().mockResolvedValue(true),
   loadTenantConfigs: vi.fn().mockResolvedValue({}),
@@ -62,12 +54,14 @@ vi.mock('../components/PersonalDataPanel', () => ({
 vi.mock('../components/ProcessStartFormViewer', () => ({
   default: function MockProcessStartFormViewer(props: {
     processKey: string;
+    initialData?: Record<string, unknown>;
     onStarted: (dossier: string) => void;
     onError: (failure: { cause?: string; instance?: string }) => void;
   }) {
     return (
       <div data-testid="process-start-form">
         processKey={props.processKey}
+        <span data-testid="initial-data">{JSON.stringify(props.initialData ?? {})}</span>
         <button type="button" onClick={() => props.onStarted('D-123')}>
           simulate-success
         </button>
@@ -82,8 +76,6 @@ vi.mock('../components/ProcessStartFormViewer', () => ({
   },
 }));
 vi.mock('../components/DecisionViewer', () => ({ default: () => null }));
-vi.mock('../components/CaseworkerDashboard/DvtpStartSection', () => ({ default: () => null }));
-vi.mock('../components/CaseworkerDashboard/DvtpTakenSection', () => ({ default: () => null }));
 
 beforeEach(() => {
   mockKeycloak.authenticated = true;
@@ -96,6 +88,10 @@ beforeEach(() => {
   });
   mockEvaluateDecision.mockResolvedValue({ success: true, data: [] });
   mockProcessHistory.mockResolvedValue({ success: true, data: [] });
+  mockAvailable.mockResolvedValue({
+    success: true,
+    data: { services: ['zorgtoeslag', 'vergunningen', 'subsidies'] },
+  });
   mockTenant.getTenantConfig.mockReturnValue(TENANT_UTRECHT);
   mockTenant.getDefaultTenantConfig.mockReturnValue(null);
   mockBsn.getUserBSN.mockReturnValue('999993653');
@@ -124,13 +120,82 @@ describe('Dashboard', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true });
   });
 
-  it('lists the services enabled for the tenant', async () => {
+  it('shows exactly the services the backend makes available, in its order', async () => {
+    mockAvailable.mockResolvedValue({
+      success: true,
+      data: { services: ['zorgtoeslag', 'heusdenpas'] },
+    });
     render(<Dashboard />);
 
     expect(await screen.findByText('Zorgtoeslag')).toBeInTheDocument();
-    expect(screen.getByText('Vergunningen')).toBeInTheDocument();
+    expect(screen.getByText('Heusdenpas')).toBeInTheDocument();
+    expect(screen.queryByText('Vergunningen')).not.toBeInTheDocument();
+    expect(screen.queryByText('Subsidies')).not.toBeInTheDocument();
     expect(screen.queryByText('Meldingen')).not.toBeInTheDocument();
+    const cards = screen.getAllByText('Aanvragen →').map((el) => el.parentElement?.textContent);
+    expect(cards[0]).toContain('Zorgtoeslag');
+    expect(cards[1]).toContain('Heusdenpas');
   });
+
+  // Frontend and backend release separately (scope-tagged releases), so the
+  // backend can answer a service this bundle has no card for yet.
+  it('skips a service id it has no card for, rather than failing the page', async () => {
+    mockAvailable.mockResolvedValue({
+      success: true,
+      data: { services: ['zorgtoeslag', 'parkeervergunning'] },
+    });
+    render(<Dashboard />);
+
+    expect(await screen.findByText('Zorgtoeslag')).toBeInTheDocument();
+    expect(screen.getAllByText('Aanvragen →')).toHaveLength(1);
+  });
+
+  it('says no service is available when the backend only knows services this bundle does not', async () => {
+    mockAvailable.mockResolvedValue({ success: true, data: { services: ['parkeervergunning'] } });
+    render(<Dashboard />);
+
+    expect(
+      await screen.findByText('Geen diensten beschikbaar voor uw gemeente.')
+    ).toBeInTheDocument();
+  });
+
+  it('says so when no service is available', async () => {
+    mockAvailable.mockResolvedValue({ success: true, data: { services: [] } });
+    render(<Dashboard />);
+
+    expect(
+      await screen.findByText('Geen diensten beschikbaar voor uw gemeente.')
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      'refused',
+      () =>
+        mockAvailable.mockResolvedValue({
+          success: false,
+          error: { code: 'SERVICES_UNAVAILABLE' },
+        }),
+    ],
+    ['unreachable', () => mockAvailable.mockRejectedValue(new Error('network'))],
+  ])(
+    'shows an error with a retry when the services cannot be loaded (%s), never every card',
+    async (_label, fail) => {
+      fail();
+      const user = userEvent.setup();
+      render(<Dashboard />);
+
+      expect(
+        await screen.findByText('De diensten konden niet worden geladen.')
+      ).toBeInTheDocument();
+      expect(screen.queryByText('Zorgtoeslag')).not.toBeInTheDocument();
+
+      mockAvailable.mockResolvedValue({ success: true, data: { services: ['zorgtoeslag'] } });
+      await user.click(screen.getByRole('button', { name: 'Opnieuw proberen' }));
+      expect(await screen.findByText('Zorgtoeslag')).toBeInTheDocument();
+      expect(screen.queryByText('De diensten konden niet worden geladen.')).toBeNull();
+    }
+  );
 
   it('opening the Vergunningen service mounts the form for AwbShellProcess', async () => {
     const user = userEvent.setup();
@@ -204,13 +269,15 @@ describe('Dashboard', () => {
     );
   });
 
-  it('logout calls keycloak.logout with the app origin as redirect', async () => {
+  it("logout returns to the landing page of the user's own tenant", async () => {
     const user = userEvent.setup();
     render(<Dashboard />);
 
     await user.click(screen.getByRole('button', { name: 'Uitloggen' }));
 
-    expect(mockKeycloak.logout).toHaveBeenCalledWith({ redirectUri: window.location.origin });
+    expect(mockKeycloak.logout).toHaveBeenCalledWith({
+      redirectUri: window.location.origin + '/utrecht',
+    });
   });
 });
 
@@ -246,23 +313,10 @@ describe('Dashboard header and tabs', () => {
     expect(screen.queryByText(/LoA:/)).not.toBeInTheDocument();
   });
 
-  it('does not offer the consent tab to a tenant without dvtp', async () => {
+  it('offers no "Mijn toestemming" tab (DVTP is retired)', async () => {
     render(<Dashboard />);
-    await screen.findByText('Gemeente Utrecht');
+    await screen.findByText('Zorgtoeslag');
     expect(screen.queryByRole('button', { name: 'Mijn toestemming' })).toBeNull();
-  });
-
-  it('adds the consent tab for a tenant with dvtp enabled', async () => {
-    mockTenant.getTenantConfig.mockReturnValue({
-      ...TENANT_UTRECHT,
-      features: { ...TENANT_UTRECHT.features, dvtp: true },
-    });
-    const user = userEvent.setup();
-    render(<Dashboard />);
-
-    const tab = await screen.findByRole('button', { name: 'Mijn toestemming' });
-    await user.click(tab);
-    expect(tab).toBeInTheDocument();
   });
 });
 
@@ -551,5 +605,134 @@ describe('Dashboard zorgtoeslag application', () => {
     expect(
       screen.queryByText('De aanvraag kon niet worden ingediend. Probeer het opnieuw.')
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('Dashboard Heusdenpas', () => {
+  beforeEach(() => {
+    mockTenant.getTenantConfig.mockReturnValue({ displayName: 'Gemeente Heusden' });
+    mockAvailable.mockResolvedValue({
+      success: true,
+      data: { services: ['zorgtoeslag', 'heusdenpas'] },
+    });
+  });
+
+  it('offers the Heusdenpas to a tenant that has it', async () => {
+    render(<Dashboard />);
+
+    expect(await screen.findByText('Heusdenpas')).toBeInTheDocument();
+    expect(screen.queryByText('Subsidies')).not.toBeInTheDocument();
+  });
+
+  it('does not offer it to a tenant without it', async () => {
+    mockTenant.getTenantConfig.mockReturnValue(TENANT_UTRECHT);
+    mockAvailable.mockResolvedValue({ success: true, data: { services: ['zorgtoeslag'] } });
+    render(<Dashboard />);
+
+    await screen.findByText('Zorgtoeslag');
+    expect(screen.queryByText('Heusdenpas')).not.toBeInTheDocument();
+  });
+
+  it('starts HeusdenpasAanvraagProcess from its deployed start form', async () => {
+    const user = userEvent.setup();
+    render(<Dashboard />);
+
+    await user.click(await screen.findByText('Heusdenpas'));
+
+    expect(screen.getByTestId('process-start-form')).toHaveTextContent(
+      'processKey=HeusdenpasAanvraagProcess'
+    );
+  });
+
+  it('confirms a submitted application with its dossier number', async () => {
+    const user = userEvent.setup();
+    render(<Dashboard />);
+
+    await user.click(await screen.findByText('Heusdenpas'));
+    await user.click(screen.getByRole('button', { name: 'simulate-success' }));
+
+    expect(screen.getByText('Aanvraag ingediend')).toBeInTheDocument();
+    expect(screen.getByText(/D-123/)).toBeInTheDocument();
+  });
+
+  it('reports an application the engine refused', async () => {
+    const user = userEvent.setup();
+    render(<Dashboard />);
+
+    await user.click(await screen.findByText('Heusdenpas'));
+    await user.click(screen.getByRole('button', { name: 'simulate-error' }));
+
+    expect(
+      screen.getByText('De aanvraag kon niet worden ingediend. Probeer het opnieuw.')
+    ).toBeInTheDocument();
+  });
+
+  it('names a Heusdenpas application in Mijn aanvragen', async () => {
+    mockProcessHistory.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'pi-hp',
+          processDefinitionKey: 'HeusdenpasAanvraagProcess',
+          startTime: '2026-10-08T00:00:00Z',
+          endTime: null,
+          state: 'ACTIVE',
+          businessKey: 'heusden-1',
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<Dashboard />);
+
+    await user.click(await screen.findByRole('button', { name: 'Mijn aanvragen' }));
+
+    expect(await screen.findByText('Heusdenpas aanvragen')).toBeInTheDocument();
+  });
+
+  describe('test cases', () => {
+    const initialData = () => JSON.parse(screen.getByTestId('initial-data').textContent ?? '{}');
+
+    it('starts with an empty form for the applicant', async () => {
+      const user = userEvent.setup();
+      render(<Dashboard />);
+      await user.click(await screen.findByText('Heusdenpas'));
+
+      expect(initialData()).toEqual({ applicantId: 'user-1' });
+    });
+
+    it('fills the start form with the chosen test case, keeping the applicant', async () => {
+      const user = userEvent.setup();
+      render(<Dashboard />);
+      await user.click(await screen.findByText('Heusdenpas'));
+
+      await user.selectOptions(
+        screen.getByLabelText('Vul in met een testgeval'),
+        screen.getByRole('option', { name: /te hoog inkomen/ })
+      );
+
+      expect(initialData()).toMatchObject({
+        applicantId: 'user-1',
+        maandelijksBrutoInkomenAanvrager: 2500,
+        aanvragerAlleenstaand: false,
+        aanvragerHeeftKind4Tm17: true,
+      });
+      // The declaration stays for the person to tick.
+      expect(initialData()).not.toHaveProperty('verklaringNaarWaarheid');
+    });
+
+    it('goes back to an empty form when no test case is chosen', async () => {
+      const user = userEvent.setup();
+      render(<Dashboard />);
+      await user.click(await screen.findByText('Heusdenpas'));
+      const select = screen.getByLabelText('Vul in met een testgeval');
+
+      await user.selectOptions(select, screen.getByRole('option', { name: /niet in Heusden/ }));
+      await user.selectOptions(
+        select,
+        screen.getByRole('option', { name: 'Geen (leeg formulier)' })
+      );
+
+      expect(initialData()).toEqual({ applicantId: 'user-1' });
+    });
   });
 });

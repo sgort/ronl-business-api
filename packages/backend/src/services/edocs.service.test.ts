@@ -48,7 +48,14 @@ jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
 
-import { EdocsService } from './edocs.service';
+import { ReauthRequiredError, UserTokenUnavailableError } from '@auth/entra-token.service';
+import {
+  attributedDocName,
+  EdocsAccessDeniedError,
+  EdocsService,
+  EdocsSessionStore,
+  lookupEdocsUserId,
+} from './edocs.service';
 
 /** A realistic connect() response carrying both session cookies. */
 const connectResponse = {
@@ -365,6 +372,34 @@ describe('EdocsService — live mode', () => {
       const fileAppendCall = mockFormAppend.mock.calls.find((c) => c[0] === 'file');
       expect(fileAppendCall![2]).toMatchObject({ filename: 'a.pdf' });
       expect(Buffer.isBuffer(fileAppendCall![1])).toBe(true);
+    });
+
+    it('records the author in the title and keeps the service account as AUTHOR_ID', async () => {
+      mockClient.post
+        .mockResolvedValueOnce(connectResponse)
+        .mockResolvedValueOnce({ data: { data: { list: [{ id: 'doc-a', DOCNUM: '1' }] } } });
+
+      await svc.uploadDocument(null, 'a.pdf', 'YmFzZTY0', {
+        docName: 'Signed',
+        department: 'IVR',
+        author: { email: 'a@flevoland.nl', name: 'An Example' },
+      });
+
+      expect(lastProfileData()).toMatchObject({
+        DOCNAME: 'Signed — namens An Example (a@flevoland.nl)',
+        AUTHOR_ID: 'svc-user',
+        TYPIST_ID: 'svc-user',
+      });
+    });
+
+    it('keeps the title as given without an author', async () => {
+      mockClient.post
+        .mockResolvedValueOnce(connectResponse)
+        .mockResolvedValueOnce({ data: { data: { list: [{ id: 'doc-c', DOCNUM: '3' }] } } });
+
+      await svc.uploadDocument(null, 'c.pdf', 'YmFzZTY0', { docName: 'Plain', department: 'IVR' });
+
+      expect(lastProfileData().DOCNAME).toBe('Plain');
     });
 
     it('defaults APP_ID to DEFAULT and omits form_name when no formName is supplied', async () => {
@@ -698,5 +733,365 @@ describe('EdocsService — live mode', () => {
       expect(cfg.headers['Cookie']).toBe('X-DM-DST=dst-abc-123; X-DM-CSRF-TOKEN=csrf-xyz-789');
       expect(cfg.headers['X-DM-DST']).toBe('dst-abc-123');
     });
+
+    // #326 item 6: base64-like values end in "=" padding.
+    it('keeps cookie values that contain "="', async () => {
+      mockClient.post.mockResolvedValueOnce({
+        headers: { 'set-cookie': ['X-DM-DST=dst==; Path=/', 'X-DM-CSRF-TOKEN=a=b=; Path=/'] },
+      });
+      mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });
+      await svc.listWorkspaces();
+      const cfg = lastInterceptor()({ headers: {} });
+      expect(cfg.headers['X-DM-DST']).toBe('dst==');
+      expect(cfg.headers['X-DM-CSRF-TOKEN']).toBe('a=b=');
+    });
+  });
+});
+
+/** The interceptor the most recently constructed client registered. */
+function lastInterceptor() {
+  const calls = mockClient.interceptors.request.use.mock.calls;
+  return calls[calls.length - 1][0] as (c: { headers: Record<string, string> }) => {
+    headers: Record<string, string>;
+  };
+}
+
+const userConnectResponse = (userId = 'GORTS01') => ({
+  ...connectResponse,
+  data: { data: { USER_ID: userId, SESSION_DURATION: 480 } },
+});
+
+describe('EdocsService — per-user sessions', () => {
+  let service: EdocsService;
+  beforeEach(() => {
+    mockConfig.edocs.stubMode = false;
+    service = new EdocsService();
+  });
+
+  const userClient = (sub: string, token = `id-${sub}`) =>
+    service.forUser({
+      sub,
+      email: `${sub}@flevoland.nl`,
+      getIdToken: jest.fn().mockResolvedValue(token),
+    });
+
+  it('connects a person with X-DM-AUTH and no password', async () => {
+    mockClient.post.mockResolvedValueOnce(userConnectResponse());
+    mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });
+    const user = userClient('a', 'id-token-a');
+    await user.listWorkspaces();
+    const [path, body, opts] = mockClient.post.mock.calls[0];
+    expect(path).toBe('connect');
+    expect(body.data).toMatchObject({ library: 'DOCUVITT', timezone: 'Europe/Amsterdam' });
+    expect(body.data).not.toHaveProperty('userid');
+    expect(body.data).not.toHaveProperty('password');
+    expect(opts).toMatchObject({
+      headers: { 'X-DM-AUTH': 'id-token-a' },
+      params: { library: 'DOCUVITT' },
+    });
+    expect(user.actingAs).toBe('user');
+  });
+
+  // #338: eDOCS lets an account record only itself as author, so a person's own
+  // write names them -- never the service account.
+  describe('author of a person’s own write', () => {
+    const uploadedProfile = (): Record<string, unknown> => {
+      const call = mockFormAppend.mock.calls.find((c) => c[0] === 'data');
+      return JSON.parse(call![1] as string) as Record<string, unknown>;
+    };
+    const uploaded = { data: { data: { list: [{ id: 'doc-p', DOCNUM: '9' }] } } };
+
+    it('names the person as AUTHOR_ID and TYPIST_ID of an upload', async () => {
+      mockClient.post.mockResolvedValueOnce(userConnectResponse('GORTS01'));
+      mockClient.post.mockResolvedValueOnce(uploaded);
+      await userClient('a').uploadDocument(null, 'p.pdf', 'YmFzZTY0', {
+        docName: 'Mine',
+        department: 'IVR',
+      });
+      expect(uploadedProfile()).toMatchObject({ AUTHOR_ID: 'GORTS01', TYPIST_ID: 'GORTS01' });
+    });
+
+    it('names the person as author of a workspace they create', async () => {
+      mockClient.post
+        .mockResolvedValueOnce(userConnectResponse('GORTS01'))
+        .mockResolvedValueOnce({ data: { data: { id: 'ws-p' } } });
+      mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });
+      await userClient('a').ensureWorkspace('P-1', 'Mine');
+      const createBody = mockClient.post.mock.calls[1][1].data;
+      expect(createBody).toMatchObject({ AUTHOR_ID: 'GORTS01', TYPIST_ID: 'GORTS01' });
+    });
+
+    it('leaves the author to eDOCS when connect named no USER_ID', async () => {
+      mockClient.post.mockResolvedValueOnce({ ...connectResponse, data: { data: {} } });
+      mockClient.post.mockResolvedValueOnce(uploaded);
+      await userClient('a').uploadDocument(null, 'p.pdf', 'YmFzZTY0', {
+        docName: 'Mine',
+        department: 'IVR',
+      });
+      expect(uploadedProfile()).not.toHaveProperty('AUTHOR_ID');
+      expect(uploadedProfile()).not.toHaveProperty('TYPIST_ID');
+    });
+  });
+
+  // #326 item 2: the bound applies to people; the service session is never evicted.
+  it('keeps the service session however many people connect', async () => {
+    const store = new EdocsSessionStore(2);
+    const svcClient = new EdocsService({ kind: 'service' }, store);
+    mockClient.get.mockResolvedValue({ data: { data: { list: [] } } });
+    mockClient.post.mockResolvedValueOnce(connectResponse);
+    await svcClient.listWorkspaces();
+    for (const sub of ['a', 'b', 'c']) {
+      mockClient.post.mockResolvedValueOnce(userConnectResponse(sub.toUpperCase()));
+      await svcClient
+        .forUser({ sub, getIdToken: jest.fn().mockResolvedValue('t') })
+        .listWorkspaces();
+    }
+    await svcClient.listWorkspaces();
+    expect(mockClient.post).toHaveBeenCalledTimes(4); // service once, three people once
+  });
+
+  it('evicts the least recently used person, not the first one connected', async () => {
+    const store = new EdocsSessionStore(2);
+    const base = new EdocsService({ kind: 'service' }, store);
+    const person = (sub: string) =>
+      base.forUser({ sub, getIdToken: jest.fn().mockResolvedValue('t') });
+    mockClient.get.mockResolvedValue({ data: { data: { list: [] } } });
+    mockClient.post.mockResolvedValue(userConnectResponse());
+    await person('a').listWorkspaces();
+    await person('b').listWorkspaces();
+    await person('a').listWorkspaces(); // a used again
+    await person('c').listWorkspaces(); // evicts b
+    await person('a').listWorkspaces(); // still connected
+    expect(mockClient.post).toHaveBeenCalledTimes(3);
+  });
+
+  // #326 item 3: two first requests at once open one eDOCS session, not two.
+  it('opens one session for concurrent first requests of one person', async () => {
+    let release: (v: unknown) => void = () => undefined;
+    mockClient.post.mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
+    mockClient.get.mockResolvedValue({ data: { data: { list: [] } } });
+    const both = Promise.all([userClient('a').listWorkspaces(), userClient('a').listWorkspaces()]);
+    await new Promise((r) => setImmediate(r));
+    release(userConnectResponse());
+    await both;
+    expect(mockClient.post).toHaveBeenCalledTimes(1);
+    expect(mockClient.get).toHaveBeenCalledTimes(2);
+  });
+
+  // #326 item 4: a dashboard that polls status must not open a new eDOCS
+  // connect for a person on every load while that person cannot connect.
+  it('remembers a failed person probe for a while instead of reconnecting', async () => {
+    mockClient.post.mockRejectedValue(
+      Object.assign(new Error('HTTP 401'), {
+        response: { status: 401, data: { ERROR: { message: 'Access not allowed' } } },
+      })
+    );
+    const first = await userClient('a').probeUser();
+    const second = await userClient('a').probeUser();
+    expect(first).toEqual({ authenticated: false, error: 'Access not allowed' });
+    expect(second).toEqual(first);
+    expect(mockClient.post).toHaveBeenCalledTimes(1);
+  });
+
+  it('records the eDOCS USER_ID for the person’s e-mail', async () => {
+    mockClient.post.mockResolvedValueOnce(userConnectResponse('GORTS01'));
+    mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });
+    await userClient('steven.gort').listWorkspaces();
+    expect(lookupEdocsUserId('steven.gort@flevoland.nl')).toBe('GORTS01');
+  });
+
+  it('keeps the service session and a person’s session apart', async () => {
+    mockClient.post.mockResolvedValueOnce(connectResponse); // service
+    mockClient.get.mockResolvedValue({ data: { data: { list: [] } } });
+    await service.listWorkspaces();
+    const user = userClient('a');
+    mockClient.post.mockResolvedValueOnce({
+      ...userConnectResponse(),
+      headers: { 'set-cookie': ['X-DM-DST=dst-user-a; Path=/'] },
+    });
+    await user.listWorkspaces();
+    expect(mockClient.post).toHaveBeenCalledTimes(2); // each principal connected once
+    expect(lastInterceptor()({ headers: {} }).headers['X-DM-DST']).toBe('dst-user-a');
+  });
+
+  it('never sends user A’s cookies on user B’s request (Review Focus 3)', async () => {
+    mockClient.get.mockResolvedValue({ data: { data: { list: [] } } });
+    const a = userClient('a');
+    mockClient.post.mockResolvedValueOnce({
+      ...userConnectResponse('A'),
+      headers: { 'set-cookie': ['X-DM-DST=dst-a; Path=/'] },
+    });
+    await a.listWorkspaces();
+    const interceptorA = lastInterceptor();
+    const b = userClient('b');
+    mockClient.post.mockResolvedValueOnce({
+      ...userConnectResponse('B'),
+      headers: { 'set-cookie': ['X-DM-DST=dst-b; Path=/'] },
+    });
+    await b.listWorkspaces();
+    const interceptorB = lastInterceptor();
+    expect(interceptorA({ headers: {} }).headers['X-DM-DST']).toBe('dst-a');
+    expect(interceptorB({ headers: {} }).headers['X-DM-DST']).toBe('dst-b');
+  });
+
+  it('a derived client for the same person reuses that person’s session', async () => {
+    mockClient.get.mockResolvedValue({ data: { data: { list: [] } } });
+    mockClient.post.mockResolvedValueOnce(userConnectResponse());
+    await userClient('a').listWorkspaces();
+    await userClient('a').listWorkspaces();
+    expect(mockClient.post).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends the CSRF token as a header as well as a cookie', async () => {
+    mockClient.post.mockResolvedValueOnce(userConnectResponse());
+    mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });
+    await userClient('a').listWorkspaces();
+    const headers = lastInterceptor()({ headers: {} }).headers;
+    expect(headers['X-DM-CSRF-TOKEN']).toBe('csrf-xyz-789');
+    expect(headers['Cookie']).toContain('X-DM-CSRF-TOKEN=csrf-xyz-789');
+  });
+
+  it('on a 401 it reconnects with a forced-fresh ID token, then retries', async () => {
+    const getIdToken = jest.fn().mockResolvedValue('id-a');
+    const user = service.forUser({ sub: 'a', getIdToken });
+    mockClient.post.mockResolvedValue(userConnectResponse());
+    mockClient.get
+      .mockRejectedValueOnce({ response: { status: 401 } })
+      .mockResolvedValueOnce({ data: { data: { list: [{ id: 'w' }] } } });
+    await expect(user.listWorkspaces()).resolves.toEqual([{ id: 'w' }]);
+    expect(getIdToken).toHaveBeenNthCalledWith(1, {});
+    expect(getIdToken).toHaveBeenNthCalledWith(2, { forceRefresh: true });
+  });
+
+  it('eDOCS refusing a person’s token is an EdocsAccessDeniedError', async () => {
+    mockClient.post.mockRejectedValueOnce({
+      response: {
+        status: 400,
+        data: { ERROR: { rapi_code: 13, rapi_details: ['Access not allowed'] } },
+      },
+    });
+    await expect(userClient('a').listWorkspaces()).rejects.toBeInstanceOf(EdocsAccessDeniedError);
+  });
+
+  it('a 403 on a person’s call is a refusal, not an expired session: no refresh, no reconnect', async () => {
+    const getIdToken = jest.fn().mockResolvedValue('id-a');
+    const user = service.forUser({ sub: 'a', getIdToken });
+    mockClient.post.mockResolvedValueOnce(userConnectResponse());
+    mockClient.get.mockRejectedValueOnce({
+      response: { status: 403, data: { ERROR: { message: 'Geen rechten op dit document' } } },
+    });
+    await expect(user.getDocumentProfile('42')).rejects.toBeInstanceOf(EdocsAccessDeniedError);
+    expect(getIdToken).toHaveBeenCalledTimes(1);
+    expect(mockClient.post).toHaveBeenCalledTimes(1);
+  });
+
+  it('a 401 that persists after the forced refresh is a refusal, not a 502', async () => {
+    const user = service.forUser({ sub: 'a', getIdToken: jest.fn().mockResolvedValue('id-a') });
+    mockClient.post.mockResolvedValue(userConnectResponse());
+    mockClient.get.mockRejectedValue({ response: { status: 401 } });
+    await expect(user.listWorkspaces()).rejects.toBeInstanceOf(EdocsAccessDeniedError);
+  });
+
+  it('a 5xx on a person’s connect is an upstream failure, not an access decision', async () => {
+    const err = { response: { status: 503, data: 'Service Unavailable' } };
+    mockClient.post.mockRejectedValueOnce(err);
+    const user = userClient('a');
+    await expect(user.listWorkspaces()).rejects.toBe(err);
+  });
+
+  it('the service account still reconnects on a 403 (its session expiry signal)', async () => {
+    mockClient.post.mockResolvedValue(connectResponse);
+    mockClient.get
+      .mockRejectedValueOnce({ response: { status: 403 } })
+      .mockResolvedValueOnce({ data: { data: { list: [] } } });
+    await expect(service.listWorkspaces()).resolves.toEqual([]);
+    expect(mockClient.post).toHaveBeenCalledTimes(2);
+  });
+
+  it('a revoked session ends in ReauthRequiredError, not an upstream error (Review Focus 2)', async () => {
+    const getIdToken = jest
+      .fn()
+      .mockResolvedValueOnce('id-cached')
+      .mockRejectedValueOnce(new ReauthRequiredError());
+    const user = service.forUser({ sub: 'a', getIdToken });
+    mockClient.post.mockResolvedValueOnce(userConnectResponse());
+    mockClient.get.mockRejectedValueOnce({ response: { status: 401 } });
+    await expect(user.listWorkspaces()).rejects.toBeInstanceOf(ReauthRequiredError);
+  });
+
+  it('passes a missing token straight through', async () => {
+    const user = service.forUser({
+      sub: 'a',
+      getIdToken: jest.fn().mockRejectedValue(new UserTokenUnavailableError()),
+    });
+    await expect(user.listWorkspaces()).rejects.toBeInstanceOf(UserTokenUnavailableError);
+    expect(mockClient.post).not.toHaveBeenCalled();
+  });
+
+  it('probeUser reports the person’s eDOCS user, or why not', async () => {
+    mockClient.post.mockResolvedValueOnce(userConnectResponse('GORTS01'));
+    await expect(userClient('a').probeUser()).resolves.toEqual({
+      authenticated: true,
+      edocsUserId: 'GORTS01',
+    });
+    mockClient.post.mockRejectedValueOnce({
+      response: {
+        status: 400,
+        data: { ERROR: { message: '', rapi_details: ['Access not allowed'] } },
+      },
+    });
+    await expect(userClient('z').probeUser()).resolves.toEqual({
+      authenticated: false,
+      error: 'Access not allowed',
+    });
+  });
+
+  it('forService returns a service client; the default instance is the service', () => {
+    expect(service.actingAs).toBe('service');
+    expect(userClient('a').forService().actingAs).toBe('service');
+  });
+});
+
+describe('EdocsService — per-user sessions, stub mode', () => {
+  it('a person gets a stub session and the STUB-USER id without any network call', async () => {
+    mockConfig.edocs.stubMode = true;
+    const user = new EdocsService().forUser({ sub: 'a', getIdToken: jest.fn() });
+    await expect(user.probeUser()).resolves.toEqual({
+      authenticated: true,
+      edocsUserId: 'STUB-USER',
+    });
+    expect(mockClient.post).not.toHaveBeenCalled();
+  });
+});
+
+describe('attributedDocName', () => {
+  it('appends "namens <naam> (<e-mail>)" to the title', () => {
+    expect(
+      attributedDocName('RIP-1 — Intake Report', {
+        email: 'steven.gort@flevoland.nl',
+        name: 'Steven Gort',
+      })
+    ).toBe('RIP-1 — Intake Report — namens Steven Gort (steven.gort@flevoland.nl)');
+  });
+
+  it('appends only the e-mail when there is no name', () => {
+    expect(attributedDocName('Doc', { email: 'a@flevoland.nl' })).toBe(
+      'Doc — namens a@flevoland.nl'
+    );
+  });
+
+  it('leaves the title alone without an author, or with an empty e-mail', () => {
+    expect(attributedDocName('Doc', undefined)).toBe('Doc');
+    expect(attributedDocName('Doc', { email: '  ' })).toBe('Doc');
+  });
+
+  it('shortens the title, never the attribution, to stay within 254 characters', () => {
+    const result = attributedDocName('t'.repeat(300), { email: 'a@b.nl', name: 'An Example' });
+    expect(result).toHaveLength(254);
+    expect(result.endsWith(' — namens An Example (a@b.nl)')).toBe(true);
+  });
+
+  it('cuts an attribution that alone is longer than 254 characters', () => {
+    expect(attributedDocName('Doc', { email: 'a@b.nl', name: 'x'.repeat(400) })).toHaveLength(254);
   });
 });

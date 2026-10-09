@@ -7,14 +7,18 @@ name: Release SBOM
 # Two copies, deliberately, because neither is sufficient alone:
 #
 #   - docs/sbom/<name>-<version>.cdx.json, committed at release time by
-#     `npm run sbom` and kept honest by the check below. Durable: a question
-#     about a version that shipped a year ago is answerable from git.
+#     `npm run sbom`. Durable: a question about a version that shipped a year
+#     ago is answerable from git. Two checks below, of different strength: on
+#     the release pull request -- the one that adds this version's file -- it
+#     must match the lockfile exactly; on a promotion it must exist, and drift
+#     is only a warning, because a promotion carries later commits.
 #   - the artifact this workflow uploads, which is what a scanner or a
 #     Dependency-Track import can fetch without a checkout. This repository is
 #     public, so GitHub caps artifact retention at 90 days — hence the
 #     committed copy.
 #
-# Tracked in sgort/linked-data-explorer#119.
+# Introduced in sgort/linked-data-explorer#119; the release-PR check in
+# sgort/linked-data-explorer#255.
 on:
   push:
     branches:
@@ -41,6 +45,10 @@ jobs:
   # ambiguous. Learned the hard way when the daily audit's job was called
   # `audit` and blocked a pull request (sgort/linked-data-explorer#119).
   release-sbom:
+    permissions:
+      contents: read
+      # Read the pull request's file list, for the release-PR check below.
+      pull-requests: read
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -70,6 +78,33 @@ jobs:
         # the bump-release step that writes the file.
         if: ${{ github.event_name == 'push' }}
         run: node scripts/write-sbom.mjs --verify-release
+
+      - name: The release pull request's SBOM matches its lockfile
+        # Where the release is cut, the strict --check. Only on the pull
+        # request that adds or changes THIS version's file, which is the
+        # release bump: on any other pull request the committed file belongs to
+        # an earlier release, and a lockfile that has moved since is expected.
+        #
+        # Without it nothing verified that the SBOM committed at release
+        # matches the release commit's lockfile: a lockfile change after
+        # `npm run sbom` -- a rebase, a late dependency merge -- shipped a stale
+        # document, and the only signal was the promotion's warning
+        # (sgort/linked-data-explorer#255).
+        # Re-runs on every push to the pull request, since the paths filter
+        # above matches its whole diff, so a rebase is checked too.
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          sbom=$(node scripts/write-sbom.mjs --print-path)
+          files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename')
+          if printf '%s\n' "$files" | grep -qxF "$sbom"; then
+            node scripts/write-sbom.mjs --check
+          else
+            echo "$sbom is not changed by this pull request, so it is not a release bump; skipping the strict check."
+          fi
 
       - name: Upload the SBOM
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

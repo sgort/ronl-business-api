@@ -554,6 +554,16 @@ redirect URI registered by Flevoland IT, the script run against
 site's runbook, _Developer → Deployment → Entra ID (Flevoland) → Rolling out to
 an environment_.
 
+**Since 6 October 2026: people act in eDOCS as themselves (#324).** A promotion
+that includes #324 needs the same script run on PROD Keycloak — it now also
+stores the brokered tokens, adds the broker `read-token` role to
+`default-roles-ronl` and the `broker-roles` mapper to `ronl-business-api` — and
+every Flevoland person to sign in once more afterwards. Check PROD's
+`EDOCS_STUB_MODE` first: with `false`, the backend refuses to start unless
+`ENTRA_TENANT_ID`, `ENTRA_CLIENT_ID`, `ENTRA_CLIENT_SECRET`, `EDOCS_USER_ID`
+and `EDOCS_PASSWORD` are set; with `true` (the state on 6 October) nothing is
+required yet. See `docs/EDOCS-GO-LIVE.md`, _People act as themselves_.
+
 ### 4.4 Operaton — nothing to do
 
 ACC and PROD point at the **same** engine (`OPERATON_BASE_URL` is

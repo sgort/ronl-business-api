@@ -140,6 +140,18 @@ interface Config {
     password: string;
     stubMode: boolean;
     department: string;
+    /** People without an Entra token may fall back to the service account. Never on production. */
+    allowServiceFallback: boolean;
+    /** Machine clients (token `azp`) allowed on /v1/edocs. */
+    allowedClients: string[];
+  };
+  /** Provincie Flevoland's Entra ID, for refreshing a person's brokered ID token. */
+  entra: {
+    tenantId: string;
+    clientId: string;
+    clientSecret: string;
+    /** Keycloak identity-provider alias that brokers this tenant. */
+    idpAlias: string;
   };
   edocsMcp: {
     enabled: boolean;
@@ -342,6 +354,21 @@ export const config: Config = {
     // working archive. Not required: an empty value degrades to an upload
     // failure per document, not a startup failure.
     department: process.env.EDOCS_DEPARTMENT ?? 'IVR',
+    allowServiceFallback: parseEnvBool(process.env.EDOCS_ALLOW_SERVICE_FALLBACK, false),
+    // operaton-mcp-client is the smoke-test and M2M client every live script and
+    // ACC run authenticates as; leaving it out would break them on merge.
+    allowedClients: parseEnvArray(process.env.EDOCS_ALLOWED_CLIENTS, [
+      'edocs-mcp-client',
+      'copilot-studio-edocs',
+      'operaton-mcp-client',
+    ]),
+  },
+
+  entra: {
+    tenantId: process.env.ENTRA_TENANT_ID ?? '',
+    clientId: process.env.ENTRA_CLIENT_ID ?? '',
+    clientSecret: process.env.ENTRA_CLIENT_SECRET ?? '',
+    idpAlias: process.env.ENTRA_IDP_ALIAS ?? 'entra-flevoland',
   },
 
   edocsMcp: {
@@ -501,6 +528,27 @@ function validateConfig() {
           'refusing to start with live signing enabled on an unlisted tier'
       );
     }
+  }
+
+  // Live eDOCS needs the service account (machine callers, archiving) and the
+  // Entra client (refreshing a person's brokered ID token). Stub mode needs neither,
+  // so tests and local development keep starting with no eDOCS settings at all.
+  if (!config.edocs.stubMode) {
+    if (!config.edocs.userId) errors.push('EDOCS_USER_ID is required when EDOCS_STUB_MODE=false');
+    if (!config.edocs.password)
+      errors.push('EDOCS_PASSWORD is required when EDOCS_STUB_MODE=false');
+    if (!config.entra.tenantId)
+      errors.push('ENTRA_TENANT_ID is required when EDOCS_STUB_MODE=false');
+    if (!config.entra.clientId)
+      errors.push('ENTRA_CLIENT_ID is required when EDOCS_STUB_MODE=false');
+    if (!config.entra.clientSecret) {
+      errors.push('ENTRA_CLIENT_SECRET is required when EDOCS_STUB_MODE=false');
+    }
+  }
+
+  // A person must never silently act as the service account on production.
+  if (config.edocs.allowServiceFallback && config.deploymentEnv === 'production') {
+    errors.push('EDOCS_ALLOW_SERVICE_FALLBACK=true is refused when DEPLOYMENT_ENV=production');
   }
 
   if (errors.length > 0) {

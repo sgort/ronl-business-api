@@ -90,6 +90,13 @@ const ALL_OVERRIDES: Record<string, string> = {
   EDOCS_PASSWORD: 'edocs-pass',
   EDOCS_STUB_MODE: 'false',
   EDOCS_DEPARTMENT: 'OTHERAFD',
+  EDOCS_ALLOW_SERVICE_FALLBACK: 'true',
+  EDOCS_ALLOWED_CLIENTS: 'client-a,client-b',
+  // Live eDOCS (EDOCS_STUB_MODE=false above) requires the Entra settings.
+  ENTRA_TENANT_ID: 'tenant-x',
+  ENTRA_CLIENT_ID: 'client-x',
+  ENTRA_CLIENT_SECRET: 'secret-x',
+  ENTRA_IDP_ALIAS: 'entra-other',
   EDOCS_MCP_ENABLED: 'true',
   EDOCS_MCP_CLIENT_ID: 'other-mcp-client',
   EDOCS_MCP_CLIENT_SECRET: 'mcp-secret',
@@ -216,6 +223,14 @@ describe('config defaults (empty environment)', () => {
       password: '',
       stubMode: true,
       department: 'IVR',
+      allowServiceFallback: false,
+      allowedClients: ['edocs-mcp-client', 'copilot-studio-edocs', 'operaton-mcp-client'],
+    });
+    expect(config.entra).toEqual({
+      tenantId: '',
+      clientId: '',
+      clientSecret: '',
+      idpAlias: 'entra-flevoland',
     });
     expect(config.edocsMcp).toEqual({
       enabled: false,
@@ -339,6 +354,14 @@ describe('config overrides (every variable set)', () => {
       password: 'edocs-pass',
       stubMode: false,
       department: 'OTHERAFD',
+      allowServiceFallback: true,
+      allowedClients: ['client-a', 'client-b'],
+    });
+    expect(config.entra).toEqual({
+      tenantId: 'tenant-x',
+      clientId: 'client-x',
+      clientSecret: 'secret-x',
+      idpAlias: 'entra-other',
     });
     expect(config.edocsMcp).toEqual({
       enabled: true,
