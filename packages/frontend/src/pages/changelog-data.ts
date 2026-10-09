@@ -112,6 +112,534 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.10.1',
+      status: 'Released',
+      date: '9 okt 2026',
+      scope: ['frontend', 'backend', 'ci'],
+      commits: [
+        {
+          sha: '0ec47d9',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A citizen service the bundle has no card for is skipped, not fatal',
+          details: [
+            'Frontend and backend release separately, so `GET /v1/process/available` can answer a service id this bundle has no card for. The dashboard rendered it as undefined and the whole page failed; it now keeps only the ids it knows (#344).',
+          ],
+        },
+        {
+          sha: '24e485d',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject:
+            'tenants.json features retired: the deployments decide which services a tenant offers',
+          details: [
+            '`tenants.json` and the `TenantConfig` types lose `features`: the citizen dashboard reads `GET /v1/process/available` instead. A guard test keeps the flags from coming back, replacing the per-tenant features test. A new e2e spec checks the cards an Amsterdam, a Heusden and a Flevoland citizen see (#344).',
+          ],
+        },
+        {
+          sha: '9a73b60',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Citizen dashboard cards come from the available services; DVTP retired',
+          details: [
+            'The citizen dashboard renders the services `GET /v1/process/available` answers, through a frontend UI map that a guard test keeps in step with the registry. A failed load shows an error with a retry rather than every card; the Meldingen card and the in-development placeholder are gone.',
+            'DVTP is retired: the citizen consent tab, the caseworker rail group and its two sections. The org-type gate stays, covered by a stand-in rail item (#344).',
+          ],
+        },
+        {
+          sha: '840a872',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Citizen services from a registry and the deployments, enforced at start',
+          details: [
+            'A registry in @ronl/shared names each citizen service, the process it starts and its scope (own-tenant or cross-tenant). `GET /v1/process/available` answers the services a citizen may start, derived from the latest deployment per tenant; an untenanted deployment never counts, and an Operaton failure is a 503 rather than every service.',
+            '`resolveStartTenant` now takes the process key: a citizen’s case goes to another tenant only for a cross-tenant service (Zorgtoeslag), and a citizen start with no deployed tenant is refused. An Amsterdam Kapvergunning no longer becomes a case at Provincie Flevoland (#344).',
+          ],
+        },
+        {
+          sha: '303017a',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Design: citizen services from a registry and the deployments',
+          details: [
+            'The citizen dashboard showed a card per hand-kept `tenants.json` features flag, while each card starts one fixed process. The design replaces the flags with a registry in @ronl/shared, an endpoint that derives the cards from where each process is deployed, and enforcement of the scope at start; features and DVTP are retired, and the untenanted RBA drift on the shared ACC/PROD engine is removed after deploy (#344).',
+          ],
+        },
+        {
+          sha: '0ee76e3',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Access checks read municipality without deserialising, so a claim no longer collides with the task pane',
+          details: [
+            'On ACC the Heusdenpas journey failed to claim its review task: Operaton answered ENGINE-03005, “Entity was updated by another transaction concurrently”, on svbResult. The tenant check before the claim read every variable deserialised; decision results are Java-serialised HashMaps, which Operaton writes back when it re-serialises them differently, so the read was not read-only. Opening the task read the same instance in that same second, and two write-backs collided.',
+            '`getAccessVariables` reads municipality and applicantId with `deserializeValues=false`, which never writes; every tenant check uses it (claim, complete, form-schema, variables, status, cancel). Where variables are returned, the full read happens only after access is settled, and the ValidSign spec and status routes read without deserialising (#347).',
+          ],
+        },
+        {
+          sha: '0fccaa9',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'Heusdenpas for citizens of Gemeente Heusden, with test cases for the start form',
+          details: [
+            'Gemeente Heusden’s Heusdenpas and Kindpakket application becomes a citizen service. HeusdenpasAanvraagProcess and HeusdenpasBeoordelingSubProcess come from linked-data-explorer (PR #271), deployed under tenant heusden with five forms and the beschikking document; the decisions they call are untenanted. The card opens the deployed start form; Mijn aanvragen calls it “Heusdenpas aanvragen”.',
+            '“Vul in met een testgeval” fills the start form with one of the cases linked-data-explorer verified against the process, from granted to 2027 without a norm. The e2e journey applies as test-citizen-heusden through the Baanbrekers case, decides it as test-caseworker-heusden, and checks the citizen sees the completed application once (#346).',
+          ],
+        },
+        {
+          sha: '9bd82a2',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Mijn aanvragen lists applications, not the sub-processes they call',
+          details: [
+            '`getProcessHistory` filtered historic process instances on applicantId only. A called sub-process inherits applicantId and municipality, so it matched too and showed as a second application: test-citizen-flevoland had 19 rows locally, 8 of them decision sub-processes. The query now sets `rootProcessInstances: true`, for citizens and caseworkers alike, and returns the 11 applications.',
+          ],
+        },
+        {
+          sha: 'dc65078',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Municipalities no longer offer Flevoland’s Kapvergunning and Thuisbatterij',
+          details: [
+            'Vergunningen is Flevoland’s Kapvergunning and Subsidies Flevoland’s Thuisbatterij, both deployed under flevoland only, and `resolveStartTenant` hands a citizen’s start to the deploying tenant. A resident of Amsterdam or Heusden who applied got a case at Provincie Flevoland, the wrong authority. Utrecht, Amsterdam, Heusden, Rotterdam and Den Haag had both flags switched off; #344 has since replaced the flags altogether.',
+          ],
+        },
+        {
+          sha: '0f31af0',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Gemeente Heusden as a tenant at /heusden',
+          details: [
+            'Heusden (GM0797) joins as a single-board tenant: its own landing page at /heusden, the Caseworker board, and a link preview per environment, like Amsterdam. Two optional theme settings come with it: `theme.background` sets the landing page background (and is removed for a tenant without one), and `logo.height` sizes the top-bar logo, 58 px for Heusden.',
+            'Keycloak gains test-citizen-heusden and test-caseworker-heusden in ronl-realm.json (the live ACC realm needs them by hand), and the citizen maps to the shared test BSN so the DigiD link reaches a dashboard with BRP data (#345).',
+          ],
+        },
+        {
+          sha: '3825192',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The caller’s token goes only to an MCP source that acts as the person',
+          details: [
+            '`McpProviderMeta` gains `actsAsPerson`; only `EdocsMcpProvider` sets it. `McpRegistry.callTool` passes the call context on only to such a provider, so no other source can ever forward the caller’s token. The flag is documented on McpSource in the OpenAPI description (#326 items 7 and 8).',
+          ],
+        },
+        {
+          sha: '9dc9cd7',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The bearer token on req.auth stays out of logs and copies',
+          details: [
+            '`jwtMiddleware` defines `req.auth.token` as a non-enumerable property: the eDOCS access middleware and the assistant’s chat route still read it, but Object.keys, JSON.stringify, a spread and the logger no longer see it. `tenantMiddleware` sets `req.auth.tenantId` in place instead of replacing req.auth with a spread copy, which would have dropped the token (#326 item 5).',
+          ],
+        },
+        {
+          sha: 'a96d37a',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'eDOCS status reports a failed token lookup for a person, and throttles a failed person probe',
+          details: [
+            'A Keycloak broker 5xx or network failure no longer turns `/v1/edocs/status` into an undocumented 500: status reports `EDOCS_USER_LOOKUP_FAILED` for the person, and every other route still fails on it, never falling back to the service. `probeUser()` remembers a failure per person for authProbeTtlMs, so a polling dashboard does not reconnect on every load (#326 item 4).',
+          ],
+        },
+        {
+          sha: 'e01a633',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'eDOCS caches evict the least recently used entry, and concurrent first requests share one connect',
+          details: [
+            'The Entra token cache and the eDOCS session store evict the least recently used entry; the service session never counts against the bound. Concurrent first requests for one person share one broker lookup and one eDOCS connect, and a failed lookup is not cached. X-DM-DST and X-DM-CSRF-TOKEN keep everything after the first “=” (#326 items 2, 3 and 6).',
+          ],
+        },
+        {
+          sha: '8206fdc',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A person’s own eDOCS write names them as author, not the service account',
+          details: [
+            '`ensureWorkspace` and `uploadDocument` set AUTHOR_ID and TYPIST_ID through `authorFields()`: the service account for the service principal, the person’s own eDOCS USER_ID for a person, and nothing when their connect named none. eDOCS lets an account record only itself as author. test-edocs-live.sh section 1c checks it live (#338).',
+          ],
+        },
+        {
+          sha: 'd8872b7',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'A signed document is archived for its signer, and the eDOCS author stays out of variables responses',
+          details: [
+            'Creating a ValidSign package stamps the signer as edocsAuthor; before, the signed document was archived “namens” whoever completed the task before signing. The process and task variables routes leave edocsAuthor and edocsAuthorName out: a citizen reads their own case there and has no business with an employee’s e-mail address. edocsAuthorName falls back to given name plus family name when the token has no name claim.',
+          ],
+        },
+        {
+          sha: 'de6393d',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Background archiving records “namens” the employee',
+          details: [
+            'A new section in EDOCS-GO-LIVE.md: who is stamped as edocsAuthor (staff starting a process, completing a task or creating a ValidSign package; never citizens or M2M clients), the reserved variables, why the text goes in the title, the 254-character limit, and how to check it.',
+          ],
+        },
+        {
+          sha: 'aeefb97',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The worker and ValidSign archive “namens” the employee who acted',
+          details: [
+            'The rip-edocs-document topic fetches edocsAuthor and edocsAuthorName and passes the author to `uploadDocument`; workspaces carry no attribution. ValidSign completion passes it to both uploads, the signed PDF and the evidence summary. Without an author both archive as before.',
+          ],
+        },
+        {
+          sha: '443d28e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'The employee who acted is stamped as edocsAuthor, reserved against client writes',
+          details: [
+            'When staff start a process or complete a user task, the backend stamps edocsAuthor (the token’s e-mail, else preferred_username) and edocsAuthorName for background eDOCS archiving. Citizens and tokens that name nobody are never stamped. Both variables are reserved: 400 RESERVED_VARIABLE on task completion, and the start drops client-sent values.',
+          ],
+        },
+        {
+          sha: '06dfcdf',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'A service upload records the employee it is done for as “namens …” in its title',
+          details: [
+            '`attributedDocName` appends “— namens <naam> (<e-mail>)” to an archived document’s title: the service account may only record itself as AUTHOR_ID, and InfoCenter shows no free-text summary field on D_INTERN_NIEUW. The title stays within 254 characters by shortening the title, never the attribution.',
+          ],
+        },
+        {
+          sha: 'da99280',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'test-edocs-person.sh runs the eDOCS checks with the person’s token from the clipboard',
+          details: [
+            'The live and smoke scripts already accept a Flevoland-signed-in person’s token as PERSON_TOKEN; getting it there by hand was the hard part. The new script reads it from the clipboard (a DevTools “Copy as cURL”, or the bare value), shows its claims but never the token, stops on an expired token or one from another environment, and runs `live`, `smoke` or `diag`.',
+          ],
+        },
+        {
+          sha: 'c9b6319',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'A stuck Playwright browser install in the PA demo job times out',
+          details: [
+            'On 7 October the ACC PA Demo job hung in “Install Playwright browser” for over ten minutes, because the runner’s Ubuntu mirror stopped answering; nothing bounded the step but the six-hour job limit. It now has `timeout-minutes: 10`: a healthy install takes 22 seconds, and a dead mirror fails fast enough to re-run (#337).',
+          ],
+        },
+        {
+          sha: '4953ba6',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'dompurify 3.4.16 (GHSA-6688-9rhm-gjv2, GHSA-p98j-92pf-mc4p)',
+          details: [
+            'Semgrep Supply Chain reported two low advisories in dompurify 3.4.15, the only production dependency among the findings of 7 October. It comes in through @bpmn-io/form-js-viewer, whose range already allows 3.4.16, so this is a lockfile-only change, past the 14-day cooldown. The dev-only findings wait for their fixes to clear the cooldown or are triaged in Semgrep (#336).',
+          ],
+        },
+        {
+          sha: '22029ce',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Open a board with the Flevoland account, and say when access is refused',
+          details: [
+            'The Caseworker, PA-Cockpit and Infra-board cards get a small “Flevoland-account” button beside “Openen”, which logs in through Entra ID and keeps the board as the target. Each board records its Entra app role, checked against the Keycloak mappers; Woo has none yet, so it offers no button.',
+            'A board chosen on a landing page that the role does not open used to land quietly on another dashboard. It now returns to that landing page with a dialog naming the board, the signed-in user, the missing role and the Entra app role to ask for, with “Naar mijn dashboard” and “Uitloggen” (#335).',
+          ],
+        },
+        {
+          sha: '699f3fe',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The assistant’s eDOCS tools ask to sign in again on an expired token',
+          details: [
+            'The chat captures the caller’s token once, and a Keycloak token can expire mid-chat; the raw “status code 401” reached the model. Any unexplained 401 on a person call now gets the “sessie verlopen, log opnieuw in” text, EDOCS_CLIENT_NOT_ALLOWED gets a Dutch explanation, and an eDOCS tool called without a caller is logged, because it then runs as the service account (#332 follow-up).',
+          ],
+        },
+        {
+          sha: 'c2fd173',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'No run-time RegExp in the tenant-pages plugin',
+          details: [
+            'Semgrep flagged five detect-non-literal-regexp findings in vite-plugin-tenant-pages.ts. They were not exploitable (literal patterns, run on our own built index.html at build time), but removing them was simpler than suppressing them: `replaceOne` takes global regex literals, and `setMeta` finds its tag by plain string search. A test regex in tenants-landing.test.ts that had lost its backslash is fixed too (#333).',
+          ],
+        },
+        {
+          sha: 'ebc1b57',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The assistant’s eDOCS tools act as the caseworker',
+          details: [
+            'With `_meta.userToken`, the eDOCS MCP server calls `/v1/edocs` with the caller’s own token instead of its service token, so eDOCS sees the person. A refusal is never retried under the service identity; it comes back as a tool error with a Dutch explanation the assistant can relay (Flevoland account needed, session expired, or eDOCS refuses this account) (#332).',
+          ],
+        },
+        {
+          sha: 'f716935',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'A tool call carries the caller’s token, outside the model’s arguments',
+          details: [
+            'A tool call now carries an optional `McpCallContext { userToken }`. The chat route passes the caller’s Keycloak token to runChatStream, which hands it to every `mcpRegistry.callTool`; `EdocsMcpProvider` sends it in the MCP request’s `_meta`, never in the tool arguments, so the language model never sees it (#332).',
+          ],
+        },
+        {
+          sha: 'bbfac17',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: '@modelcontextprotocol/sdk 1.31.0 for GHSA-6qxp-vccf-f47h',
+          details: [
+            'The daily audit failed on a high advisory: the MCP SDK’s OAuth client could send credentials to an authorization server chosen by the MCP server (>= 1.12.0 < 1.31.0). The backend moves to 1.31.0, the first patched release; the cooldown was skipped on the one lockfile command, as .npmrc allows for a security fix. Exposure was low: no transport here has an authProvider (#331).',
+          ],
+        },
+        {
+          sha: 'af597da',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'One Static Web Apps route per tenant page',
+          details: [
+            'The ACC deploy of #329 failed at the upload: Static Web Apps ignores a trailing slash when it compares routes, so the two rewrites per tenant, /<id> and /<id>/, were one route written twice. `withTenantRoutes` emits one rewrite per tenant, and check-og.mjs now rejects two routes that differ only by a trailing slash (#330).',
+          ],
+        },
+        {
+          sha: 'e68621f',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Tenant landing pages at /<id>, each with its own link preview',
+          details: [
+            'The single-board landing page moves from /?tenant=<id> to /<id>: unfurlers do not run JavaScript and Static Web Apps routes on the path only, so every /?tenant= link previewed as Flevoland’s page. An unknown, disabled, reserved or multi-board id goes to /, a mixed-case id to its lower-case path, and old /?tenant= links redirect. Logout returns to /<municipality>.',
+            'A build plugin writes dist/<id>/index.html for every single-board tenant with its own title, description, canonical and Open Graph tags, and the route for it; check-og.mjs checks each page before the deploy. Six 1200x630 cards ship for Amsterdam, Toeslagen and Univé (#329).',
+          ],
+        },
+        {
+          sha: '8c9169d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The Flevoland Entra button is hidden on the Keycloak login form',
+          details: [
+            'The login page showed “Flevoland (Entra ID)” for every tenant, although Entra login exists only for Flevoland, and the theme cannot tell which landing page a visitor came from. The provider is now hidden on the form (`hideOnLogin`); Flevoland keeps Entra through the landing page’s “Inloggen met uw Flevoland-account”. Takes effect when keycloak-add-entra-idp.sh is re-run against a realm.',
+          ],
+        },
+        {
+          sha: '7d0f313',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'A single-board landing page per tenant',
+          details: [
+            'Tenants with one board (Gemeente Amsterdam, Dienst Toeslagen, Univé Verzekeringen) get their own landing page; Flevoland keeps its four-board grid. `tenants.json` gains boards and logo, and the page shows the tenant logo, copy per organisation type, a themed Caseworker preview and a footer with a bold Changelog link.',
+            'Usernames are pre-filled on every landing login: test-caseworker-<tenant> for the caseworker and top-bar logins, test-citizen-<tenant> for DigiD. Logout from every dashboard returns to the user’s own tenant page (#328).',
+          ],
+        },
+        {
+          sha: '84d39fe',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'prettier updated to 3.9.9',
+          details: ['Renovate update of the root devDependency (#299).'],
+        },
+        {
+          sha: '2ff98e3',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'Node.js updated to 22.23.3 in .nvmrc',
+          details: ['Renovate update (#327).'],
+        },
+        {
+          sha: '15e05a3',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject:
+            'People act in eDOCS as themselves: runbook, promotion checklist and accepted risk',
+          details: [
+            'EDOCS-GO-LIVE.md describes the two identities (the person through their Entra ID token, testuser001 for machine clients and archiving), the new settings and startup check, the refusal codes, the Keycloak prerequisite and the smoke sections. promote-ACC-to-PROD.md says what a promotion including #324 needs on PROD, and the spec records the broker-endpoint exposure as an accepted risk pending #325.',
+          ],
+        },
+        {
+          sha: '3ff8e71',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'eDOCS refusals for a person, Entra client errors, and read-token through the default roles',
+          details: [
+            'For a person, a 403 from eDOCS is a refusal, not an expired session: no forced Entra refresh and no reconnect; only a 401 earns a fresh ID token and one retry. A 5xx on a person’s connect stays an upstream failure. Only invalid_grant and interaction_required from Entra mean “sign in again”; invalid_client and the like are our configuration. keycloak-add-entra-idp.sh adds the broker read-token role to the realm’s default roles (#324).',
+          ],
+        },
+        {
+          sha: 'a35b3b3',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The live eDOCS smoke covers a person with and without an Entra token',
+          details: [
+            'test-edocs-live.sh section 1b checks that a person without an Entra token is refused on data routes and that status reports them unavailable; section 1c, given PERSON_TOKEN, checks that eDOCS knows the person and that workspaces answer as them. test-smoke-live.sh gains the same checks in Tier 2b and an optional Tier 2c.',
+          ],
+        },
+        {
+          sha: '44f06a5',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'The broker roles are in the access token, so a person can read their stored Entra token',
+          details: [
+            'Keycloak’s broker token endpoint hands a person their stored Entra token only when their access token carries the broker client’s read-token role. The application client had no client-role mapper, so the endpoint answered 403 although the role was granted. keycloak-entra-idp.json gains a broker-roles mapper, which keycloak-add-entra-idp.sh creates or updates.',
+          ],
+        },
+        {
+          sha: '5788ab3',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Keycloak stores brokered Entra tokens and lets users read their own',
+          details: [
+            'entra-flevoland stores the tokens Entra issues (with offline_access) and gives every newly brokered user the broker client’s read-token role; the script also grants it to users already linked. The backend reads a person’s stored Entra ID token with that person’s own Keycloak token. Users who signed in before must sign in once more.',
+          ],
+        },
+        {
+          sha: '1c6b0e1',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: '/v1/edocs acts as the signed-in person, or the listed service client',
+          details: [
+            'A machine client must be on EDOCS_ALLOWED_CLIENTS and acts as the service account; a person needs caseworker or admin and acts as themselves with the Entra ID token Keycloak brokered at login. Without a token a person gets 403 EDOCS_USER_TOKEN_UNAVAILABLE (or a visible service fallback where allowed), a refused refresh is 401 EDOCS_REAUTH_REQUIRED, and eDOCS refusing the token is 403 EDOCS_ACCESS_DENIED, all as problem details. Data responses carry actingAs (#324).',
+          ],
+        },
+        {
+          sha: '7b32ba4',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'One eDOCS session per principal, with a person’s Entra token in X-DM-AUTH',
+          details: [
+            'EdocsService keeps a session per principal in a shared, bounded store instead of one global session. `forUser()` connects with the person’s Entra ID token and no password; the exported service stays the service account, so archiving is unchanged. A 401 reconnects a person with a fresh ID token, and every person’s connect records their eDOCS USER_ID for attribution.',
+          ],
+        },
+        {
+          sha: '45f3e87',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Read and refresh a person’s brokered Entra ID token',
+          details: [
+            'EntraTokenService reads the token response Keycloak stored at the person’s broker login, with that person’s own Keycloak token, and refreshes an ID token about to expire with the stored refresh token. Tokens are cached per user in memory, bounded, and never logged.',
+          ],
+        },
+        {
+          sha: '079e877',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Settings for per-user eDOCS sessions through Entra ID',
+          details: [
+            '`config.entra` lets the backend refresh a person’s brokered Entra ID token, and `config.edocs` gains allowServiceFallback (default false) and allowedClients. validateConfig refuses live eDOCS without the service account and the ENTRA_* settings, and refuses the service fallback on production.',
+          ],
+        },
+        {
+          sha: '212820a',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject:
+            'eDOCS per-user spec and plan: problem details, testuser001 and “namens” attribution',
+          details: [
+            'The spec and plan follow v2026.10.0’s RFC 9457 problem details and the new service account testuser001. The attribution probe of 6 October showed the service account may only record itself as AUTHOR_ID, so background archiving records the employee as “namens <naam>”.',
+          ],
+        },
+        {
+          sha: '4c4fc20',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Plan: per-user eDOCS sessions and the assistant as the person',
+        },
+        {
+          sha: '3896b77',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Design: per-user eDOCS sessions through Entra ID',
+          details: [
+            'People act in eDOCS as themselves with their Entra ID token, read from Keycloak’s broker token endpoint and refreshed at Entra by the backend. Machine callers and background archiving use the service account, with the employee recorded through a reserved edocsAuthor variable.',
+          ],
+        },
+        {
+          sha: '0bf9fee',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'Lock file maintenance',
+          details: ['Renovate lock file maintenance (#247).'],
+        },
+        {
+          sha: '6f79e93',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Frontends build and deploy on lockfile-only changes',
+          details: [
+            'The frontend, PA demo and public-site workflows left the root package-lock.json and package.json out of their path filters. Every workspace resolves through those two files, so a lockfile-only pull request moved these apps’ dependencies while their builds reported skipped, and its merge redeployed nothing; #247 carried 24 runtime updates no CI job had built. Both files now count, in step with the backend workflow.',
+          ],
+        },
+        {
+          sha: '9043e34',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Lockfile review: findings from the final review',
+          details: [
+            'Unusable input still writes a marked “could not run” report, so the comment never keeps an earlier “No blocking findings” beside a red check. Downgrades are judged within a version line, a truncated comment closes its <details>, registry text can no longer break out of its code span, and a superseded run cannot overwrite a newer report.',
+          ],
+        },
+        {
+          sha: 'e442a7c',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Lockfile review on dependency pull requests',
+          details: [
+            'Ported from linked-data-explorer: a read-only `lockfile-review` job fails only on a non-npmjs origin or a missing integrity, and `lockfile-review-comment` keeps one sticky comment on the pull request. lockfile-review.json holds the licence allow-list, and SECURITY-PIPELINE.md’s action register is updated.',
+          ],
+        },
+        {
+          sha: 'd2d10b4',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'The declared-phase swimlane fixtures are drift-checked too',
+          details: [
+            'check-swimlane-fixtures covered only the twelve RIP fixtures. It now also checks the declared-phase fixtures, against rip-bpmn-fingerprints.json and, with linked-data-explorer checked out beside it, against the files themselves (#312 item 3).',
+          ],
+        },
+        {
+          sha: 'ff20d7a',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Swimlane character references, a neutral decline message, the besluit role default, and the deprecated M2M history route removed',
+          details: [
+            'The swimlane parser decodes numeric character references, so ACC no longer shows “Registratie &#38; Beheer” or a literal “&#10;” in RIP task names. A declined signature no longer claims the task returns to the indiener. keycloak-add-rip-roles.sh no longer grants all five besluit lanes to the infra test user by default.',
+            '`GET /v1/m2m/process/history`, deprecated in #263, is removed. The BRP route documents what it checks and what it needs before it fronts a real BRP (#312).',
+          ],
+        },
+        {
+          sha: 'ac67a64',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject:
+            'The release pull request checks its SBOM; check-swimlane-fixtures runs in the audit job',
+          details: [
+            'check-swimlane-fixtures runs in the required audit job, not only in the pre-push hook, so a --no-verify push or a GitHub UI edit can no longer skip the fingerprint contract with linked-data-explorer. `npm run sbom:check` verifies the release SBOM against the lockfile, strictly on the pull request that changes it.',
+          ],
+        },
+        {
+          sha: '0126c17',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The Kapvergunning e2e journey selects the Dutch form labels',
+          details: [
+            'linked-data-explorer translated the Kapvergunning forms to Dutch, e2e fixtures included, so the journey’s eight English selectors no longer matched.',
+          ],
+        },
+        {
+          sha: '4bfd563',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Renovate holds the Redis image on 7.2 (BSD-3)',
+          details: [
+            'Local Redis was pinned to 7.2 because 7.4 and later are RSALv2/SSPLv1, but nothing told Renovate, which had a 7.4 update queued. A rule now holds the redis docker image to 7.0–7.2 tags, scoped to the docker datasource since the backend’s npm client is also named redis; digest updates within 7.2 keep flowing. SECURITY-PIPELINE.md now lists main’s required audit and scan checks.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.10.0',
       status: 'Released',
       date: '3 okt 2026',
