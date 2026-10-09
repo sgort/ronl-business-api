@@ -47,6 +47,7 @@ jest.mock('@services/operaton.service', () => ({
     getProcessInstance: jest.fn(),
     getProcessVariables: jest.fn(),
     getAccessVariables: jest.fn(),
+    getLatestProcessDeployments: jest.fn(),
     getHistoricVariables: jest.fn(),
     getActivityHistory: jest.fn(),
     getDecisionDocument: jest.fn(),
@@ -105,6 +106,16 @@ beforeEach(() => {
 });
 
 describe('POST /:key/start', () => {
+  it('403 TENANT_MISMATCH when a citizen starts an own-tenant service of another tenant (#344)', async () => {
+    svc.resolveDeployedTenant.mockResolvedValue('heusden');
+    const res = await auth(request(app).post('/v1/process/AwbShellProcess/start'))
+      .set('x-test-roles', 'citizen')
+      .send({ variables: {} });
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('TENANT_MISMATCH');
+    expect(svc.startProcess).not.toHaveBeenCalled();
+  });
+
   it('401 without a token', async () => {
     expect((await request(app).post('/v1/process/P/start').send({})).status).toBe(401);
   });
@@ -284,6 +295,48 @@ describe('POST /:key/start', () => {
     // The engine base URL is `engine`; `instance` is the request path (#216).
     expect(res.body.engine).toBe('http://op');
     expect(res.body.instance).toBe('/v1/process/P/start');
+  });
+});
+
+describe('GET /available', () => {
+  const asCitizen = (r: request.Test) => auth(r).set('x-test-roles', 'citizen');
+
+  it('401 without a token', async () => {
+    expect((await request(app).get('/v1/process/available')).status).toBe(401);
+  });
+
+  it('403 FORBIDDEN for a caller who is not a citizen', async () => {
+    const res = await auth(request(app).get('/v1/process/available'));
+    expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/available');
+    expect(res.body.code).toBe('FORBIDDEN');
+    expect(svc.getLatestProcessDeployments).not.toHaveBeenCalled();
+  });
+
+  it('answers the services the citizen may start, from the deployments', async () => {
+    svc.getLatestProcessDeployments.mockResolvedValue([
+      { key: 'AwbZorgtoeslagProcess', tenantId: 'toeslagen' },
+      { key: 'AwbShellProcess', tenantId: 'flevoland' },
+    ]);
+    const res = await asCitizen(request(app).get('/v1/process/available'));
+    expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/process/available');
+    // The test user's tenant is flevoland (see the auth mock at the top).
+    expect(res.body.data).toEqual({ services: ['zorgtoeslag', 'vergunningen'] });
+    expect(svc.getLatestProcessDeployments).toHaveBeenCalledWith([
+      'AwbZorgtoeslagProcess',
+      'AwbShellProcess',
+      'ThuisbatterijSubsidieAanvraagProcess',
+      'HeusdenpasAanvraagProcess',
+    ]);
+  });
+
+  it('503 SERVICES_UNAVAILABLE when Operaton cannot be asked, never every service', async () => {
+    svc.getLatestProcessDeployments.mockRejectedValue(new Error('down'));
+    const res = await asCitizen(request(app).get('/v1/process/available'));
+    expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/process/available');
+    expect(res.body.code).toBe('SERVICES_UNAVAILABLE');
   });
 });
 

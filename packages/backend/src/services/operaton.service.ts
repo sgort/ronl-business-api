@@ -229,6 +229,31 @@ export class OperatonService {
   }
 
   /**
+   * The latest version of each given process key, per tenant (latestVersion
+   * returns one row per tenant), as key and tenant. For the citizen-service
+   * check (#344). Throws on failure: the caller answers 503 rather than guess.
+   */
+  async getLatestProcessDeployments(
+    keys: string[]
+  ): Promise<Array<{ key: string; tenantId: string | null }>> {
+    try {
+      const response = await this.client.get('/process-definition', {
+        params: { keysIn: keys.join(','), latestVersion: true },
+      });
+      return (response.data as Array<{ key: string; tenantId?: string | null }>).map((d) => ({
+        key: d.key,
+        tenantId: d.tenantId ?? null,
+      }));
+    } catch (error) {
+      logger.error('Failed to query latest process deployments', {
+        keys,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
    * For each given process-definition key, the count of active (WIP) and
    * completed (Gereed) instances on this environment's Operaton instance.
    * Count-only queries — no instance payloads.

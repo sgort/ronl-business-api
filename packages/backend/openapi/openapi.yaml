@@ -1298,6 +1298,49 @@ paths:
             `error.instance` before #216; `instance` is now the request path.)
           $ref: '#/components/responses/Error'
 
+  /process/available:
+    get:
+      operationId: getAvailableCitizenServices
+      tags: [Process]
+      summary: The citizen services the caller may start
+      description: |
+        Derived from where each citizen service's process is deployed (#344):
+        an own-tenant service when it is deployed under the caller's tenant,
+        a cross-tenant service when it is deployed under exactly one tenant.
+        An untenanted deployment never counts. Citizens only.
+      responses:
+        '200':
+          description: The service ids, in registry order.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [services]
+                    properties:
+                      services:
+                        type: array
+                        items:
+                          type: string
+                          enum: [zorgtoeslag, vergunningen, subsidies, heusdenpas]
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a citizen (`FORBIDDEN`).
+          $ref: '#/components/responses/Error'
+        '503':
+          description: Operaton could not be asked (`SERVICES_UNAVAILABLE`).
+          $ref: '#/components/responses/Error'
+
   /process/history:
     get:
       operationId: getProcessHistory
