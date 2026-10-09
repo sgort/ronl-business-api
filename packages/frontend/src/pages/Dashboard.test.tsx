@@ -137,6 +137,28 @@ describe('Dashboard', () => {
     expect(cards[1]).toContain('Heusdenpas');
   });
 
+  // Frontend and backend release separately (scope-tagged releases), so the
+  // backend can answer a service this bundle has no card for yet.
+  it('skips a service id it has no card for, rather than failing the page', async () => {
+    mockAvailable.mockResolvedValue({
+      success: true,
+      data: { services: ['zorgtoeslag', 'parkeervergunning'] },
+    });
+    render(<Dashboard />);
+
+    expect(await screen.findByText('Zorgtoeslag')).toBeInTheDocument();
+    expect(screen.getAllByText('Aanvragen →')).toHaveLength(1);
+  });
+
+  it('says no service is available when the backend only knows services this bundle does not', async () => {
+    mockAvailable.mockResolvedValue({ success: true, data: { services: ['parkeervergunning'] } });
+    render(<Dashboard />);
+
+    expect(
+      await screen.findByText('Geen diensten beschikbaar voor uw gemeente.')
+    ).toBeInTheDocument();
+  });
+
   it('says so when no service is available', async () => {
     mockAvailable.mockResolvedValue({ success: true, data: { services: [] } });
     render(<Dashboard />);

@@ -398,7 +398,10 @@ export default function Dashboard() {
       .available()
       .then((res) => {
         if (!live) return;
-        if (res.success && res.data) setServices(res.data.services);
+        // Skip an id this bundle has no card for: the backend can ship a new
+        // service before the frontend does (they release separately).
+        if (res.success && res.data)
+          setServices(res.data.services.filter((id) => id in CITIZEN_SERVICE_UI));
         else setServicesError('De diensten konden niet worden geladen.');
       })
       .catch(() => {
