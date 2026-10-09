@@ -61,7 +61,7 @@
     "concurrently": "^10.0.5",
     "husky": "^9.1.7",
     "lint-staged": "^17.5.1",
-    "prettier": "3.9.7",
+    "prettier": "3.9.9",
     "typescript": "^5.9.3"
   },
   "engines": {
