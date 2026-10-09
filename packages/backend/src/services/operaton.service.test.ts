@@ -85,6 +85,30 @@ describe('passthrough queries', () => {
   // A deserialising read can write an object variable back (ENGINE-03005 on
   // ACC, when a claim's tenant check and the task pane read one instance at
   // once). The access check needs two strings and must never write.
+  it('getLatestProcessDeployments asks for the latest version per tenant of the given keys', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [
+        { id: 'a:1', key: 'AwbShellProcess', tenantId: 'flevoland', version: 11 },
+        { id: 'b:1', key: 'AwbZorgtoeslagProcess', tenantId: null, version: 2 },
+      ],
+    });
+
+    await expect(
+      svc.getLatestProcessDeployments(['AwbShellProcess', 'AwbZorgtoeslagProcess'])
+    ).resolves.toEqual([
+      { key: 'AwbShellProcess', tenantId: 'flevoland' },
+      { key: 'AwbZorgtoeslagProcess', tenantId: null },
+    ]);
+    expect(mockClient.get).toHaveBeenCalledWith('/process-definition', {
+      params: { keysIn: 'AwbShellProcess,AwbZorgtoeslagProcess', latestVersion: true },
+    });
+  });
+
+  it('getLatestProcessDeployments rethrows, so the caller can answer 503', async () => {
+    mockClient.get.mockRejectedValueOnce(new Error('down'));
+    await expect(svc.getLatestProcessDeployments(['AwbShellProcess'])).rejects.toThrow('down');
+  });
+
   it('getAccessVariables reads municipality and applicantId without deserialising', async () => {
     mockClient.get.mockResolvedValue({
       data: {
@@ -2044,6 +2068,7 @@ describe('failures that are not Error instances', () => {
     ['getProcessInstance', () => svc.getProcessInstance('pi-1')],
     ['getProcessVariables', () => svc.getProcessVariables('pi-1')],
     ['getAccessVariables', () => svc.getAccessVariables('pi-1')],
+    ['getLatestProcessDeployments', () => svc.getLatestProcessDeployments(['K'])],
     ['getActivityHistory', () => svc.getActivityHistory('pi-1')],
     ['deleteProcessInstance', () => svc.deleteProcessInstance('pi-1', 'reason')],
     ['getProcessHistory', () => svc.getProcessHistory('applicant-1', 'flevoland')],

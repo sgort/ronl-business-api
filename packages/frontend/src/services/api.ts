@@ -11,6 +11,7 @@ import type {
   ActivityHistoryItem,
   PhaseSwimlaneModel,
   ProcessLineage,
+  CitizenServiceId,
 } from '@ronl/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
@@ -127,6 +128,13 @@ export const businessApi = {
       const response = await api.get<ApiResponse<unknown[]>>(
         `/process/history?applicantId=${encodeURIComponent(applicantId)}`
       );
+      return response.data;
+    },
+
+    /** The citizen services the signed-in citizen may start (#344). */
+    available: async (): Promise<ApiResponse<{ services: CitizenServiceId[] }>> => {
+      const response =
+        await api.get<ApiResponse<{ services: CitizenServiceId[] }>>('/process/available');
       return response.data;
     },
 

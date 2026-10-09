@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import type { AuthenticatedUser } from '@ronl/shared';
+import { isCrossTenantProcess } from './citizen-services';
 import { createLogger } from '@utils/logger';
 import { sendProblem } from '@utils/problem';
 
@@ -98,20 +99,28 @@ export type StartTenant =
   { allowed: true; municipality: string; originTenantId: string } | { allowed: false };
 
 /**
- * What a user start stamps. An untenanted deployment, or one under the
- * caller's own tenant, takes the caller's tenant. Under another tenant, a
- * citizen's case goes to the processing tenant (the rule AwbZorgtoeslagProcess
- * used to hardcode); staff are refused. originTenantId always records the
- * channel the case came in through.
+ * What a user start stamps (#218, #344). Under the caller's own tenant: the
+ * caller's tenant. Under another tenant: refused, except a citizen starting a
+ * cross-tenant citizen service (Zorgtoeslag), whose case goes to the deploying
+ * tenant, with originTenantId recording the channel. With no deployed tenant
+ * (an untenanted deployment, or a lookup that failed) a citizen is refused --
+ * tenant is mandatory -- while staff keep stamping their own tenant, because
+ * HR onboarding still runs untenanted.
  */
 export function resolveStartTenant(
   user: Pick<AuthenticatedUser, 'tenantId' | 'roles'>,
-  deployedTenant: string | null
+  deployedTenant: string | null,
+  processKey: string
 ): StartTenant {
-  if (deployedTenant === null || deployedTenant === user.tenantId) {
+  if (deployedTenant === user.tenantId) {
     return { allowed: true, municipality: user.tenantId, originTenantId: user.tenantId };
   }
-  if (isCitizen(user)) {
+  if (deployedTenant === null) {
+    return isCitizen(user)
+      ? { allowed: false }
+      : { allowed: true, municipality: user.tenantId, originTenantId: user.tenantId };
+  }
+  if (isCitizen(user) && isCrossTenantProcess(processKey)) {
     return { allowed: true, municipality: deployedTenant, originTenantId: user.tenantId };
   }
   return { allowed: false };

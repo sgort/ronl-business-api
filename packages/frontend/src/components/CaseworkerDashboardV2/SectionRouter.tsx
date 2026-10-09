@@ -40,8 +40,6 @@ import CapacityClaimSection from '../CaseworkerDashboard/CapacityClaimSection';
 import BesluitStartSection from '../CaseworkerDashboard/BesluitStartSection';
 import BesluitOverzichtSection from '../CaseworkerDashboard/BesluitOverzichtSection';
 import CapacityClaimArchiefSection from '../CaseworkerDashboard/CapacityClaimArchiefSection';
-import DvtpStartSection from '../CaseworkerDashboard/DvtpStartSection';
-import DvtpTakenSection from '../CaseworkerDashboard/DvtpTakenSection';
 import GereedschapSection from '../CaseworkerDashboard/GereedschapSection';
 import { INFRA_PROCESS_KEYS } from '../../services/infra.api';
 
@@ -51,8 +49,6 @@ interface Props {
   tenantConfig: TenantConfig | null;
   onTaskCountChange?: (count: number) => void;
   onIouCountChange?: (count: number) => void;
-  /** Navigate to a different rail item (used by DVTP start → Taken). */
-  onNavigate?: (sectionId: string) => void;
 }
 
 export default function SectionRouter({
@@ -61,7 +57,6 @@ export default function SectionRouter({
   tenantConfig,
   onTaskCountChange,
   onIouCountChange,
-  onNavigate,
 }: Props) {
   // ── Defence-in-depth gate ─────────────────────────────────────────
   // The rail and the command palette already filter by role + org-type.
@@ -144,12 +139,6 @@ export default function SectionRouter({
     return <BesluitOverzichtSection user={user} state="lopend" />;
   if (sectionId === 'besluiten-afgerond')
     return <BesluitOverzichtSection user={user} state="afgerond" />;
-
-  // ── DVTP ──────────────────────────────────────────────────────────
-  if (sectionId === 'dvtp-start') {
-    return <DvtpStartSection user={user} onNavigateToTasks={() => onNavigate?.('taken')} />;
-  }
-  if (sectionId === 'dvtp-taken') return <DvtpTakenSection user={user} />;
 
   // ── Hulpmiddelen ──────────────────────────────────────────────────
   // GereedschapSection is a launcher: each tile opens an external product

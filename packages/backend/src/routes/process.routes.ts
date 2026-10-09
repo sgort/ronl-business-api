@@ -1,6 +1,7 @@
 import axios from 'axios';
 import express, { type Request, type Response } from 'express';
 import { jwtMiddleware, requireAssuranceLevel } from '@auth/jwt.middleware';
+import { CITIZEN_SERVICE_PROCESS_KEYS, citizenServicesAvailable } from '@auth/citizen-services';
 import { tenantMiddleware, addTenantToProcessVariables } from '@middleware/tenant.middleware';
 import {
   caseReadAllowed,
@@ -107,12 +108,13 @@ router.post(
         }
       }
 
-      // Tenant rule (#218): the municipality variable is the only tenant label
-      // access checks read, so it must equal the tenant Operaton runs the
+      // Tenant rule (#218, #344): the municipality variable is the only tenant
+      // label access checks read, so it must equal the tenant Operaton runs the
       // instance under. Staff may start only their own tenant's processes; a
-      // citizen's case goes to the deployment's tenant.
+      // citizen's case goes to another tenant only for a cross-tenant citizen
+      // service (Zorgtoeslag), and never to an untenanted deployment.
       const deployedTenant = await operatonService.resolveDeployedTenant(key, req.user.tenantId);
-      const startTenant = resolveStartTenant(req.user, deployedTenant);
+      const startTenant = resolveStartTenant(req.user, deployedTenant, key);
       if (!startTenant.allowed) {
         auditLog(req, `process.start.${key}`, 'failure', {
           reason: 'TENANT_MISMATCH',
@@ -209,6 +211,48 @@ router.post(
 /**
  * Routing order - literal single-segment route, always before :param routes first
  */
+
+/**
+ * GET /v1/process/available
+ * The citizen services the signed-in citizen may start (#344), derived from
+ * where each registry process is deployed (see auth/citizen-services.ts).
+ * Citizens only. If Operaton cannot be asked, 503: the dashboard shows an
+ * error rather than every service.
+ */
+router.get('/available', async (req, res) => {
+  if (!req.user) {
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
+  }
+  if (!isCitizen(req.user)) {
+    return sendProblem(res, req, {
+      status: 403,
+      code: 'FORBIDDEN',
+      detail: 'Only citizens have citizen services',
+    });
+  }
+
+  try {
+    const deployments = await operatonService.getLatestProcessDeployments(
+      CITIZEN_SERVICE_PROCESS_KEYS
+    );
+    const services = citizenServicesAvailable(deployments, req.user.tenantId);
+    res.json({ success: true, data: { services } });
+  } catch (error) {
+    logger.error('Failed to determine available citizen services', {
+      tenantId: req.user.tenantId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    sendProblem(res, req, {
+      status: 503,
+      code: 'SERVICES_UNAVAILABLE',
+      detail: 'The available services could not be determined',
+    });
+  }
+});
 
 /**
  * GET /v1/process/history?applicantId=xxx

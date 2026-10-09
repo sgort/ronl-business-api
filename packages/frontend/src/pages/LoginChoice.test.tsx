@@ -52,7 +52,6 @@ function tenant(id: string, extra: Record<string, unknown>) {
     displayName: `Gemeente ${id}`,
     organisationType: 'municipality',
     theme: theme('#123456'),
-    features: {},
     contact: {},
     enabled: true,
     ...extra,

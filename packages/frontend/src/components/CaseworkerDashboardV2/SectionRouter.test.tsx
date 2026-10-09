@@ -87,16 +87,33 @@ vi.mock('../CaseworkerDashboard/BesluitOverzichtSection', () => ({
 vi.mock('../CaseworkerDashboard/CapacityClaimArchiefSection', () => ({
   default: () => <div>capacity-claim-archief</div>,
 }));
-const mockDvtpStartSection = vi.hoisted(() => vi.fn());
-vi.mock('../CaseworkerDashboard/DvtpStartSection', () => ({
-  default: (props: never) => {
-    mockDvtpStartSection(props);
-    return <div>dvtp-start</div>;
-  },
-}));
-vi.mock('../CaseworkerDashboard/DvtpTakenSection', () => ({
-  default: () => <div>dvtp-taken</div>,
-}));
+vi.mock('../../pages/caseworker-v2/modes.config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../pages/caseworker-v2/modes.config')>();
+  // DVTP was the only rail item gated by organisation type. This stands in for
+  // one, so the defence-in-depth org-type gate stays covered.
+  return {
+    ...actual,
+    MODES: actual.MODES.map((mode, i) =>
+      i === 0
+        ? {
+            ...mode,
+            groups: [
+              ...mode.groups,
+              {
+                items: [
+                  {
+                    id: 'org-gated-test',
+                    label: 'Org-gated',
+                    requiredOrgTypes: ['municipality'],
+                  },
+                ],
+              },
+            ],
+          }
+        : mode
+    ),
+  };
+});
 vi.mock('../CaseworkerDashboard/GereedschapSection', () => ({
   default: () => <div>gereedschap</div>,
 }));
@@ -152,7 +169,6 @@ describe('SectionRouter', () => {
     ['capacity-claim', 'capacity-claim'],
     // A distinct label: the fallback prints the section id itself.
     ['besluit-starten', 'besluit-start-section'],
-    ['dvtp-taken', 'dvtp-taken'],
     ['gereedschap-overzicht', 'gereedschap'],
   ])('routes "%s" to its component', (sectionId, text) => {
     render(<SectionRouter {...baseProps} sectionId={sectionId} />);
@@ -209,20 +225,20 @@ describe('SectionRouter', () => {
     );
   });
 
-  it('dvtp-start wires onNavigateToTasks to call onNavigate("taken")', () => {
-    const onNavigate = vi.fn();
-    render(
-      <SectionRouter
-        {...baseProps}
-        sectionId="dvtp-start"
-        user={{ sub: '1', organisation_type: 'municipality', roles: [] } as never}
-        onNavigate={onNavigate}
-      />
-    );
-    const onNavigateToTasks = mockDvtpStartSection.mock.calls.at(-1)![0].onNavigateToTasks;
-    onNavigateToTasks();
-    expect(onNavigate).toHaveBeenCalledWith('taken');
-  });
+  it.each(['dvtp-start', 'dvtp-taken'])(
+    'no longer routes the retired DVTP section "%s" (#344)',
+    (sectionId) => {
+      render(
+        <SectionRouter
+          {...baseProps}
+          sectionId={sectionId}
+          user={{ sub: '1', organisation_type: 'municipality', roles: [] } as never}
+        />
+      );
+      expect(screen.getByText(sectionId)).toBeInTheDocument();
+      expect(screen.getByText(/nog niet aangesloten op V2/)).toBeInTheDocument();
+    }
+  );
 
   it('an unrecognised sectionId shows the "not yet connected to V2" fallback', () => {
     render(<SectionRouter {...baseProps} sectionId="some-unmapped-id" />);
@@ -260,7 +276,7 @@ describe('SectionRouter', () => {
       render(
         <SectionRouter
           {...baseProps}
-          sectionId="dvtp-start"
+          sectionId="org-gated-test"
           user={{ sub: '1', organisation_type: 'province', roles: [] } as never}
         />
       );
@@ -274,11 +290,12 @@ describe('SectionRouter', () => {
       render(
         <SectionRouter
           {...baseProps}
-          sectionId="dvtp-start"
+          sectionId="org-gated-test"
           user={{ sub: '1', organisation_type: 'municipality', roles: [] } as never}
         />
       );
-      expect(screen.getByText('dvtp-start')).toBeInTheDocument();
+      expect(screen.getByText('org-gated-test')).toBeInTheDocument();
+      expect(mockNoAccessPanel).not.toHaveBeenCalled();
     });
 
     it('an ungated section is unaffected by the gate (no user roles needed)', () => {

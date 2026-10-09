@@ -14,3 +14,4 @@ export * from './pa-dossiers.seed';
 export * from './rip-phases';
 export * from './rip-swimlane';
 export * from './awb-phases';
+export * from './citizen-services';

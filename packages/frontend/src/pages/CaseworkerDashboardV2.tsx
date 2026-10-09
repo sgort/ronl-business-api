@@ -351,7 +351,6 @@ function CaseworkerDashboardV2Shell() {
                   tenantConfig={tenantConfig}
                   onTaskCountChange={setTaskCount}
                   onIouCountChange={setIouCount}
-                  onNavigate={setActiveSection}
                 />
               </SectionErrorBoundary>
             </div>
