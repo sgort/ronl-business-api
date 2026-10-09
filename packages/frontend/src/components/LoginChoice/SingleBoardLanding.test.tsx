@@ -29,13 +29,6 @@ function makeTenant(overrides: Partial<TenantConfig> = {}): TenantConfig {
       secondary: '#000000',
       accent: '#FFD700',
     },
-    features: {
-      zorgtoeslag: true,
-      vergunningen: true,
-      subsidies: true,
-      meldingen: true,
-      dvtp: true,
-    },
     contact: { phone: '', email: '', address: '', postalCode: '', city: '' },
     enabled: true,
     boards: ['caseworker'],

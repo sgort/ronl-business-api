@@ -12,14 +12,6 @@ export interface TenantTheme {
   accent: string;
 }
 
-export interface TenantFeatures {
-  zorgtoeslag: boolean;
-  vergunningen: boolean;
-  subsidies: boolean;
-  meldingen: boolean;
-  dvtp: boolean;
-}
-
 export interface TenantContact {
   phone: string;
   email: string;
@@ -35,7 +27,6 @@ export interface TenantConfig {
   municipalityCode?: string;
   organisationCode?: string;
   theme: TenantTheme;
-  features: TenantFeatures;
   contact: TenantContact;
   logo?: string;
   enabled: boolean;

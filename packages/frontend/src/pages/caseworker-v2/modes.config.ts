@@ -30,8 +30,7 @@ export interface RailItem {
   requiredRoles?: string[];
   /**
    * Required organisation types (any-of), read from `user.organisation_type`.
-   * Empty/undefined = no org-type gate. Use sparingly — prefer the tenant
-   * gate (via tenants.json) for tenant-specific features. This is for
+   * Empty/undefined = no org-type gate. Use sparingly: it is for
    * cross-tenant rules like "all government" or "not commercial".
    */
   requiredOrgTypes?: OrgTypeGate[];

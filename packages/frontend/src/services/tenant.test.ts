@@ -25,7 +25,6 @@ const utrechtConfig: TenantConfig = {
     secondary: '#333333',
     accent: '#444444',
   },
-  features: { zorgtoeslag: true, vergunningen: true, subsidies: true, meldingen: true, dvtp: true },
   contact: {
     phone: '030',
     email: 'info@utrecht.nl',

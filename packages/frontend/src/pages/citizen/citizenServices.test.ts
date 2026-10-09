@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 import { CITIZEN_SERVICES } from '@ronl/shared';
 import { CITIZEN_SERVICE_UI } from './citizenServiceUi';
@@ -19,5 +21,14 @@ describe('citizen services', () => {
       subsidies: 'own-tenant',
       heusdenpas: 'own-tenant',
     });
+  });
+
+  it('tenants.json no longer lists per-tenant services: the deployments decide (#344)', () => {
+    const tenants = JSON.parse(
+      readFileSync(join(__dirname, '../../../public/tenants.json'), 'utf8')
+    ).tenants as Record<string, Record<string, unknown>>;
+    for (const [id, tenant] of Object.entries(tenants)) {
+      expect({ id, features: tenant.features }).toEqual({ id, features: undefined });
+    }
   });
 });

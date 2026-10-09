@@ -15,13 +15,6 @@
         "secondary": "#2C5F2D",
         "accent": "#FF6B00"
       },
-      "features": {
-        "zorgtoeslag": true,
-        "vergunningen": false,
-        "subsidies": false,
-        "meldingen": true,
-        "dvtp": true
-      },
       "contact": {
         "phone": "14 030",
         "email": "info@utrecht.nl",
@@ -120,13 +113,6 @@
         "secondary": "#000000",
         "accent": "#FFD700"
       },
-      "features": {
-        "zorgtoeslag": true,
-        "vergunningen": false,
-        "subsidies": false,
-        "meldingen": true,
-        "dvtp": true
-      },
       "contact": {
         "phone": "14 020",
         "email": "info@amsterdam.nl",
@@ -222,14 +208,6 @@
         "accent": "#009ee0",
         "background": "#eef1ee"
       },
-      "features": {
-        "zorgtoeslag": true,
-        "vergunningen": false,
-        "subsidies": false,
-        "meldingen": true,
-        "dvtp": true,
-        "heusdenpas": true
-      },
       "contact": {
         "phone": "14 073",
         "email": "gemeente@heusden.nl",
@@ -313,13 +291,6 @@
         "primaryLight": "#00A828",
         "secondary": "#0F6CB6",
         "accent": "#FFB81C"
-      },
-      "features": {
-        "zorgtoeslag": true,
-        "vergunningen": false,
-        "subsidies": false,
-        "meldingen": true,
-        "dvtp": true
       },
       "contact": {
         "phone": "14 010",
@@ -405,13 +376,6 @@
         "secondary": "#E17000",
         "accent": "#6EC4E8"
       },
-      "features": {
-        "zorgtoeslag": true,
-        "vergunningen": false,
-        "subsidies": false,
-        "meldingen": true,
-        "dvtp": true
-      },
       "contact": {
         "phone": "14 070",
         "email": "info@denhaag.nl",
@@ -496,13 +460,6 @@
         "primaryLight": "#4A8FC0",
         "secondary": "#e70077",
         "accent": "#F5A623"
-      },
-      "features": {
-        "zorgtoeslag": false,
-        "vergunningen": true,
-        "subsidies": true,
-        "meldingen": true,
-        "dvtp": false
       },
       "contact": {
         "phone": "0320 265 265",
@@ -669,13 +626,6 @@
         "secondary": "#6EC4E8",
         "accent": "#FFB81C"
       },
-      "features": {
-        "zorgtoeslag": false,
-        "vergunningen": false,
-        "subsidies": false,
-        "meldingen": false,
-        "dvtp": false
-      },
       "contact": {
         "phone": "0800 0543",
         "email": "info@toeslagen.nl",
@@ -740,13 +690,6 @@
         "secondary": "#1A1A2E",
         "accent": "#FF6B6B"
       },
-      "features": {
-        "zorgtoeslag": true,
-        "vergunningen": false,
-        "subsidies": false,
-        "meldingen": false,
-        "dvtp": false
-      },
       "contact": {
         "phone": "0900 1513",
         "email": "service@unive.nl",
@@ -790,13 +733,6 @@
         "primaryLight": "#3D8DC4",
         "secondary": "#E85612",
         "accent": "#FFB81C"
-      },
-      "features": {
-        "zorgtoeslag": false,
-        "vergunningen": false,
-        "subsidies": true,
-        "meldingen": true,
-        "dvtp": true
       },
       "contact": {
         "phone": "088 898 20 00",

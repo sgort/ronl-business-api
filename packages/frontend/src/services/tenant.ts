@@ -17,16 +17,6 @@ export interface TenantTheme {
   background?: string;
 }
 
-export interface TenantFeatures {
-  zorgtoeslag: boolean;
-  vergunningen: boolean;
-  subsidies: boolean;
-  meldingen: boolean;
-  dvtp: boolean;
-  /** Gemeente Heusden's Heusdenpas and Kindpakket (HeusdenpasAanvraagProcess). */
-  heusdenpas?: boolean;
-}
-
 export interface TenantContact {
   phone: string;
   email: string;
@@ -61,7 +51,6 @@ export interface TenantConfig {
   municipalityCode?: string;
   organisationCode?: string;
   theme: TenantTheme;
-  features: TenantFeatures;
   contact: TenantContact;
   enabled: boolean;
   leftPanelSections?: LeftPanelSections;
