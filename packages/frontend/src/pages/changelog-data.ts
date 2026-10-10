@@ -112,6 +112,98 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.10.2',
+      status: 'Released',
+      date: '10 okt 2026',
+      scope: ['backend', 'ci'],
+      commits: [
+        {
+          sha: '38a3bcb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Release SBOMs list every production package',
+          details: [
+            "`npm sbom --omit=dev` dropped production packages: react, react-dom and scheduler were missing from every repository's SBOM, and v2026.10.1's here held 409 components where the lockfile has about 480 production packages. `write-sbom.mjs` now has npm list the whole tree and keeps exactly what the lockfile does not mark dev, plus the workspace packages; a production package npm does not list stops the generation instead of writing an incomplete document. A test runs in `sbom.yml` (#368).",
+          ],
+        },
+        {
+          sha: '92612ab',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Dependency review: an unused helper removed',
+          details: [
+            'A plural helper in `scripts/dependency-review.mjs` lost its last caller before the review merged; the three repositories keep identical copies.',
+          ],
+        },
+        {
+          sha: '83fc2a1',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'Dependency criteria, a checklist for every new dependency, and a quarterly review',
+          details: [
+            "ICTU recommendations 1 and 11, shared with linked-data-explorer and ttl-editor (sgort/linked-data-explorer#250). The criteria live in linked-data-explorer's `docs/dependency-criteria.md`: maintained, maintainers, licence (the lockfile-review allow-list), release policy, footprint and needed.",
+            "When a pull request adds a direct dependency, the lockfile-review comment lists it with a checklist of those criteria. `dependency-review.yml` runs on the second day of each quarter and opens the quarter's review issue from registry and GitHub evidence for every direct dependency. The first review (2026-Q4, #362) flagged 22 of 85 and recorded an outcome for each, with follow-ups #363 to #367.",
+          ],
+        },
+        {
+          sha: '74ebeeb',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Registry signatures and provenance verified on every pull request',
+          details: [
+            'ICTU recommendation 5, the provenance half (sgort/linked-data-explorer#249). The required audit job runs `npm audit signatures` over the installed tree: it fails on an invalid or missing signature, and on a registry gap, an advertised attestation the registry serves as 404. A package without an attestation passes.',
+          ],
+        },
+        {
+          sha: '58f86da',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The decision document follows the path the case took',
+          details: [
+            "`GET /v1/process/:id/decision-document` and its m2m twin returned the template of the first `ronl:documentRef` in the BPMN, whatever path the instance took. Since sgort/linked-data-explorer#246 the besluitvorming example has two documents: the signed besluit on the ordinary path, and the competent authority's own after escalation.",
+            'The endpoint now takes the document of the most recently completed user task that carries `ronl:documentRef` or `ronl:signatureRef`, falling back to the first `ronl:documentRef` as before, so a process with a single document gets the same template as today. The OpenAPI descriptions state the rule.',
+          ],
+        },
+        {
+          sha: '92635dc',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Swimlane parser: the Thuisbatterij fixture refreshed',
+          details: [
+            'The Awb parser fixture is a copy of linked-data-explorer\'s public example, which gained its own completeness check, a re-check after the Awb 4:5 supplement and a direct path to "buiten behandeling" (sgort/linked-data-explorer#206). All five Awb fixtures match their source again.',
+          ],
+        },
+        {
+          sha: 'f3117dd',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Examples store DMN results as plain variables',
+          details: [
+            'A business rule task with `mapDecisionResult="singleResult"` stores a multi-output result as a serialised Java map, which concurrent REST reads can collide on with ENGINE-03005. The HR onboarding and RIP phase 1 examples now map each output into a plain variable and lose the script tasks that only copied them (sgort/linked-data-explorer#273).',
+            'The swimlane parser fixtures and `rip-bpmn-fingerprints.json` are refreshed from linked-data-explorer; the HR capacity claim no longer has `Task_MapRoutingOutputs`.',
+          ],
+        },
+        {
+          sha: 'd0d0902',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'lint-staged 17.6',
+          details: ['lint-staged from ^17.5.1 to ^17.6.0.'],
+        },
+        {
+          sha: '5a0d969',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'SBOM checks read the committed file, before generation overwrites it',
+          details: [
+            "The SBOM workflow generated the file first and then checked it, comparing a fresh generation with itself, so neither check could fail: v2026.10.1's release pull request reported a match for an SBOM made with another npm. Both checks now run before generation (#354, sgort/linked-data-explorer#274).",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.10.1',
       status: 'Released',
       date: '9 okt 2026',
