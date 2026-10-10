@@ -55,7 +55,13 @@
         execution.setVariable("dataSource", "stub");
       ]]></bpmn:script>
     </bpmn:scriptTask>
-    <bpmn:businessRuleTask id="Sub_CalcProvisional" name="Voorlopige aanspraak berekenen (Wzt)" camunda:resultVariable="provisionalResult" camunda:decisionRef="zorgtoeslag_resultaat" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleResult">
+    <bpmn:businessRuleTask id="Sub_CalcProvisional" name="Voorlopige aanspraak berekenen (Wzt)" camunda:decisionRef="zorgtoeslag_resultaat" camunda:decisionRefTenantId="${null}">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="eligible">${decisionResult.getSingleResult().getEntry("eligible")}</camunda:outputParameter>
+          <camunda:outputParameter name="amountYear">${decisionResult.getSingleResult().getEntry("amountYear")}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_Sub_Retrieve_Calc</bpmn:incoming>
       <bpmn:outgoing>Flow_Sub_Calc_Extract</bpmn:outgoing>
     </bpmn:businessRuleTask>
@@ -63,13 +69,12 @@
       <bpmn:incoming>Flow_Sub_Calc_Extract</bpmn:incoming>
       <bpmn:outgoing>Flow_Sub_Extract_Review</bpmn:outgoing>
       <bpmn:script>
-        var result = execution.getVariable("provisionalResult");
-        var eligible = result.get("eligible");
-        var amountYear = result.get("amountYear");
+        // eligible and amountYear come from Sub_CalcProvisional's output mapping (#273).
+        var eligible = execution.getVariable("eligible");
+        var amountYear = execution.getVariable("amountYear");
         execution.setVariable("provisionalDecision", eligible == true ? "Granted" : "Rejected");
         execution.setVariable("provisionalAmount",
           amountYear != null ? (Number(amountYear) / 12.0) : 0.0);
-        execution.setVariable("eligible", eligible);
         execution.setVariable("amountYear", amountYear != null ? Number(amountYear) : 0);
       </bpmn:script>
     </bpmn:scriptTask>

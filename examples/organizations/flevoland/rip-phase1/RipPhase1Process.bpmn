@@ -81,21 +81,17 @@
          DMN: Determine candidate groups from project type + department
          ═══════════════════════════════════════════════════════════════════ -->
     <bpmn:businessRuleTask id="Task_DetermineRoles" name="Determine project roles"
-      camunda:resultVariable="roleResult"
-      camunda:decisionRef="RipProjectTypeAssignment"
-      camunda:mapDecisionResult="singleResult">
+      camunda:decisionRef="RipProjectTypeAssignment">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="candidateGroups">${decisionResult.getSingleResult().getEntry("candidateGroups")}</camunda:outputParameter>
+          <camunda:outputParameter name="assignedRoles">${decisionResult.getSingleResult().getEntry("assignedRoles")}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_Intake_DetermineRoles</bpmn:incoming>
-      <bpmn:outgoing>Flow_DetermineRoles_MapOutputs</bpmn:outgoing>
+      <bpmn:outgoing>Flow_DetermineRoles_EnsureWorkspace</bpmn:outgoing>
     </bpmn:businessRuleTask>
 
-    <bpmn:scriptTask id="Task_MapRoleOutputs" name="Map role outputs" scriptFormat="javascript">
-      <bpmn:incoming>Flow_DetermineRoles_MapOutputs</bpmn:incoming>
-      <bpmn:outgoing>Flow_MapOutputs_EnsureWorkspace</bpmn:outgoing>
-      <bpmn:script>
-        execution.setVariable("candidateGroups", roleResult.get("candidateGroups"));
-        execution.setVariable("assignedRoles",   roleResult.get("assignedRoles"));
-      </bpmn:script>
-    </bpmn:scriptTask>
 
     <!-- ═══════════════════════════════════════════════════════════════════
          SERVICE TASK: Create/ensure eDOCS project workspace
@@ -106,7 +102,7 @@
     <bpmn:serviceTask id="Task_EnsureWorkspace" name="Create eDOCS project workspace"
       camunda:type="external"
       camunda:topic="rip-edocs-workspace">
-      <bpmn:incoming>Flow_MapOutputs_EnsureWorkspace</bpmn:incoming>
+      <bpmn:incoming>Flow_DetermineRoles_EnsureWorkspace</bpmn:incoming>
       <bpmn:outgoing>Flow_EnsureWorkspace_IntakeMeeting</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -289,8 +285,7 @@
          ═══════════════════════════════════════════════════════════════════ -->
     <bpmn:sequenceFlow id="Flow_Start_Intake"               sourceRef="StartEvent_RipPhase1"     targetRef="Task_Intake" />
     <bpmn:sequenceFlow id="Flow_Intake_DetermineRoles"      sourceRef="Task_Intake"              targetRef="Task_DetermineRoles" />
-    <bpmn:sequenceFlow id="Flow_DetermineRoles_MapOutputs"  sourceRef="Task_DetermineRoles"      targetRef="Task_MapRoleOutputs" />
-    <bpmn:sequenceFlow id="Flow_MapOutputs_EnsureWorkspace" sourceRef="Task_MapRoleOutputs"      targetRef="Task_EnsureWorkspace" />
+    <bpmn:sequenceFlow id="Flow_DetermineRoles_EnsureWorkspace"  sourceRef="Task_DetermineRoles"      targetRef="Task_EnsureWorkspace" />
     <bpmn:sequenceFlow id="Flow_EnsureWorkspace_IntakeMeeting" sourceRef="Task_EnsureWorkspace"  targetRef="Task_IntakeMeeting" />
     <bpmn:sequenceFlow id="Flow_IntakeMeeting_IntakeReport" sourceRef="Task_IntakeMeeting"       targetRef="Task_IntakeReport" />
     <bpmn:sequenceFlow id="Flow_IntakeReport_SaveEdocs"     sourceRef="Task_IntakeReport"        targetRef="Task_SaveIntakeReport" />
@@ -338,9 +333,6 @@
         <dc:Bounds x="460" y="90" width="160" height="80" />
       </bpmndi:BPMNShape>
 
-      <bpmndi:BPMNShape id="Task_MapRoleOutputs_di" bpmnElement="Task_MapRoleOutputs">
-        <dc:Bounds x="680" y="90" width="160" height="80" />
-      </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="Task_EnsureWorkspace_di" bpmnElement="Task_EnsureWorkspace">
         <dc:Bounds x="900" y="90" width="160" height="80" />
@@ -416,11 +408,9 @@
       <bpmndi:BPMNEdge id="Flow_Intake_DetermineRoles_di" bpmnElement="Flow_Intake_DetermineRoles">
         <di:waypoint x="400" y="130" /><di:waypoint x="460" y="130" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_DetermineRoles_MapOutputs_di" bpmnElement="Flow_DetermineRoles_MapOutputs">
-        <di:waypoint x="620" y="130" /><di:waypoint x="680" y="130" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_MapOutputs_EnsureWorkspace_di" bpmnElement="Flow_MapOutputs_EnsureWorkspace">
-        <di:waypoint x="840" y="130" /><di:waypoint x="900" y="130" />
+      <bpmndi:BPMNEdge id="Flow_DetermineRoles_EnsureWorkspace_di" bpmnElement="Flow_DetermineRoles_EnsureWorkspace">
+        <di:waypoint x="620" y="130" />
+        <di:waypoint x="900" y="130" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_EnsureWorkspace_IntakeMeeting_di" bpmnElement="Flow_EnsureWorkspace_IntakeMeeting">
         <di:waypoint x="1060" y="130" /><di:waypoint x="1120" y="130" />
