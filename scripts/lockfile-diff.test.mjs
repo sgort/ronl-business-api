@@ -665,6 +665,138 @@ check(
   false,
 );
 
+// ── Task 4: new direct dependencies (R1, #250) ─────────────────────────────
+
+// The lockfile carries its own copy of every package.json: "" for the root,
+// and one entry per workspace path. A new direct dependency shows up there.
+function manifests(root, workspaces = {}) {
+  const doc = lock({});
+  doc.packages[""] = { name: "fixture", ...root };
+  for (const [path, entry] of Object.entries(workspaces)) {
+    doc.packages[path] = entry;
+    doc.packages[nm(entry.name)] = { resolved: path, link: true };
+  }
+  return doc;
+}
+const wsBase = manifests(
+  { devDependencies: { prettier: "^3.9.0" } },
+  {
+    "packages/frontend": {
+      name: "@fixture/frontend",
+      dependencies: { react: "^19.0.0", "@fixture/shared": "*" },
+      devDependencies: { vitest: "^5.0.0" },
+    },
+    "packages/shared": { name: "@fixture/shared" },
+  },
+);
+const wsHead = manifests(
+  { devDependencies: { prettier: "^3.9.0", husky: "^9.0.0" } },
+  {
+    "packages/frontend": {
+      name: "@fixture/frontend",
+      dependencies: {
+        react: "^19.0.0",
+        "@fixture/shared": "*",
+        "left-pad": "^1.3.0",
+      },
+      devDependencies: { vitest: "^5.0.0" },
+      optionalDependencies: { fsevents: "^2.3.0" },
+    },
+    "packages/backend": {
+      name: "@fixture/backend",
+      dependencies: { react: "^19.0.0", express: "^5.0.0" },
+    },
+    "packages/shared": { name: "@fixture/shared" },
+  },
+);
+check(
+  "new direct dependencies are read from every manifest in the lockfile",
+  L.newDirectDependencies(wsBase, wsHead),
+  [
+    { name: "express", manifest: "packages/backend", field: "dependencies" },
+    {
+      name: "fsevents",
+      manifest: "packages/frontend",
+      field: "optionalDependencies",
+    },
+    { name: "husky", manifest: "(root)", field: "devDependencies" },
+    { name: "left-pad", manifest: "packages/frontend", field: "dependencies" },
+  ],
+);
+check(
+  "a package already direct elsewhere in the repository is not new (react)",
+  L.newDirectDependencies(wsBase, wsHead).some((d) => d.name === "react"),
+  false,
+);
+check(
+  "moving a package between fields is not adding one",
+  L.newDirectDependencies(
+    manifests({ dependencies: { "@testing-library/react": "^16.0.0" } }),
+    manifests({ devDependencies: { "@testing-library/react": "^16.0.0" } }),
+  ),
+  [],
+);
+check(
+  "a workspace package depending on another is not a new dependency",
+  L.newDirectDependencies(
+    manifests({}, { "packages/a": { name: "@fixture/a" } }),
+    manifests(
+      {},
+      {
+        "packages/a": { name: "@fixture/a" },
+        "packages/b": {
+          name: "@fixture/b",
+          dependencies: { "@fixture/a": "*" },
+        },
+      },
+    ),
+  ),
+  [],
+);
+check(
+  "nothing new when the manifests did not change",
+  L.newDirectDependencies(wsBase, wsBase),
+  [],
+);
+
+const withNew = L.renderReport({
+  blocking: [],
+  diff: empty,
+  review: none,
+  newDirect: L.newDirectDependencies(wsBase, wsHead),
+});
+check(
+  "the report asks for the R1 check of each new direct dependency",
+  withNew.includes("#### New direct dependencies") &&
+    withNew.includes("`left-pad` in `packages/frontend` (dependencies)") &&
+    withNew.includes("docs/dependency-criteria.md"),
+  true,
+);
+check(
+  "each new direct dependency gets its own checklist",
+  (withNew.match(/- \[ \] Maintained/g) || []).length,
+  4,
+);
+check(
+  "a report without new direct dependencies has no such section",
+  clean.includes("New direct dependencies"),
+  false,
+);
+check(
+  "a name from the lockfile cannot break out of its code span",
+  L.renderReport({
+    blocking: [],
+    diff: empty,
+    review: none,
+    newDirect: [
+      { name: "a`\n- [x] approved", manifest: "(root)", field: "dependencies" },
+    ],
+  })
+    .split("\n")
+    .some((l) => /^\s*- \[x\]/.test(l)),
+  false,
+);
+
 // ── summary (later tasks insert their checks ABOVE this line) ───────────────
 if (failures.length) {
   console.error(

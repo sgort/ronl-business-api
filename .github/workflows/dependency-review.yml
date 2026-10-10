@@ -1,0 +1,84 @@
+name: Dependency review
+
+# ICTU recommendation 11: once a quarter, check that every dependency is still
+# maintained, by the same criteria recommendation 1 applies before one is
+# added (docs/dependency-criteria.md in linked-data-explorer; #250). Nothing
+# else here notices an abandoned package: it raises no advisory, so the daily
+# audit is silent, and it opens no Renovate pull request. So this runs on a
+# clock and opens an issue, the same way the daily audit reaches a person.
+on:
+  schedule:
+    # 06:23 UTC on the second day of each quarter. Off the hour, like the
+    # daily audit, because GitHub queues scheduled workflows at the top of it.
+    - cron: '23 6 2 1,4,7,10 *'
+  workflow_dispatch:
+  # So a change to the review is exercised before it is merged. The issue step
+  # is skipped on a pull request; see its `if:`.
+  pull_request:
+    paths:
+      - '.github/workflows/dependency-review.yml'
+      - 'scripts/dependency-review.mjs'
+      - 'scripts/lockfile-diff.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Not "audit": that is zizmor.yml's required check, and required checks
+  # match by name (see dependency-audit.yml).
+  dependency-review:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # To open the quarter's review issue.
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # An exact literal, like dependency-audit.yml; Renovate maintains it.
+          node-version: '24.21.0'
+
+      - name: Test the review script
+        run: node scripts/dependency-review.test.mjs
+
+      # Reads package-lock.json and asks the npm registry and the GitHub API;
+      # installs nothing. The token only reads public repositories, to see
+      # whether one is archived and whether an organisation owns it.
+      - name: Gather the evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REVIEW_FILE: ${{ runner.temp }}/review.md
+        run: |
+          node scripts/dependency-review.mjs --out "$REVIEW_FILE"
+          cat "$REVIEW_FILE" >> "$GITHUB_STEP_SUMMARY"
+
+      # One issue per quarter. A re-run in the same quarter leaves an existing
+      # issue's body alone, because the outcomes are recorded in it, and adds
+      # the fresh evidence as a comment instead.
+      - name: Open the quarter's review issue
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_FILE: ${{ runner.temp }}/review.md
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title=$(head -n 1 "$REVIEW_FILE" | sed 's/^## //')
+          printf '\n\nRun: %s\n' "$RUN_URL" >> "$REVIEW_FILE"
+          existing=$(gh issue list --state all --search "in:title \"$title\"" --json number,title \
+            --jq "[.[] | select(.title == \"$title\")] | .[0].number // empty")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file "$REVIEW_FILE"
+            echo "Added the evidence to #$existing"
+          else
+            gh issue create --title "$title" --body-file "$REVIEW_FILE" --label dependencies
+            echo "Opened the review issue"
+          fi
