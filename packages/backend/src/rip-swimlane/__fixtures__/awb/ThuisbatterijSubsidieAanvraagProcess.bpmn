@@ -45,7 +45,12 @@ execution.setVariable("applicationYear", new Date().getFullYear());
 if (!execution.getVariable("applicantId")) {
   execution.setVariable("applicantId", "APPLICANT-" + Date.now());
 }
-execution.setVariable("productType", "SubsidieThuisbatterijFlevoland");
+if (!execution.getVariable("productType")) {
+  execution.setVariable("productType", "SubsidieThuisbatterijFlevoland");
+}
+// Awb 4:5 grants one recovery period. "Aanvraag volledig?" reads this to
+// choose between asking for a supplement and refusing to process.
+execution.setVariable("herstelVerzocht", false);
 execution.setVariable("subsidyScheme", "Subsidie Thuisbatterij Provincie Flevoland");
 execution.setVariable("competentAuthority", "Provincie Flevoland");
 execution.setVariable("authenticationMethod", "DigiD/eHerkenning");
@@ -69,31 +74,38 @@ var ref = "TB-FL-" + receiptDate.getFullYear() + "-" + Date.now().toString().sli
 execution.setVariable("dossierReference", ref);
 execution.setVariable("phase2Complete", true);</bpmn:script>
     </bpmn:scriptTask>
-    <bpmn:businessRuleTask id="Task_Phase3_Completeness" name="Fase 3: Ontvankelijkheidstoets (Awb 2:3)" camunda:decisionRef="AwbCompletenessCheck" camunda:decisionRefTenantId="${null}" ronl:awbPhase="3">
+    <bpmn:businessRuleTask id="Task_Phase3_Completeness" name="Fase 3: Ontvankelijkheidstoets (Awb 2:3)" camunda:decisionRef="ThuisbatterijCompletenessCheck" camunda:decisionRefTenantId="${null}" ronl:awbPhase="3">
       <bpmn:extensionElements>
         <camunda:inputOutput>
           <camunda:outputParameter name="isComplete">${decisionResult.getSingleResult().getEntry("isComplete")}</camunda:outputParameter>
+          <camunda:outputParameter name="missingFields">${decisionResult.getSingleResult().getEntry("missingFields")}</camunda:outputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Phase2_Phase3</bpmn:incoming>
+      <bpmn:incoming>Flow_Recheck_Completeness</bpmn:incoming>
       <bpmn:outgoing>Flow_Phase3_Gateway</bpmn:outgoing>
     </bpmn:businessRuleTask>
     <bpmn:exclusiveGateway id="Gateway_Complete" name="Aanvraag volledig?">
       <bpmn:incoming>Flow_Phase3_Gateway</bpmn:incoming>
       <bpmn:outgoing>Flow_Complete_Yes</bpmn:outgoing>
       <bpmn:outgoing>Flow_Complete_No</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Complete_NoAfterRecovery</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:userTask id="Task_RequestMissingInfo" name="Aanvullende gegevens opvragen (Awb 4:5)" camunda:formRef="thuisbatterij-aanvullende-gegevens" camunda:formRefBinding="deployment" camunda:candidateGroups="caseworker">
+      <bpmn:extensionElements>
+        <camunda:executionListener expression="${execution.setVariable('herstelVerzocht', true)}" event="end" />
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_Complete_No</bpmn:incoming>
       <bpmn:outgoing>Flow_MissingInfo_Recheck</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:exclusiveGateway id="Gateway_StillIncomplete" name="Aanvulling ontvangen?">
       <bpmn:incoming>Flow_MissingInfo_Recheck</bpmn:incoming>
-      <bpmn:outgoing>Flow_Recheck_Process</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Recheck_Completeness</bpmn:outgoing>
       <bpmn:outgoing>Flow_Recheck_Refuse</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:scriptTask id="Task_RefuseToProcess" name="Aanvraag buiten behandeling stellen (Awb 4:5 lid 2)" scriptFormat="javascript">
       <bpmn:incoming>Flow_Recheck_Refuse</bpmn:incoming>
+      <bpmn:incoming>Flow_Complete_NoAfterRecovery</bpmn:incoming>
       <bpmn:outgoing>Flow_Refuse_Notify</bpmn:outgoing>
       <bpmn:script>execution.setVariable("status", "Niet ontvankelijk");
 execution.setVariable("finalMessage", "Uw aanvraag is niet in behandeling genomen wegens ontbrekende gegevens (Awb 4:5 lid 2).");
@@ -109,7 +121,6 @@ execution.setVariable("chainProcessRequired", false);</bpmn:script>
         <camunda:out variables="all" />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Complete_Yes</bpmn:incoming>
-      <bpmn:incoming>Flow_Recheck_Process</bpmn:incoming>
       <bpmn:outgoing>Flow_Phase45_Phase6</bpmn:outgoing>
     </bpmn:callActivity>
     <bpmn:userTask id="Task_Phase6_Notify" name="Fase 6: Aanvrager informeren over besluit (Awb 3:6)" camunda:formRef="awb-notify-applicant-thuisbatterij" camunda:formRefBinding="deployment" camunda:candidateGroups="caseworker" ronl:documentRef="thuisbatterij_subsidie_beschikking" ronl:awbPhase="6">
@@ -182,10 +193,13 @@ execution.setVariable("archiveComplete", true);</bpmn:script>
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isComplete == true}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_Complete_No" sourceRef="Gateway_Complete" targetRef="Task_RequestMissingInfo">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isComplete == false}</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isComplete == false &amp;&amp; herstelVerzocht != true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Complete_NoAfterRecovery" sourceRef="Gateway_Complete" targetRef="Task_RefuseToProcess">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isComplete == false &amp;&amp; herstelVerzocht == true}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_MissingInfo_Recheck" sourceRef="Task_RequestMissingInfo" targetRef="Gateway_StillIncomplete" />
-    <bpmn:sequenceFlow id="Flow_Recheck_Process" sourceRef="Gateway_StillIncomplete" targetRef="Task_Phase45_Process">
+    <bpmn:sequenceFlow id="Flow_Recheck_Completeness" sourceRef="Gateway_StillIncomplete" targetRef="Task_Phase3_Completeness">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${supplementReceived == true}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_Recheck_Refuse" sourceRef="Gateway_StillIncomplete" targetRef="Task_RefuseToProcess">
@@ -325,9 +339,16 @@ execution.setVariable("archiveComplete", true);</bpmn:script>
         <di:waypoint x="980" y="300" />
         <di:waypoint x="1055" y="300" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Recheck_Process_di" bpmnElement="Flow_Recheck_Process">
-        <di:waypoint x="1105" y="300" />
-        <di:waypoint x="1180" y="300" />
+      <bpmndi:BPMNEdge id="Flow_Recheck_Completeness_di" bpmnElement="Flow_Recheck_Completeness">
+        <di:waypoint x="1080" y="275" />
+        <di:waypoint x="1080" y="230" />
+        <di:waypoint x="730" y="230" />
+        <di:waypoint x="730" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Complete_NoAfterRecovery_di" bpmnElement="Flow_Complete_NoAfterRecovery">
+        <di:waypoint x="900" y="605" />
+        <di:waypoint x="900" y="720" />
+        <di:waypoint x="1380" y="720" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Recheck_Refuse_di" bpmnElement="Flow_Recheck_Refuse">
         <di:waypoint x="1080" y="325" />
