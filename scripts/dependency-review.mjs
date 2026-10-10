@@ -147,7 +147,6 @@ const code = (s) =>
     .replace(/`/g, "'")}\``;
 const text = (s) => String(s).replace(/[\r\n]+/g, " ");
 const day = (iso) => (iso ? String(iso).slice(0, 10) : "—");
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 function flagged(row, reasons) {
   return [
