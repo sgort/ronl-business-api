@@ -94,7 +94,7 @@
       <bpmn:incoming>Flow_Ondertekend_Nee</bpmn:incoming>
       <bpmn:outgoing>Flow_Escaleren_NeemBesluit</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:userTask id="Task_NeemBesluit" name="Neem besluit" camunda:formRef="besluit-gb-besluit-nemen" camunda:formRefBinding="deployment" ronl:documentRef="besluit-gb-besluit" camunda:candidateGroups="besluit-bestuursautoriteit">
+    <bpmn:userTask id="Task_NeemBesluit" name="Neem besluit" camunda:formRef="besluit-gb-besluit-nemen" camunda:formRefBinding="deployment" ronl:documentRef="besluit-gb-besluit-bestuur" camunda:candidateGroups="besluit-bestuursautoriteit">
       <bpmn:incoming>Flow_Escaleren_NeemBesluit</bpmn:incoming>
       <bpmn:outgoing>Flow_NeemBesluit_Registreer</bpmn:outgoing>
     </bpmn:userTask>

@@ -854,9 +854,9 @@ export class OperatonService {
     // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     const element = new RegExp(`<bpmn:userTask\\b[^>]*\\bid="${escaped}"[^>]*>`).exec(bpmnXml);
     if (!element) return null;
-    // `attribute` is not escaped. The method is private and has one caller,
-    // which passes the literal 'ronl:signatureRef' -- no metacharacter in it.
-    // Escape it here if a second caller ever appears.
+    // `attribute` is not escaped. The method is private and its callers pass
+    // only the literals 'ronl:signatureRef' and 'ronl:documentRef' -- no
+    // metacharacter in either. Escape it here if a caller ever passes input.
     // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     const attr = new RegExp(`\\b${attribute}="([^"]+)"`).exec(element[0]);
     return attr ? attr[1] : null;
@@ -1086,16 +1086,64 @@ export class OperatonService {
   }
 
   /**
-   * Fetch the DocumentTemplate linked via camunda:documentRef on any UserTask in the BPMN
-   * associated with the given process instance. Works for completed instances via the history API.
-   * Throws Error('DOCUMENT_NOT_FOUND') when no camunda:documentRef is present or the deployment
-   * resource is absent.
+   * Fetch the DocumentTemplate of a process instance's decision. Works for
+   * completed instances via the history API.
    *
-   * NOTE: unlike getTaskSignatureSpec(), this is intentionally NOT scoped to a
-   * single <bpmn:userTask>. It has no task key to scope to (see class docs /
-   * task-5 report for why scoping it would change its return-first-match
-   * contract and break its existing callers/tests).
+   * The caller has no task key, so the template comes from the path the
+   * instance took (documentRefOnPathTaken): the most recently completed user
+   * task carrying ronl:documentRef or ronl:signatureRef. When none of its
+   * completed tasks carries one -- an instance still before that point, or a
+   * process whose document sits elsewhere -- it falls back to the first
+   * ronl:documentRef in the BPMN, the behaviour every single-document process
+   * already relied on.
+   *
+   * Throws Error('DOCUMENT_NOT_FOUND') when there is no reference at all or the
+   * deployment resource is absent.
    */
+  /**
+   * The document belonging to the path an instance actually took: the
+   * ronl:documentRef (or, failing that, ronl:signatureRef) of its most recently
+   * completed user task that has one. Null when none of its completed user
+   * tasks carries either.
+   *
+   * A process can produce a different document on different paths: the
+   * besluitvorming example signs one besluit through ValidSign on the ordinary
+   * path and has the competent authority take another after escalation
+   * (sgort/linked-data-explorer#246). The first reference in the BPMN would
+   * hand every instance the same one.
+   *
+   * documentRef can hold a comma-separated list (sgort/linked-data-explorer#231);
+   * the first entry is the task's main document.
+   */
+  private async documentRefOnPathTaken(
+    processInstanceId: string,
+    bpmnXml: string
+  ): Promise<string | null> {
+    const response = await this.client.get('/history/activity-instance', {
+      params: {
+        processInstanceId,
+        activityType: 'userTask',
+        finished: true,
+        sortBy: 'endTime',
+        sortOrder: 'desc',
+        maxResults: 500,
+      },
+    });
+    const completed = (response.data ?? []) as Array<{ activityId: string; canceled?: boolean }>;
+    for (const activity of completed) {
+      if (activity.canceled) continue;
+      const ref =
+        this.readTaskRonlAttribute(bpmnXml, activity.activityId, 'ronl:documentRef') ??
+        this.readTaskRonlAttribute(bpmnXml, activity.activityId, 'ronl:signatureRef');
+      const first = ref
+        ?.split(',')
+        .map((id) => id.trim())
+        .find(Boolean);
+      if (first) return first;
+    }
+    return null;
+  }
+
   async getDecisionDocument(processInstanceId: string): Promise<Record<string, unknown>> {
     // 1. Resolve processDefinitionId via history API (active /process-instance/{id} returns 404 for COMPLETED)
     const histRes = await this.client.get(`/history/process-instance/${processInstanceId}`);
@@ -1105,12 +1153,15 @@ export class OperatonService {
     const xmlRes = await this.client.get(`/process-definition/${processDefinitionId}/xml`);
     const bpmnXml: string = xmlRes.data.bpmn20Xml;
 
-    // 3. Find ronl:documentRef on any UserTask — scan all occurrences and take the first
-    const docRefMatch = bpmnXml.match(/ronl:documentRef="([^"]+)"/);
-    if (!docRefMatch) {
+    // 3. The document of the path the instance took: the most recently completed
+    //    user task that carries one. Only when no completed task does, the first
+    //    ronl:documentRef anywhere in the BPMN, as before.
+    const documentRef =
+      (await this.documentRefOnPathTaken(processInstanceId, bpmnXml)) ??
+      bpmnXml.match(/ronl:documentRef="([^"]+)"/)?.[1];
+    if (!documentRef) {
       throw new Error('DOCUMENT_NOT_FOUND');
     }
-    const documentRef = docRefMatch[1];
 
     // 4. Get deploymentId from the process definition record
     const procDefRes = await this.client.get(`/process-definition/${processDefinitionId}`);

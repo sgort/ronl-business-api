@@ -49,7 +49,7 @@
   },
   "GedelegeerdBesluitProcess.bpmn": {
     "source": "packages/frontend/public/examples/flevoland/besluitvorming-gedelegeerd/GedelegeerdBesluitProcess.bpmn",
-    "sha256": "8c378b73ee058a6cfd85c8cf50fd2a044bb49a73371891e3700ec1b58bcc24b3"
+    "sha256": "66fd357138283ecfc0b7b2be100d3a96eb4e51212f3751a5744481dfc49190e7"
   },
   "ManagementCapacityClaimProcess.bpmn": {
     "source": "examples/organizations/flevoland/HR-capacity/ManagementCapacityClaimProcess.bpmn",

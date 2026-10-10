@@ -1651,7 +1651,9 @@ paths:
         test ever named the field.
 
         The value is the template WITH ITS BINDINGS, not a rendered document.
-        Nothing here substitutes the placeholders.
+        Nothing here substitutes the placeholders. Where a process produces a
+        different document on different paths, it is the one of the path the
+        case took; see the `/m2m` twin for the rule.
       parameters:
         - name: instanceId
           in: path
@@ -2567,9 +2569,11 @@ paths:
         handler sends.
 
         The template is the `DocumentTemplate` resource bundled in the
-        deployment, found by following `ronl:documentRef` on a user task in the
-        instance's BPMN. It is the template WITH ITS BINDINGS, not a rendered
-        document. Works for instances that have ended.
+        deployment, chosen by the path the instance took: the most recently
+        completed user task carrying `ronl:documentRef` (or `ronl:signatureRef`).
+        When none of its completed tasks carries one, the first
+        `ronl:documentRef` in the instance's BPMN. It is the template WITH ITS
+        BINDINGS, not a rendered document. Works for instances that have ended.
 
         Most processes carry no `ronl:documentRef`, in which case this answers
         404 — the usual outcome, not an error worth alerting on.
