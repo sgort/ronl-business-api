@@ -9,21 +9,19 @@
       <bpmn:incoming>Flow_Revision_BackToCollect</bpmn:incoming>
       <bpmn:outgoing>Flow_CollectData_DetermineRoles</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:businessRuleTask id="Task_DetermineRoles" name="Determine roles" camunda:resultVariable="roleResult" camunda:decisionRef="EmployeeRoleAssignment" camunda:mapDecisionResult="singleResult">
+    <bpmn:businessRuleTask id="Task_DetermineRoles" name="Determine roles" camunda:decisionRef="EmployeeRoleAssignment">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="assignedRoles">${decisionResult.getSingleResult().getEntry("assignedRoles")}</camunda:outputParameter>
+          <camunda:outputParameter name="candidateGroups">${decisionResult.getSingleResult().getEntry("candidateGroups")}</camunda:outputParameter>
+          <camunda:outputParameter name="accessLevel">${decisionResult.getSingleResult().getEntry("accessLevel")}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_CollectData_DetermineRoles</bpmn:incoming>
-      <bpmn:outgoing>Flow_DetermineRoles_MapOutputs</bpmn:outgoing>
+      <bpmn:outgoing>Flow_DetermineRoles_ReviewRoles</bpmn:outgoing>
     </bpmn:businessRuleTask>
-    <bpmn:scriptTask id="Task_MapRoleOutputs" name="Map role outputs" scriptFormat="javascript">
-      <bpmn:incoming>Flow_DetermineRoles_MapOutputs</bpmn:incoming>
-      <bpmn:outgoing>Flow_MapOutputs_ReviewRoles</bpmn:outgoing>
-      <bpmn:script>
-        execution.setVariable("assignedRoles",   roleResult.get("assignedRoles"));
-        execution.setVariable("candidateGroups", roleResult.get("candidateGroups"));
-        execution.setVariable("accessLevel",     roleResult.get("accessLevel"));
-      </bpmn:script>
-    </bpmn:scriptTask>
     <bpmn:userTask id="Task_ReviewRoleAssignment" name="Review role assignment" camunda:formRef="hr-role-review" camunda:formRefBinding="latest" camunda:candidateGroups="hr-medewerker">
-      <bpmn:incoming>Flow_MapOutputs_ReviewRoles</bpmn:incoming>
+      <bpmn:incoming>Flow_DetermineRoles_ReviewRoles</bpmn:incoming>
       <bpmn:outgoing>Flow_Review_Gateway</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:exclusiveGateway id="Gateway_ApprovalStatus" name="Approved?">
@@ -44,8 +42,7 @@
     </bpmn:userTask>
     <bpmn:sequenceFlow id="Flow_Start_CollectData" sourceRef="StartEvent_Onboarding" targetRef="Task_CollectEmployeeData" />
     <bpmn:sequenceFlow id="Flow_CollectData_DetermineRoles" sourceRef="Task_CollectEmployeeData" targetRef="Task_DetermineRoles" />
-    <bpmn:sequenceFlow id="Flow_DetermineRoles_MapOutputs" sourceRef="Task_DetermineRoles" targetRef="Task_MapRoleOutputs" />
-    <bpmn:sequenceFlow id="Flow_MapOutputs_ReviewRoles" sourceRef="Task_MapRoleOutputs" targetRef="Task_ReviewRoleAssignment" />
+    <bpmn:sequenceFlow id="Flow_DetermineRoles_ReviewRoles" sourceRef="Task_DetermineRoles" targetRef="Task_ReviewRoleAssignment" />
     <bpmn:sequenceFlow id="Flow_Review_Gateway" sourceRef="Task_ReviewRoleAssignment" targetRef="Gateway_ApprovalStatus" />
     <bpmn:sequenceFlow id="Flow_Gateway_Notify" name="approved" sourceRef="Gateway_ApprovalStatus" targetRef="Task_NotifyEmployee">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approvalStatus == "approved"}</bpmn:conditionExpression>
@@ -69,9 +66,6 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_DetermineRoles_di" bpmnElement="Task_DetermineRoles">
         <dc:Bounds x="460" y="90" width="160" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_MapRoleOutputs_di" bpmnElement="Task_MapRoleOutputs">
-        <dc:Bounds x="680" y="90" width="160" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_ReviewRoleAssignment_di" bpmnElement="Task_ReviewRoleAssignment">
         <dc:Bounds x="900" y="90" width="160" height="80" />
@@ -102,12 +96,8 @@
         <di:waypoint x="400" y="130" />
         <di:waypoint x="460" y="130" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_DetermineRoles_MapOutputs_di" bpmnElement="Flow_DetermineRoles_MapOutputs">
+      <bpmndi:BPMNEdge id="Flow_DetermineRoles_ReviewRoles_di" bpmnElement="Flow_DetermineRoles_ReviewRoles">
         <di:waypoint x="620" y="130" />
-        <di:waypoint x="680" y="130" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_MapOutputs_ReviewRoles_di" bpmnElement="Flow_MapOutputs_ReviewRoles">
-        <di:waypoint x="840" y="130" />
         <di:waypoint x="900" y="130" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Review_Gateway_di" bpmnElement="Flow_Review_Gateway">

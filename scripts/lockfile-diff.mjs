@@ -278,6 +278,56 @@ export function reviewFindings(base, head, diff, allow) {
   };
 }
 
+const DIRECT_FIELDS = [
+  "dependencies",
+  "devDependencies",
+  "optionalDependencies",
+];
+
+/**
+ * Every direct dependency the lockfile records, as name → [{manifest,
+ * field}]. The lockfile keeps its own copy of each package.json: "" for the
+ * root and one entry per workspace path, so this reads the manifests without
+ * reading a single package.json. Workspace packages depending on each other
+ * are not dependencies in this sense and are left out.
+ */
+export function directDependencies(doc) {
+  const manifests = Object.entries(doc.packages).filter(
+    ([key, entry]) => !key.includes(NODE_MODULES) && !entry.link,
+  );
+  const local = new Set(manifests.map(([, entry]) => entry.name));
+  const direct = new Map();
+  for (const [key, entry] of manifests) {
+    for (const field of DIRECT_FIELDS) {
+      for (const name of Object.keys(entry[field] ?? {})) {
+        if (local.has(name)) continue;
+        const where = { manifest: key === "" ? "(root)" : key, field };
+        direct.set(name, [...(direct.get(name) ?? []), where]);
+      }
+    }
+  }
+  return direct;
+}
+
+/**
+ * Packages that are a direct dependency in head and nowhere in base (ICTU
+ * recommendation 1; #250). A package already direct elsewhere in the
+ * repository was vetted when it arrived, and moving one between fields
+ * (dependencies → devDependencies) is not adding it.
+ */
+export function newDirectDependencies(baseDoc, headDoc) {
+  const base = directDependencies(baseDoc);
+  const added = [];
+  for (const [name, places] of directDependencies(headDoc)) {
+    if (base.has(name)) continue;
+    for (const place of places) added.push({ name, ...place });
+  }
+  return added.sort(
+    (x, y) =>
+      x.name.localeCompare(y.name) || x.manifest.localeCompare(y.manifest),
+  );
+}
+
 /** lockfile-review.json: { "allowLicenses": [SPDX ids] }. */
 export function parseConfig(text, label) {
   let doc;
@@ -296,6 +346,8 @@ export function parseConfig(text, label) {
 }
 
 export const MARKER = "<!-- lockfile-review -->";
+export const CRITERIA_URL =
+  "https://github.com/sgort/linked-data-explorer/blob/acc/docs/dependency-criteria.md";
 export const COMMENT_LIMIT = 65536;
 
 // Names, versions, licences and origins come from registry metadata. A
@@ -333,7 +385,7 @@ function list(title, lines) {
 }
 
 /** The Markdown report: verdict, blocking findings, prompts, then changes. */
-export function renderReport({ blocking, diff, review }) {
+export function renderReport({ blocking, diff, review, newDirect = [] }) {
   const runtime = (items) => items.filter((p) => !p.dev).length;
   const verdict = blocking.length
     ? `**✗ ${plural(blocking.length, "blocking finding")}** — the check fails.`
@@ -356,6 +408,26 @@ export function renderReport({ blocking, diff, review }) {
       "Blocking",
       blocking.map((b) => `- **${b.rule}** ${code(b.key)}: ${b.detail}`),
     ),
+    ...(newDirect.length
+      ? [
+          "#### New direct dependencies",
+          "",
+          `Vet each against the [dependency criteria](${CRITERIA_URL}) before ` +
+            "merging (ICTU recommendation 1), and tick what holds. Anything " +
+            "that does not hold needs a sentence in the pull request saying why " +
+            "the package is still the right choice.",
+          "",
+          ...newDirect.flatMap((d) => [
+            `- ${code(d.name)} in ${code(d.manifest)} (${d.field})`,
+            "  - [ ] Maintained: a release in the last 12 months, not deprecated, repository not archived",
+            "  - [ ] Maintainers: more than one, or a backing organisation",
+            "  - [ ] Licence on the allow-list in lockfile-review.json",
+            "  - [ ] Release policy and footprint: semver, install scripts, native builds, transitive weight",
+            "  - [ ] Needed: no existing dependency or a few lines of our own would do",
+          ]),
+          "",
+        ]
+      : []),
     ...list(
       "Downgrades",
       review.downgrades.map(
@@ -492,7 +564,8 @@ function main(argv) {
   const diff = diffPackages(base, head);
   const review = reviewFindings(base, head, diff, config.allow);
   const blocking = blockingFindings(headDoc);
-  const report = renderReport({ blocking, diff, review });
+  const newDirect = newDirectDependencies(baseDoc, headDoc);
+  const report = renderReport({ blocking, diff, review, newDirect });
   const out = option("--out");
   if (out) writeFileSync(out, report);
   else process.stdout.write(`${report}\n`);

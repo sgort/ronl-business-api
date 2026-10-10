@@ -74,7 +74,12 @@
         execution.setVariable("phase2Complete", true);
       </bpmn:script>
     </bpmn:scriptTask>
-    <bpmn:businessRuleTask id="Task_Phase3_Completeness" name="Fase 3: Ontvankelijkheidstoets (Awb 2:3)" camunda:resultVariable="completenessResult" camunda:decisionRef="AwbCompletenessCheck" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleResult" ronl:awbPhase="3">
+    <bpmn:businessRuleTask id="Task_Phase3_Completeness" name="Fase 3: Ontvankelijkheidstoets (Awb 2:3)" camunda:decisionRef="AwbCompletenessCheck" camunda:decisionRefTenantId="${null}" ronl:awbPhase="3">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="isComplete">${decisionResult.getSingleResult().getEntry("isComplete")}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_Phase2_Phase3</bpmn:incoming>
       <bpmn:outgoing>Flow_Phase3_Gateway</bpmn:outgoing>
     </bpmn:businessRuleTask>
@@ -97,9 +102,9 @@
       <bpmn:outgoing>Flow_Refuse_Notify</bpmn:outgoing>
       <bpmn:script>
         execution.setVariable("status", "Not admissible");
-        execution.setVariable("finalMessage", "Your application has not been processed due to missing information (Awb 4:5 paragraph 2).");
+        execution.setVariable("finalMessage", "Uw aanvraag is buiten behandeling gesteld omdat gegevens ontbreken (Awb 4:5 lid 2).");
         execution.setVariable("decisionType", "Refused");
-        execution.setVariable("replacementInfo", "N/A");
+        execution.setVariable("replacementInfo", "Niet van toepassing.");
         execution.setVariable("paymentRequired", false);
         execution.setVariable("chainProcessRequired", false);
       </bpmn:script>
@@ -147,7 +152,15 @@
         execution.setVariable("chainForwardComplete", true);
       </bpmn:script>
     </bpmn:scriptTask>
-    <bpmn:businessRuleTask id="Task_ArchivesDMN" name="Archivering: bewaar- en vernietigingstermijn (Archiefwet)" camunda:resultVariable="archivingResult" camunda:decisionRef="ArchivesActRetention" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleResult" ronl:awbPhase="archivering">
+    <bpmn:businessRuleTask id="Task_ArchivesDMN" name="Archivering: bewaar- en vernietigingstermijn (Archiefwet)" camunda:decisionRef="ArchivesActRetention" camunda:decisionRefTenantId="${null}" ronl:awbPhase="archivering">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="retentionYears">${decisionResult.getSingleResult().getEntry("retentionYears")}</camunda:outputParameter>
+          <camunda:outputParameter name="retentionClass">${decisionResult.getSingleResult().getEntry("retentionClass")}</camunda:outputParameter>
+          <camunda:outputParameter name="archivingLegalBasis">${decisionResult.getSingleResult().getEntry("legalBasis")}</camunda:outputParameter>
+          <camunda:outputParameter name="destroyable">${decisionResult.getSingleResult().getEntry("destroyable")}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_Chain_No</bpmn:incoming>
       <bpmn:incoming>Flow_ChainTask_Archives</bpmn:incoming>
       <bpmn:outgoing>Flow_ArchivesDMN_Record</bpmn:outgoing>
@@ -156,15 +169,12 @@
       <bpmn:incoming>Flow_ArchivesDMN_Record</bpmn:incoming>
       <bpmn:outgoing>Flow_Archive_End</bpmn:outgoing>
       <bpmn:script>
-        var result = execution.getVariable("archivingResult");
-        if (result) {
-          execution.setVariable("retentionYears", result.retentionYears);
-          execution.setVariable("retentionClass", result.retentionClass);
-          execution.setVariable("archivingLegalBasis", result.legalBasis);
-          execution.setVariable("destroyable", result.destroyable);
-
+        // retentionYears, retentionClass, archivingLegalBasis and destroyable come
+        // from Task_ArchivesDMN's output mapping (#273).
+        var retentionYears = execution.getVariable("retentionYears");
+        if (retentionYears != null) {
           var destroyDate = new Date();
-          destroyDate.setFullYear(destroyDate.getFullYear() + parseInt(result.retentionYears));
+          destroyDate.setFullYear(destroyDate.getFullYear() + parseInt(retentionYears));
           execution.setVariable("destroyAfterDate", destroyDate.toISOString().substring(0, 10));
         }
         execution.setVariable("archiveDate", new Date().toISOString());
@@ -179,10 +189,10 @@
     <bpmn:sequenceFlow id="Flow_Phase2_Phase3" sourceRef="Task_Phase2_Receipt" targetRef="Task_Phase3_Completeness" />
     <bpmn:sequenceFlow id="Flow_Phase3_Gateway" sourceRef="Task_Phase3_Completeness" targetRef="Gateway_Complete" />
     <bpmn:sequenceFlow id="Flow_Complete_Yes" sourceRef="Gateway_Complete" targetRef="Task_Phase45_Process">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${completenessResult.isComplete == true}</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isComplete == true}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_Complete_No" sourceRef="Gateway_Complete" targetRef="Task_RequestMissingInfo">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${completenessResult.isComplete == false}</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isComplete == false}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_MissingInfo_Recheck" sourceRef="Task_RequestMissingInfo" targetRef="Gateway_StillIncomplete" />
     <bpmn:sequenceFlow id="Flow_Recheck_Process" sourceRef="Gateway_StillIncomplete" targetRef="Task_Phase45_Process">

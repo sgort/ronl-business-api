@@ -15,7 +15,6 @@
       </bpmn:lane>
       <bpmn:lane id="Lane_Systeem" name="Systeem">
         <bpmn:flowNodeRef>Task_DetermineRouting</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_MapRoutingOutputs</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_ResetClaimFields</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Directiesecretaris" name="Directiesecretaris">
@@ -69,21 +68,19 @@
       <bpmn:incoming>Flow_Hiring_MergePrepare</bpmn:incoming>
       <bpmn:outgoing>Flow_MergePrepare_Routing</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:businessRuleTask id="Task_DetermineRouting" name="Routering bepalen" ronl:phase="routering" camunda:resultVariable="routingResult" camunda:decisionRef="CapacityClaimRouting" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleResult">
+    <bpmn:businessRuleTask id="Task_DetermineRouting" name="Routering bepalen" ronl:phase="routering" camunda:decisionRef="CapacityClaimRouting" camunda:decisionRefTenantId="${null}">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="decisionRoute">${decisionResult.getSingleResult().getEntry("decisionRoute")}</camunda:outputParameter>
+          <camunda:outputParameter name="candidateGroups">${decisionResult.getSingleResult().getEntry("candidateGroups")}</camunda:outputParameter>
+          <camunda:outputParameter name="advisoryGroup">${decisionResult.getSingleResult().getEntry("advisoryGroup")}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_MergePrepare_Routing</bpmn:incoming>
-      <bpmn:outgoing>Flow_Routing_MapOutputs</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Routing_Submit</bpmn:outgoing>
     </bpmn:businessRuleTask>
-    <bpmn:scriptTask id="Task_MapRoutingOutputs" name="Routering-uitkomsten mappen" scriptFormat="javascript">
-      <bpmn:incoming>Flow_Routing_MapOutputs</bpmn:incoming>
-      <bpmn:outgoing>Flow_MapOutputs_Submit</bpmn:outgoing>
-      <bpmn:script>
-        execution.setVariable("decisionRoute",   routingResult.get("decisionRoute"));
-        execution.setVariable("candidateGroups", routingResult.get("candidateGroups"));
-        execution.setVariable("advisoryGroup",   routingResult.get("advisoryGroup"));
-      </bpmn:script>
-    </bpmn:scriptTask>
     <bpmn:userTask id="Task_SubmitToBoardAgenda" name="Agenderen Directievergadering" ronl:phase="agenda" camunda:formRef="capacity-claim-submit-nl" camunda:formRefBinding="deployment" camunda:candidateGroups="board-secretary">
-      <bpmn:incoming>Flow_MapOutputs_Submit</bpmn:incoming>
+      <bpmn:incoming>Flow_Routing_Submit</bpmn:incoming>
       <bpmn:outgoing>Flow_Submit_BoardDecision</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:userTask id="Task_BoardDecision" name="Directiebesluit" ronl:phase="besluit" camunda:formRef="capacity-claim-board-decision-nl" camunda:formRefBinding="deployment" camunda:candidateGroups="board-director" ronl:documentRef="board-decision-notification-nl">
@@ -143,8 +140,7 @@
     <bpmn:sequenceFlow id="Flow_Staffing_MergePrepare" sourceRef="Task_PrepareStaffingClaim" targetRef="Gateway_MergePrepare" />
     <bpmn:sequenceFlow id="Flow_Hiring_MergePrepare" sourceRef="Task_PrepareHiringClaim" targetRef="Gateway_MergePrepare" />
     <bpmn:sequenceFlow id="Flow_MergePrepare_Routing" sourceRef="Gateway_MergePrepare" targetRef="Task_DetermineRouting" />
-    <bpmn:sequenceFlow id="Flow_Routing_MapOutputs" sourceRef="Task_DetermineRouting" targetRef="Task_MapRoutingOutputs" />
-    <bpmn:sequenceFlow id="Flow_MapOutputs_Submit" sourceRef="Task_MapRoutingOutputs" targetRef="Task_SubmitToBoardAgenda" />
+    <bpmn:sequenceFlow id="Flow_Routing_Submit" sourceRef="Task_DetermineRouting" targetRef="Task_SubmitToBoardAgenda" />
     <bpmn:sequenceFlow id="Flow_Submit_BoardDecision" sourceRef="Task_SubmitToBoardAgenda" targetRef="Task_BoardDecision" />
     <bpmn:sequenceFlow id="Flow_BoardDecision_Gateway" sourceRef="Task_BoardDecision" targetRef="Gateway_BoardDecision" />
     <bpmn:sequenceFlow id="Flow_Gateway_Approved" name="akkoord" sourceRef="Gateway_BoardDecision" targetRef="Gateway_DecisionRoute">
@@ -263,9 +259,6 @@
       <bpmndi:BPMNShape id="Task_DetermineRouting_di" bpmnElement="Task_DetermineRouting">
         <dc:Bounds x="870" y="370" width="160" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_MapRoutingOutputs_di" bpmnElement="Task_MapRoutingOutputs">
-        <dc:Bounds x="1080" y="370" width="160" height="80" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_ResetClaimFields_di" bpmnElement="Task_ResetClaimFields">
         <dc:Bounds x="330" y="370" width="160" height="80" />
       </bpmndi:BPMNShape>
@@ -360,12 +353,8 @@
         <di:waypoint x="950" y="200" />
         <di:waypoint x="950" y="370" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Routing_MapOutputs_di" bpmnElement="Flow_Routing_MapOutputs">
+      <bpmndi:BPMNEdge id="Flow_Routing_Submit_di" bpmnElement="Flow_Routing_Submit">
         <di:waypoint x="1030" y="410" />
-        <di:waypoint x="1080" y="410" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_MapOutputs_Submit_di" bpmnElement="Flow_MapOutputs_Submit">
-        <di:waypoint x="1160" y="450" />
         <di:waypoint x="1160" y="550" />
         <di:waypoint x="1500" y="550" />
       </bpmndi:BPMNEdge>

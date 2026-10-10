@@ -986,7 +986,6 @@ describe('parseSwimlane — HR capacity claim, declared phases', () => {
       Task_PrepareHiringClaim: 'claim',
       Gateway_MergePrepare: 'claim',
       Task_DetermineRouting: 'routering',
-      Task_MapRoutingOutputs: 'routering',
       Task_SubmitToBoardAgenda: 'agenda',
       Task_BoardDecision: 'besluit',
       Gateway_BoardDecision: 'besluit',
