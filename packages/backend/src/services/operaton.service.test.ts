@@ -1464,14 +1464,82 @@ describe('deployed forms', () => {
 });
 
 describe('getDecisionDocument', () => {
-  const setup = (xml: string, resources: unknown) =>
+  const setup = (
+    xml: string,
+    resources: unknown,
+    completedUserTasks: Array<{ activityId: string; canceled?: boolean }> = []
+  ) =>
     routeGet([
       [/\/history\/process-instance\/pi1$/, { data: { processDefinitionId: 'pd1' } }],
+      ['/history/activity-instance', { data: completedUserTasks }],
       ['/process-definition/pd1/xml', { data: { bpmn20Xml: xml } }],
       ['/process-definition/pd1', { data: { deploymentId: 'dep1' } }],
       ['/deployment/dep1/resources', { data: resources }],
       [/\/deployment\/dep1\/resources\/r1\/data$/, { data: '{"template":"x"}' }],
     ]);
+
+  // The besluitvorming shape (sgort/linked-data-explorer#246): the ordinary
+  // path signs one document, escalation has the authority take another.
+  // Task_Intake comes first and is never completed in these cases, so the old
+  // first-match lookup would pick its document every time.
+  const TWO_PATHS = `<bpmn:definitions>
+    <bpmn:userTask id="Task_Intake" ronl:documentRef="ontvangstbevestiging" />
+    <bpmn:userTask id="Task_NeemBesluit" ronl:documentRef="besluit-bestuur" />
+    <bpmn:userTask id="Task_Onderteken" ronl:signatureRef="besluit-mandaat" />
+    <bpmn:userTask id="Task_Registreer" />
+  </bpmn:definitions>`;
+  const resources = (name: string) => [
+    { id: 'r9', name: 'other.document', deploymentId: 'dep1' },
+    { id: 'r1', name: `${name}.document`, deploymentId: 'dep1' },
+  ];
+
+  it('takes the document of the path the instance took: the signing task on the ordinary path', async () => {
+    setup(TWO_PATHS, resources('besluit-mandaat'), [
+      { activityId: 'Task_Registreer' },
+      { activityId: 'Task_Onderteken' },
+    ]);
+    await expect(svc.getDecisionDocument('pi1')).resolves.toEqual({ template: 'x' });
+    expect(mockClient.get).toHaveBeenCalledWith('/history/activity-instance', {
+      params: expect.objectContaining({
+        processInstanceId: 'pi1',
+        activityType: 'userTask',
+        finished: true,
+        sortBy: 'endTime',
+        sortOrder: 'desc',
+      }),
+    });
+  });
+
+  it('takes the authority document after escalation, even though the signing task ran first', async () => {
+    setup(TWO_PATHS, resources('besluit-bestuur'), [
+      { activityId: 'Task_Registreer' },
+      { activityId: 'Task_NeemBesluit' },
+      { activityId: 'Task_Onderteken' },
+    ]);
+    await expect(svc.getDecisionDocument('pi1')).resolves.toEqual({ template: 'x' });
+  });
+
+  it('skips canceled task instances', async () => {
+    setup(TWO_PATHS, resources('besluit-mandaat'), [
+      { activityId: 'Task_NeemBesluit', canceled: true },
+      { activityId: 'Task_Onderteken' },
+    ]);
+    await expect(svc.getDecisionDocument('pi1')).resolves.toEqual({ template: 'x' });
+  });
+
+  it('takes the first entry of a documentRef list', async () => {
+    setup(
+      '<bpmn:userTask id="Task_Concept" ronl:documentRef="toelichting, objectenboom" />',
+      resources('toelichting'),
+      [{ activityId: 'Task_Concept' }]
+    );
+    await expect(svc.getDecisionDocument('pi1')).resolves.toEqual({ template: 'x' });
+  });
+
+  it('falls back to the first documentRef when no completed task carries one', async () => {
+    setup(TWO_PATHS, resources('ontvangstbevestiging'), [{ activityId: 'Task_Registreer' }]);
+    await expect(svc.getDecisionDocument('pi1')).resolves.toEqual({ template: 'x' });
+  });
 
   it('resolves and parses the referenced document template', async () => {
     setup('<bpmn ronl:documentRef="doc1" />', [
