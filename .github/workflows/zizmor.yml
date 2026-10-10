@@ -174,6 +174,24 @@ jobs:
         if: always()
         run: npm run check-format
 
+      - name: Verify registry signatures
+        # ICTU recommendation R5, "verify where packages come from" (#249 in
+        # linked-data-explorer). Checks the registry signature of every
+        # installed package, and the provenance attestation of those that have
+        # one, so it needs the npm ci above; it adds no install of its own.
+        # Here and not in the daily dependency audit: a signature can only
+        # change when package-lock.json does, and every such change comes
+        # through a pull request, where this job is required.
+        #
+        # Fails on an invalid or missing signature, and on a registry gap (an
+        # advertised attestation that returns 404, after which npm checks
+        # nothing more). A package without an attestation passes. The reasons
+        # and the fix for a gap are in scripts/audit-signatures.sh.
+        #
+        # if: always() for the same reason as the checks above.
+        if: always()
+        run: npm run audit:signatures
+
       - name: Swimlane parser fixtures match their fingerprints
         # The twelve RIP phase BPMNs under rip-swimlane/__fixtures__/ against
         # rip-bpmn-fingerprints.json, which linked-data-explorer commits
