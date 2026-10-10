@@ -30,6 +30,7 @@ on:
     paths:
       - '.github/workflows/sbom.yml'
       - 'scripts/write-sbom.mjs'
+      - 'scripts/write-sbom.test.mjs'
       - 'docs/sbom/**'
 
 permissions:
@@ -62,6 +63,11 @@ jobs:
           # audit pins one: this reads a lockfile and should not change with
           # the tree it reads. Renovate maintains it.
           node-version: '24.21.0'
+
+      # The production filter that replaced npm sbom --omit=dev, which dropped
+      # production packages such as react from every repository's SBOM.
+      - name: Test the SBOM generator
+        run: node scripts/write-sbom.test.mjs
 
       # Both checks run BEFORE "Generate the SBOM". That step writes
       # docs/sbom/<name>-<version>.cdx.json in the workspace, so a check after
