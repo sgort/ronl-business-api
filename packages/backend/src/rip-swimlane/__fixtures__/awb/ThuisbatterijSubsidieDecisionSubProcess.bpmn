@@ -121,45 +121,27 @@ execution.setVariable("Provincie woning", provincie);
 
 execution.setVariable("dmnInputPrepared", true);</bpmn:script>
     </bpmn:scriptTask>
-    <bpmn:businessRuleTask id="Sub_AssessRight" name="DMN: Beoordeel recht op subsidie" camunda:resultVariable="rechtOpSubsidieDMNOutput" camunda:decisionRef="RechtOpSubsidieThuisbatterij" camunda:mapDecisionResult="singleResult" camunda:decisionRefTenantId="${null}">
+    <bpmn:businessRuleTask id="Sub_AssessRight" name="DMN: Beoordeel recht op subsidie" camunda:decisionRef="RechtOpSubsidieThuisbatterij" camunda:decisionRefTenantId="${null}">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="rechtOpSubsidie">${decisionResult.getSingleResult().getEntry("rechtOpSubsidie")}</camunda:outputParameter>
+          <camunda:outputParameter name="rechtMotivering">${decisionResult.getSingleResult().getEntry("reden")}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_Sub_Prepare_AssessRight</bpmn:incoming>
       <bpmn:outgoing>Flow_Sub_AssessRight_Interpret</bpmn:outgoing>
     </bpmn:businessRuleTask>
     <bpmn:scriptTask id="Sub_InterpretRight" name="Interpreteer recht-uitkomst" scriptFormat="javascript">
       <bpmn:incoming>Flow_Sub_AssessRight_Interpret</bpmn:incoming>
       <bpmn:outgoing>Flow_Sub_Interpret_Eligible</bpmn:outgoing>
-      <bpmn:script>var result = execution.getVariable("rechtOpSubsidieDMNOutput");
+      <bpmn:script>// rechtOpSubsidie and rechtMotivering (the DMN's "reden") come from
+// Sub_AssessRight's output mapping (#273); rechtOpSubsidie is normalised here.
 
 function unwrap(v) {
   if (v === null || v === undefined) { return v; }
   // DMN rule-result entries may be Camunda/Operaton TypedValue objects.
   if (typeof v.getValue === "function") { return v.getValue(); }
   return v;
-}
-
-function readValue(o, keys) {
-  if (o === null || o === undefined) { return null; }
-
-  for (var i = 0; i &lt; keys.length; i++) {
-    var k = keys[i];
-
-    // java.util.Map, used when the DMN result mapping is singleResult
-    if (typeof o.get === "function") {
-      var mapValue = unwrap(o.get(k));
-      if (mapValue !== null &amp;&amp; mapValue !== undefined) { return mapValue; }
-    }
-
-    // plain JavaScript object fallback
-    if (o[k] !== undefined) { return unwrap(o[k]); }
-  }
-
-  return null;
-}
-
-function firstMapValue(o) {
-  if (o === null || o === undefined || typeof o.values !== "function") { return null; }
-  var iterator = o.values().iterator();
-  return iterator.hasNext() ? unwrap(iterator.next()) : null;
 }
 
 function asBoolean(v) {
@@ -171,28 +153,7 @@ function asBoolean(v) {
   return s === "true" || s === "ja" || s === "yes" || s === "waar" || s === "eligible" || s === "recht";
 }
 
-// mapDecisionResult="singleResult" is required because the DMN returns more than one output column:
-// rechtOpSubsidie and reden. The result variable is therefore a Map&lt;outputName, outputValue&gt;.
-var recht = readValue(result, [
-  "rechtOpSubsidie",
-  "Recht op subsidie",
-  "recht",
-  "eligible",
-  "Eligible",
-  "value"
-]);
-
-// Fallback for a one-output DMN where the exact output column name differs.
-if (recht === null || recht === undefined) {
-  recht = firstMapValue(result);
-}
-
-var motivering = readValue(result, ["motivering", "Motivering", "reden", "Reden"]);
-if (motivering !== null &amp;&amp; motivering !== undefined) {
-  execution.setVariable("rechtMotivering", motivering);
-}
-
-var eligible = asBoolean(recht);
+var eligible = asBoolean(execution.getVariable("rechtOpSubsidie"));
 
 execution.setVariable("eligible", java.lang.Boolean.valueOf(eligible));
 execution.setVariable("rechtOpSubsidie", java.lang.Boolean.valueOf(eligible));</bpmn:script>
