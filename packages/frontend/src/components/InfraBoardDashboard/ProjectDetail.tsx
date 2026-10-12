@@ -17,10 +17,10 @@ import {
 } from '../../services/infra.api';
 import { businessApi } from '../../services/api';
 import type { SwimNode, Task } from '@ronl/shared';
-import PhaseSwimlane from '../process/PhaseSwimlane';
+import ProcessView from '../process/ProcessView';
 import PhaseStepper from '../process/PhaseStepper';
 import TaskFormViewer from '../CaseworkerDashboard/TaskFormViewer';
-import ProcessVarsSection from '../CaseworkerDashboard/ProcessVarsSection';
+import ProcessVarsDisclosure from '../process/ProcessVarsDisclosure';
 import SigningPanel from '../signing/SigningPanel';
 import { useTaskSignature } from '../signing/useTaskSignature';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
@@ -67,7 +67,16 @@ function deriveMockStatus(
 }
 
 /** Inline claim + complete panel for a single Operaton task. */
-function TaskWorkPanel({ task, onDone }: { task: Task; onDone: (completed: Task) => void }) {
+function TaskWorkPanel({
+  task,
+  onDone,
+  onClaimed,
+}: {
+  task: Task;
+  onDone: (completed: Task) => void;
+  /** After a successful claim: the parent refreshes the open tasks, so the list and the diagram show the new assignee. */
+  onClaimed: () => void;
+}) {
   const [claiming, setClaiming] = useState(false);
   const [isClaimed, setIsClaimed] = useState(!!task.assignee);
   const [variables, setVariables] = useState<Record<string, unknown> | null>(null);
@@ -97,6 +106,7 @@ function TaskWorkPanel({ task, onDone }: { task: Task; onDone: (completed: Task)
     setClaiming(false);
     if (res.success) {
       setIsClaimed(true);
+      onClaimed();
     } else {
       setMsg({ type: 'err', text: 'Claimen mislukt.' });
     }
@@ -134,10 +144,7 @@ function TaskWorkPanel({ task, onDone }: { task: Task; onDone: (completed: Task)
         </div>
       </dl>
 
-      <section className="v2-taken-section">
-        <h3>Procesgegevens</h3>
-        <ProcessVarsSection variables={variables} loading={detailLoading} />
-      </section>
+      <ProcessVarsDisclosure key={task.id} variables={variables} loading={detailLoading} />
 
       {msg && (
         <div className={`v2-taken-msg v2-taken-msg-${msg.type === 'ok' ? 'success' : 'error'}`}>
@@ -268,11 +275,6 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
       ? nodeStatusFromHistory(history)
       : deriveMockStatus(mock, phaseModel?.nodes ?? []);
 
-  // Active tasks (open or claimed) → highlight matching swimlane nodes. A
-  // node's id IS its bpmnId in a derived model, so a task's taskDefinitionKey
-  // needs no translation through the model to become a node id.
-  const activeNodeIds = new Set(instanceTasks.map((t) => t.taskDefinitionKey));
-
   const naam = mock?.naam ?? (docs?.variables?.projectName as string) ?? `Project ${projectRef.nr}`;
   const health = mock?.health ?? 'groen';
   const budget = mock?.budget ?? (docs?.variables?.confirmedBudget as string) ?? '—';
@@ -344,18 +346,11 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
 
       {phaseModel ? (
         <>
-          <div className="pb-phase-titlebar">
-            <h3>
-              {phaseInfo.name} <span className="rcode">{phaseInfo.code}</span>
-            </h3>
-            <span className="meta">
-              Processtappen &amp; rollen — procesmodel{isLive ? ' (live)' : ''}
-            </span>
-          </div>
-          <PhaseSwimlane
+          <ProcessView
             model={phaseModel}
             statusById={statusById}
-            claimedNodeIds={activeNodeIds}
+            tasks={instanceTasks}
+            title={{ name: phaseInfo.name, code: phaseInfo.code, live: isLive }}
           />
           {selPhase === 'R2.1' && (
             <div className="pb-deliverables">
@@ -429,6 +424,7 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
             <TaskWorkPanel
               key={selectedTask.id}
               task={selectedTask}
+              onClaimed={reloadTasks}
               onDone={(completed) => {
                 setJustCompleted(completed.name);
                 setSelectedTaskId(null);

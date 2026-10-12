@@ -3,7 +3,7 @@ import type { PhaseSwimlaneModel, SwimNode } from '@ronl/shared';
 import PhaseSwimlane from './PhaseSwimlane';
 import { myLaneKeys } from './laneSteps';
 import { legendEntries, nodeMarks, type ProcessTask, type Viewer } from './processMarks';
-import type { StatusKey } from './status';
+import { STATUS, type StatusKey } from './status';
 import { useViewer } from './useViewer';
 import './process-view.css';
 
@@ -15,6 +15,9 @@ export interface ProcessViewTitle {
   /** Rendered before the name inside the heading (the overlay's main › subprocess buttons). */
   crumbs?: ReactNode;
 }
+
+/** Statuses whose swatch takes its colour from the status table, as their nodes do. */
+const STATUS_SWATCH = new Set<string>(['action', 'risk', 'overdue', 'wachtend']);
 
 const NO_TASKS: readonly ProcessTask[] = [];
 
@@ -72,7 +75,15 @@ export default function ProcessView({
       <ul className="pv-legend" aria-label="Legenda">
         {entries.map((e) => (
           <li key={e.key} data-legend={e.key}>
-            <i className={`sw ${e.key}`} aria-hidden="true" />
+            <i
+              className={`sw ${e.key}`}
+              aria-hidden="true"
+              style={
+                STATUS_SWATCH.has(e.key)
+                  ? { borderTopColor: STATUS[e.key as StatusKey].color }
+                  : undefined
+              }
+            />
             {e.label}
           </li>
         ))}

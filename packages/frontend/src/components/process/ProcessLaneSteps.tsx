@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react';
 import { phaseRef } from './phaseSet';
 import type { ProcessContext } from './processContext';
 import {
+  GATEWAY_TAG,
   KIND_TAG,
   buildTrail,
   collapseFrom,
@@ -9,6 +10,8 @@ import {
   groupByLane,
   laneMeta,
   myLaneKeys,
+  nextMeta,
+  stepName,
   transitionLabel,
   type TrailStep,
 } from './laneSteps';
@@ -35,7 +38,7 @@ function calledPhase(ctx: ProcessContext, processKey: string): string | undefine
 function StepMeta({ step }: { step: TrailStep }) {
   let text;
   if (step.state === 'next') {
-    text = step.branches ? `Hierna · splitst: ${step.branches.join(' / ')}` : 'Hierna';
+    text = nextMeta(step);
   } else if (step.state === 'running') {
     text = (
       <>
@@ -134,6 +137,7 @@ export default function ProcessLaneSteps({
                       'cwp-st',
                       s.state,
                       s.kind,
+                      s.gateway ?? '',
                       s.isMine ? 'me' : '',
                       s.canceled ? 'canceled' : '',
                     ]
@@ -143,11 +147,13 @@ export default function ProcessLaneSteps({
                     <span className="cwp-st-dot" aria-hidden="true" />
                     <span className="cwp-st-body">
                       <span className="cwp-st-name">
-                        {s.outcome ? `${s.label} → ${edgeLabelText(s.outcome)}` : s.label}
+                        {s.outcome ? `${stepName(s)} → ${edgeLabelText(s.outcome)}` : stepName(s)}
                       </span>
                       <StepMeta step={s} />
                     </span>
-                    <span className="cwp-st-type">{KIND_TAG[s.kind] ?? ''}</span>
+                    <span className="cwp-st-type">
+                      {s.gateway ? GATEWAY_TAG[s.gateway] : (KIND_TAG[s.kind] ?? '')}
+                    </span>
                   </li>
                 ))}
               </ol>

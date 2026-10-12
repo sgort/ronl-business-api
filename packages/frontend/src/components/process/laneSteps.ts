@@ -1,4 +1,6 @@
 import type { NodeKind, PhaseSwimlaneModel, SwimLane, SwimNode } from '@ronl/shared';
+import { gatewayKind, isIdLabel, type GatewayKind } from './processMarks';
+import { edgeLabelText } from './swimlaneText';
 import type { ProcessContext } from './processContext';
 
 /**
@@ -71,6 +73,10 @@ export interface TrailStep {
   isMine: boolean;
   /** Finished by cancellation (a boundary event, an interrupted flow), not completed. */
   canceled?: boolean;
+  /** The gateway's kind (decision, merge, split, join); absent for other steps. */
+  gateway?: GatewayKind;
+  /** The label is only the element id (an unnamed BPMN element). */
+  idLabel?: boolean;
 }
 
 export interface LaneGroup {
@@ -101,6 +107,9 @@ function stepOf(
     ...(node.dmn ? { dmn: node.dmn } : {}),
     ...(node.docs?.[0] ? { doc: node.docs[0] } : {}),
     isMine: false,
+    ...(isGateway(node)
+      ? { gateway: gatewayKind(node, model.edges) ?? undefined, idLabel: isIdLabel(node) }
+      : {}),
   };
 }
 
@@ -222,4 +231,37 @@ export function transitionLabel(prev: LaneGroup, g: LaneGroup, ctx: ProcessConte
     return `↘ deelproces ${model?.processName ?? g.processKey}`;
   }
   return g.future && !prev.future ? `↓ daarna: ${laneLabel(ctx, g)}` : `↓ ${laneLabel(ctx, g)}`;
+}
+
+/** How a gateway step reads when its own label says nothing. */
+export const GATEWAY_STEP: Record<GatewayKind, string> = {
+  decision: 'Beslissing',
+  split: 'Tegelijk',
+  join: 'Alles klaar',
+  merge: 'Samenkomst',
+};
+
+/** Step-type tag per gateway kind, replacing the one "KEUZE" for every gateway. */
+export const GATEWAY_TAG: Record<GatewayKind, string> = {
+  decision: 'KEUZE',
+  split: 'TEGELIJK',
+  join: 'SAMENKOMST',
+  merge: 'SAMENKOMST',
+};
+
+/** A step's display name: a decision by its question when it has one, other gateways by their kind. */
+export function stepName(step: TrailStep): string {
+  if (!step.gateway) return step.label;
+  if (step.gateway === 'decision' && !step.idLabel) return step.label;
+  return GATEWAY_STEP[step.gateway];
+}
+
+/** The meta line of a "Hierna" step. */
+export function nextMeta(step: TrailStep): string {
+  if (step.gateway === 'split') return 'Hierna · tegelijk verder';
+  if (step.gateway === 'decision') {
+    const named = (step.branches ?? []).filter((b) => b !== '—').map(edgeLabelText);
+    return named.length > 0 ? `Hierna · keuze: ${named.join(' / ')}` : 'Hierna · keuze';
+  }
+  return 'Hierna';
 }

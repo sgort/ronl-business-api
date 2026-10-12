@@ -96,3 +96,13 @@ describe('ProcessView', () => {
     expect(container.firstElementChild!.classList).toContain('pbd');
   });
 });
+
+describe('ProcessView — status swatches', () => {
+  it('colours the swatch of a further status like the nodes it explains', () => {
+    const { container } = render(
+      <ProcessView model={MODEL} statusById={{ a: 'action' }} title={{ name: 'X', code: 'R2.4' }} />
+    );
+    const sw = container.querySelector('[data-legend="action"] .sw') as HTMLElement;
+    expect(sw.style.borderTopColor).toBe('rgb(231, 0, 119)');
+  });
+});
