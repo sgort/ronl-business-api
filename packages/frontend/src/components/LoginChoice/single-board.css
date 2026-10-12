@@ -31,7 +31,7 @@
 
 /* ── Top bar ──────────────────────────────────────────────── */
 .lcp-single .topbar {
-  background: #fff;
+  background: var(--rba-paper);
   border-top: 4px solid var(--color-primary);
   border-bottom: 1px solid var(--line);
   height: 72px;
@@ -99,7 +99,7 @@
   font-weight: 600;
   font-family: inherit;
   color: var(--color-primary);
-  background: #fff;
+  background: var(--rba-paper);
   border: 1.5px solid var(--color-primary);
   padding: 8px 15px;
   border-radius: 7px;
@@ -155,7 +155,7 @@
   align-items: center;
   gap: 10px;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--rba-ink-inverse);
   font-size: 15px;
   font-weight: 600;
   font-family: inherit;
@@ -182,7 +182,7 @@
 
 /* ── Board preview (decorative) ───────────────────────────── */
 .lcp-single .shot {
-  background: #fff;
+  background: var(--rba-paper);
   border: 1px solid var(--line);
   border-radius: 14px;
   box-shadow: 0 24px 50px -24px rgba(15, 23, 42, 0.28), 0 2px 4px rgba(15, 23, 42, 0.04);
@@ -197,7 +197,7 @@
   align-items: center;
   gap: 10px;
   padding: 0 14px;
-  color: #fff;
+  color: var(--rba-ink-inverse);
   font-weight: 600;
   font-size: 11.5px;
 }

@@ -24,11 +24,14 @@
   --rba-brand-d: var(--color-primary-dark, var(--rba-flevoland-blue-d));
   --rba-accent:  var(--color-secondary, var(--rba-flevoland-pink));
 
-  /* Neutrals: text from darkest to lightest, rules (lines), backgrounds. */
-  --rba-ink:    #1f2937;
-  --rba-ink-2:  #4b5563;
-  --rba-ink-3:  #6b7280;
-  --rba-ink-4:  #9ca3af;
+  /* Neutrals: text from darkest to lightest, rules (lines), backgrounds.
+     --rba-ink-inverse is text on the brand colour or a status fill;
+     --rba-paper is the white of a page, card or border. */
+  --rba-ink:         #1f2937;
+  --rba-ink-2:       #4b5563;
+  --rba-ink-3:       #6b7280;
+  --rba-ink-4:       #9ca3af;
+  --rba-ink-inverse: #ffffff;
   --rba-rule:   #d1d5db;
   --rba-rule-2: #e5e7eb;
   --rba-bg:     #f4f5f7;
