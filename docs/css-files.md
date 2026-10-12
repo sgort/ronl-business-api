@@ -75,6 +75,43 @@ in it. Several files (`dashboard-pa.css`, `caseworker-process.css`) use a
 one-rule-per-line style on purpose. Never run `prettier --write` on a `.css`
 file.
 
+## Linting (report-only)
+
+Stylelint checks every tracked `.css` file against four rules. For now it
+**reports only**: every rule is a warning, so the commands below always exit
+0, and nothing runs in CI or in the pre-commit hook. Turning rules into errors
+and wiring them into CI is a later step of
+[#374](https://github.com/sgort/ronl-business-api/issues/374).
+
+| Command                    | Output                                                |
+| -------------------------- | ----------------------------------------------------- |
+| `npm run lint:css`         | Every warning, line by line.                          |
+| `npm run lint:css:summary` | A Markdown table: warnings per rule and per file.     |
+| `npm run test:stylelint`   | The tests for the custom rule and the summary script. |
+
+| Rule                       | Checks                                                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `rba/selector-root-class`  | Every selector in a scoped stylesheet starts with that file's root class. Global files are exempt.      |
+| `color-no-hex`             | No hex colours. There is no token file yet, so every hex value counts; this is the baseline for tokens. |
+| `no-duplicate-selectors`   | The same selector defined twice in one file.                                                            |
+| `declaration-no-important` | No `!important`.                                                                                        |
+
+The configuration is `stylelint.config.mjs`; its `ROOTS` map sets each scoped
+file's root class(es). The custom rule lives in
+`scripts/stylelint/selector-root-class.mjs`. When you add a scoped stylesheet,
+add it to `ROOTS`.
+
+**Baseline, 12 October 2026:** 889 warnings in 19 of 20 files — 800 hex
+colours, 75 selectors outside their root class, 8 `!important` and 6
+duplicate selectors. Of the 75 selectors:
+
+- 53 style overlays by a prefixed class rather than under the root: the
+  command palettes (`.cwd-v2-palette*`, 11; `.pac-palette*`, 11) and a modal
+  in `dashboard-pa.css` (`.pac-zcm-*`, 31);
+- 17 are `.pb-tweaks` rules in `dashboard-infra.css` that no component uses;
+- 5 are in the demo's `demo-overrides.css`: four deliberate page-level rules
+  (`html`, `body`, `#root`) and one `.pac-db-*` rule outside `.pac`.
+
 ## Default for new work
 
 Write new styling as scoped CSS: one root class per surface, as the V2
