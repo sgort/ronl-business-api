@@ -538,3 +538,133 @@ describe('PhaseSwimlane — roomy density and readable edge labels', () => {
     expect(labels[1].textContent).toBe('Ja');
   });
 });
+
+describe('PhaseSwimlane — marks path (ProcessView)', () => {
+  const LANES_MODEL: PhaseSwimlaneModel = {
+    phaseCode: 'X',
+    lanes: [
+      { key: 'a', label: 'Lane A' },
+      { key: 'empty', label: 'Lege lane' },
+      { key: 'b', label: 'Lane B' },
+    ],
+    nodes: [
+      { id: 't1', bpmnId: 't1', kind: 'task', col: 0, row: 0, label: 'Taak 1' },
+      { id: 't2', bpmnId: 't2', kind: 'task', col: 1, row: 2, label: 'Taak 2' },
+      { id: 't3', bpmnId: 't3', kind: 'task', col: 2, row: 2, label: 'Taak 3' },
+      { id: 'Gateway_X', bpmnId: 'Gateway_X', kind: 'gateway', col: 3, row: 0, label: 'Gateway_X' },
+      { id: 'g2', bpmnId: 'g2', kind: 'gateway', col: 4, row: 0, label: 'Akkoord?' },
+    ],
+    edges: [
+      { from: 't1', to: 't2' },
+      { from: 't2', to: 't3' },
+    ],
+  };
+  const marks = new Map([
+    ['t1', 'mine' as const],
+    ['t2', 'claimed' as const],
+    ['t3', 'open' as const],
+  ]);
+  const draw = (extra: Partial<Parameters<typeof PhaseSwimlane>[0]> = {}) =>
+    render(<PhaseSwimlane model={LANES_MODEL} statusById={{}} marks={marks} {...extra} />);
+
+  it('gives a lane without nodes a slim 44px row, marked data-lane-empty', () => {
+    const { container } = draw();
+    const labels = [...container.querySelectorAll<HTMLElement>('.pb-swim-lane-label')];
+    expect(labels.map((l) => l.style.height)).toEqual(['132px', '44px', '132px']);
+    expect(labels[1].hasAttribute('data-lane-empty')).toBe(true);
+    expect(labels[0].hasAttribute('data-lane-empty')).toBe(false);
+  });
+
+  it('keeps edges on their nodes across a slim lane', () => {
+    const { container } = draw();
+    const t2 = container.querySelector<HTMLElement>('[data-node-id="t2"]')!;
+    const centreY = parseFloat(t2.style.top) + parseFloat(t2.style.height) / 2;
+    const path = container.querySelector('.pb-swim-svg > path')!.getAttribute('d')!;
+    // t1 → t2: ends with "H <x>" at t2's centre line, reached by "V <centreY>".
+    expect(path).toContain(`V ${centreY}`);
+  });
+
+  it('tabs mine "jouw taak" and claimed "geclaimd"; open gets no tab', () => {
+    const { container } = draw();
+    const tab = (id: string) =>
+      container.querySelector(`[data-node-id="${id}"] .pb-swim-inprogress`)?.textContent;
+    expect(tab('t1')).toBe('jouw taak');
+    expect(tab('t2')).toBe('geclaimd');
+    expect(tab('t3')).toBeUndefined();
+    expect(container.querySelector('[data-node-id="t1"]')!.getAttribute('data-mark')).toBe('mine');
+    expect(container.querySelector('[data-node-id="t2"] .pb-swim-inprogress')!.classList).toContain(
+      'other'
+    );
+  });
+
+  it('outlines the focus node unless it is mine', () => {
+    const { container, rerender } = draw({ focusNodeId: 't3' });
+    expect(container.querySelector('[data-node-id="t3"]')!.classList).toContain('pv-focus');
+    rerender(<PhaseSwimlane model={LANES_MODEL} statusById={{}} marks={marks} focusNodeId="t1" />);
+    expect(container.querySelector('[data-node-id="t1"]')!.classList).not.toContain('pv-focus');
+  });
+
+  it('hides a gateway label that is only its element id, keeps a real name', () => {
+    const { container } = draw();
+    expect(container.querySelector('[data-node-id="Gateway_X"] .gl')).toBeNull();
+    expect(container.querySelector('[data-node-id="g2"] .gl')!.textContent).toBe('Akkoord?');
+  });
+
+  it('tints my lanes and tags them "jouw rol"', () => {
+    const { container } = draw({ myLanes: new Set(['b']) });
+    const labels = container.querySelectorAll('.pb-swim-lane-label');
+    expect(labels[2].classList).toContain('cwp-mine');
+    expect(labels[2].querySelector('.cwp-jij')!.textContent).toBe('jouw rol');
+  });
+
+  it('draws an all-empty model with slim lanes and no NaN', () => {
+    const { container } = render(
+      <PhaseSwimlane
+        model={{
+          phaseCode: 'X',
+          lanes: [
+            { key: 'a', label: 'A' },
+            { key: 'b', label: 'B' },
+          ],
+          nodes: [],
+          edges: [],
+        }}
+        statusById={{}}
+        marks={new Map()}
+      />
+    );
+    const canvas = container.querySelector<HTMLElement>('.pb-swim-canvas')!;
+    expect(canvas.style.height).toBe('88px');
+    expect(container.innerHTML).not.toMatch(/NaN|Infinity/);
+  });
+
+  it('marks a node with a document footer has-docs, so its label clamps shorter', () => {
+    const model: PhaseSwimlaneModel = {
+      phaseCode: 'X',
+      lanes: [{ key: 'l', label: 'L' }],
+      nodes: [
+        {
+          id: 'd',
+          bpmnId: 'd',
+          kind: 'task',
+          col: 0,
+          row: 0,
+          label: 'Met document',
+          docs: ['Beschikking'],
+        },
+        { id: 'n', bpmnId: 'n', kind: 'task', col: 1, row: 0, label: 'Zonder document' },
+      ],
+      edges: [],
+    };
+    const { container } = render(<PhaseSwimlane model={model} statusById={{}} marks={new Map()} />);
+    expect(container.querySelector('[data-node-id="d"]')!.classList).toContain('has-docs');
+    expect(container.querySelector('[data-node-id="n"]')!.classList).not.toContain('has-docs');
+  });
+
+  it('uses the roomy grid on the marks path', () => {
+    const { container } = draw();
+    const t1 = container.querySelector<HTMLElement>('[data-node-id="t1"]')!;
+    expect(t1.style.width).toBe('184px');
+    expect(t1.style.height).toBe('84px');
+  });
+});

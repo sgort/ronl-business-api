@@ -562,7 +562,6 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
               <ProcessOverlay
                 task={selected}
                 ctx={lanes}
-                roles={roles}
                 initialPhase={overlay.phase}
                 dossierRef={varString('dossierReference')}
                 returnFocus={() => detailTitleRef.current}

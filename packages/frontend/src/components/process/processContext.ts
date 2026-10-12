@@ -4,7 +4,8 @@ import type {
   PhaseSwimlaneModel,
   ProcessLineage,
 } from '@ronl/shared';
-import { nodeStatusFromHistory, type StatusKey } from '../../pages/infra-board/rip-model';
+import { nodeStatusFromHistory } from '../../pages/infra-board/rip-model';
+import type { StatusKey } from './status';
 
 /**
  * Everything the caseworker procesweergave draws for one task: the models of

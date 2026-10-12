@@ -1,4 +1,5 @@
 import type { ActivityHistoryItem } from '@ronl/shared';
+import type { StatusKey } from '../../components/process/status';
 
 /**
  * RIP domain model for the Infra-board dashboard.
@@ -15,20 +16,9 @@ import type { ActivityHistoryItem } from '@ronl/shared';
  * history-derivation helpers that read them.
  */
 
-export type StatusKey = 'done' | 'active' | 'wachtend' | 'risk' | 'overdue' | 'action' | 'todo';
-
-export const STATUS: Record<
-  StatusKey,
-  { label: string; short: string; color: string; glyph: string }
-> = {
-  done: { label: 'Afgerond', short: 'Afgerond', color: '#3fa535', glyph: '✓' },
-  active: { label: 'Loopt', short: 'Loopt', color: '#0046ad', glyph: '●' },
-  wachtend: { label: 'Wachtend', short: 'Wacht', color: '#7a5af0', glyph: '○' },
-  risk: { label: 'Risico', short: 'Risico', color: '#e5b700', glyph: '▲' },
-  overdue: { label: 'Te laat', short: 'Te laat', color: '#b0103c', glyph: '■' },
-  action: { label: 'Actie nodig', short: 'Actie', color: '#e70077', glyph: '!' },
-  todo: { label: 'Niet gestart', short: 'Gepland', color: '#c2c7d0', glyph: '' },
-};
+// The status vocabulary lives with the shared process view; re-exported so
+// the Infra-board's own importers keep working unchanged.
+export { STATUS, type StatusKey } from '../../components/process/status';
 
 export type HealthKey = 'groen' | 'geel' | 'rood';
 export const HEALTH: Record<HealthKey, { label: string; color: string }> = {
