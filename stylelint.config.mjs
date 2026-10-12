@@ -29,10 +29,25 @@ const ROOTS = {
   "packages/pa-demo/src/demo/demo-overrides.css": [".pac"],
 };
 
+// Files allowed hex values (#374 3a), each for its own reason.
+const HEX_ALLOWED = [
+  // The shared tokens: where the palette's hex values live.
+  "packages/shared/styles/tokens.css",
+  // The Keycloak login theme: served by Keycloak, outside the build, so it
+  // cannot load the token file.
+  "keycloak-themes/ronl/login/resources/css/login.css",
+  "deployment/vm/keycloak/themes/ronl/login/resources/css/login.css",
+  // Open Regels: a separate brand on its own Rijkshuisstijl tokens.
+  "packages/public-site/src/styles/pub.css",
+  // The app shells' --color-* values: the tenant-theme fallbacks, not palette.
+  "packages/frontend/src/index.css",
+  "packages/pa-demo/src/index.css",
+];
+
 export default {
   plugins: ["./scripts/stylelint/selector-root-class.mjs"],
   rules: {
-    // Hex values belong in the shared token file only (override below).
+    // Hex values belong in the shared token file only (HEX_ALLOWED below).
     "color-no-hex": [true, warn],
     "no-duplicate-selectors": [true, warn],
     "declaration-no-important": [true, warn],
@@ -42,6 +57,6 @@ export default {
       files: [file],
       rules: { "rba/selector-root-class": [true, { roots, ...warn }] },
     })),
-    { files: ["packages/shared/styles/tokens.css"], rules: { "color-no-hex": null } },
+    { files: HEX_ALLOWED, rules: { "color-no-hex": null } },
   ],
 };

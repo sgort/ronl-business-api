@@ -156,7 +156,7 @@
 .wood .w-fstep.bottleneck .fbar .days b { color: var(--w-red); }
 .wood .w-bottleflag {
   font-family: var(--v2-mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em;
-  text-transform: uppercase; color: #fff; background: var(--w-red); padding: 2px 7px; margin-left: 8px;
+  text-transform: uppercase; color: var(--rba-ink-inverse); background: var(--w-red); padding: 2px 7px; margin-left: 8px;
 }
 
 .wood .w-catprogress { display: flex; align-items: center; gap: 4px; margin: 6px 0 0; }
@@ -172,7 +172,7 @@
 .wood .w-catrow.off .nm { color: var(--v2-ink-3); }
 .wood .w-catrow .cnt { font-family: var(--v2-mono); font-size: 12px; font-weight: 600; color: var(--v2-ink); }
 .wood .w-catrow.off .cnt { color: var(--v2-ink-3); font-weight: 500; }
-.wood .w-chk { width: 16px; height: 16px; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; background: var(--w-green); }
+.wood .w-chk { width: 16px; height: 16px; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--rba-ink-inverse); background: var(--w-green); }
 .wood .w-chk.off { background: none; border: 1px solid var(--v2-rule); color: transparent; }
 
 .wood .w-tablewrap { border: 1px solid var(--v2-rule); background: var(--v2-paper); overflow: auto; max-height: 64vh; }
@@ -215,7 +215,7 @@
   display: flex; align-items: flex-start; gap: 13px; background: #eef4fe; border: 1px solid #bcd0f5;
   padding: 14px 16px; margin-top: 22px; font-size: 13px; line-height: 1.55; color: #24406e;
 }
-.wood .w-bench .mk { font-family: var(--v2-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--w-blue); background: #fff; border: 1px solid #bcd0f5; padding: 3px 8px; white-space: nowrap; flex-shrink: 0; }
+.wood .w-bench .mk { font-family: var(--v2-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--w-blue); background: var(--rba-paper); border: 1px solid #bcd0f5; padding: 3px 8px; white-space: nowrap; flex-shrink: 0; }
 .wood .w-bench b { color: var(--v2-ink); }
 
 .wood .w-dock-msg { padding: 16px; font-size: 13px; color: var(--v2-ink-2); line-height: 1.55; }

@@ -44,6 +44,7 @@ const EXPECTED_TOKENS = [
   '--rba-ink-2',
   '--rba-ink-3',
   '--rba-ink-4',
+  '--rba-ink-inverse',
   '--rba-ok',
   '--rba-paper',
   '--rba-rule',
