@@ -11,28 +11,30 @@
    ============================================================ */
 
 .pac {
-  --pac-chrome:    var(--color-primary, #0046ad);
-  --pac-chrome-d:  var(--color-primary-dark, #033b8e);
-  --pac-accent:    var(--color-secondary, #e70077);
+  --pac-chrome:    var(--rba-brand);
+  --pac-chrome-d:  var(--rba-brand-d);
+  --pac-accent:    var(--rba-accent);
   --pac-accent-50: color-mix(in srgb, var(--pac-accent) 12%, white);
   --pac-accent-d:  color-mix(in srgb, var(--pac-accent) 80%, black);
 
-  --pac-ink:    #1f2937;
-  --pac-ink-2:  #4b5563;
-  --pac-ink-3:  #6b7280;
-  --pac-ink-4:  #9ca3af;
-  --pac-rule:   #d1d5db;
-  --pac-rule-2: #e5e7eb;
-  --pac-bg:     #f4f5f7;
-  --pac-paper:  #ffffff;
+  --pac-ink:    var(--rba-ink);
+  --pac-ink-2:  var(--rba-ink-2);
+  --pac-ink-3:  var(--rba-ink-3);
+  --pac-ink-4:  var(--rba-ink-4);
+  --pac-rule:   var(--rba-rule);
+  --pac-rule-2: var(--rba-rule-2);
+  --pac-bg:     var(--rba-bg);
+  --pac-paper:  var(--rba-paper);
 
+  /* PA's green and amber differ from the shared --rba-ok/--rba-warn; kept
+     until that is settled (#374). */
   --pac-green:   #2f8f4e;
   --pac-green-d: #166534;
   --pac-amber:   #b88407;
-  --pac-red:     #b0103c;
+  --pac-red:     var(--rba-bad);
 
   /* Kompas score colors (0 / 1 / 2) */
-  --pac-s0: #d1d5db;
+  --pac-s0: var(--rba-rule);
   --pac-s1: #f0a93b;
   --pac-s2: #2f8f4e;
 

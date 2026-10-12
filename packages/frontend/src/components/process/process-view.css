@@ -9,11 +9,11 @@
 /* Tokens -- a copy of dashboard-infra.css's own `.pbd` block, so a page
    that loads only this file still resolves them. Keep the two identical. */
 .pbd {
-  --pb-green:  #3fa535;
-  --pb-amber:  #e5b700;
-  --pb-red:    #b0103c;
+  --pb-green:  var(--rba-ok);
+  --pb-amber:  var(--rba-warn);
+  --pb-red:    var(--rba-bad);
   --pb-blue:   var(--v2-chrome, #0046ad);
-  --pb-grey:   #c2c7d0;
+  --pb-grey:   var(--rba-idle);
 }
 
 /* A copy of dashboard-infra.css's phase code chip (the titlebar uses it). */

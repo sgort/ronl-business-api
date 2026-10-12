@@ -5,12 +5,12 @@
    ============================================================ */
 
 .wood {
-  --w-green: #3fa535;
-  --w-amber: #e5b700;
-  --w-red:   #b0103c;
+  --w-green: var(--rba-ok);
+  --w-amber: var(--rba-warn);
+  --w-red:   var(--rba-bad);
   --w-blue:  var(--v2-chrome, #0046ad);
   --w-teal:  #1f7a8c;
-  --w-grey:  #c2c7d0;
+  --w-grey:  var(--rba-idle);
 }
 
 .wood button { border: none; }

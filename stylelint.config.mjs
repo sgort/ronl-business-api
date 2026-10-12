@@ -10,7 +10,8 @@ const warn = { severity: "warning" };
 // The root class(es) each scoped stylesheet must start every selector with.
 // Files not listed are global by design and exempt from this rule only: the
 // two app-shell index.css files, public-site's pub.css (the whole site), the
-// Keycloak login theme, and pa-cockpit's styles.css (imports only).
+// Keycloak login theme, pa-cockpit's styles.css (imports only), and the
+// shared token file (a :root block).
 const ROOTS = {
   "packages/frontend/src/components/LoginChoice/access-denied.css": [".lcp-denied"],
   "packages/frontend/src/components/LoginChoice/single-board.css": [".lcp-single"],
@@ -31,14 +32,16 @@ const ROOTS = {
 export default {
   plugins: ["./scripts/stylelint/selector-root-class.mjs"],
   rules: {
-    // No token file exists yet, so every hex value is reported: the baseline
-    // for #374 item 3. A token file, once added, gets an override turning it off.
+    // Hex values belong in the shared token file only (override below).
     "color-no-hex": [true, warn],
     "no-duplicate-selectors": [true, warn],
     "declaration-no-important": [true, warn],
   },
-  overrides: Object.entries(ROOTS).map(([file, roots]) => ({
-    files: [file],
-    rules: { "rba/selector-root-class": [true, { roots, ...warn }] },
-  })),
+  overrides: [
+    ...Object.entries(ROOTS).map(([file, roots]) => ({
+      files: [file],
+      rules: { "rba/selector-root-class": [true, { roots, ...warn }] },
+    })),
+    { files: ["packages/shared/styles/tokens.css"], rules: { "color-no-hex": null } },
+  ],
 };

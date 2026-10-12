@@ -10,27 +10,28 @@
      --color-secondary  (Flevoland: #e70077, used as accent)
      --color-accent
    We give them V2-namespaced aliases so the rest of the file
-   reads cleanly.
+   reads cleanly. The values come from the shared tokens in
+   @ronl/shared/styles/tokens.css (--rba-*).
    ============================================================ */
 
 .cwd-v2 {
-  --v2-chrome:     var(--color-primary, #0046ad);
-  --v2-chrome-d:   var(--color-primary-dark, #033b8e);
-  --v2-accent:     var(--color-secondary, #e70077);
+  --v2-chrome:     var(--rba-brand);
+  --v2-chrome-d:   var(--rba-brand-d);
+  --v2-accent:     var(--rba-accent);
   --v2-accent-50:  color-mix(in srgb, var(--v2-accent) 12%, white);
   --v2-accent-d:   color-mix(in srgb, var(--v2-accent) 80%, black);
 
-  --v2-ink:        #1f2937;
-  --v2-ink-2:      #4b5563;
-  --v2-ink-3:      #6b7280;
-  --v2-rule:       #d1d5db;
-  --v2-rule-2:     #e5e7eb;
-  --v2-bg:         #f4f5f7;
-  --v2-paper:      #ffffff;
+  --v2-ink:        var(--rba-ink);
+  --v2-ink-2:      var(--rba-ink-2);
+  --v2-ink-3:      var(--rba-ink-3);
+  --v2-rule:       var(--rba-rule);
+  --v2-rule-2:     var(--rba-rule-2);
+  --v2-bg:         var(--rba-bg);
+  --v2-paper:      var(--rba-paper);
 
-  --v2-green:      #3fa535;
-  --v2-amber:      #e5b700;
-  --v2-overdue:    #b0103c;
+  --v2-green:      var(--rba-ok);
+  --v2-amber:      var(--rba-warn);
+  --v2-overdue:    var(--rba-bad);
 
   --v2-serif: "Source Serif 4", Georgia, serif;
   --v2-sans:  "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;

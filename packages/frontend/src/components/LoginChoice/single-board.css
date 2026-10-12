@@ -1,16 +1,18 @@
 /* Landing page for a tenant with one board (unauthenticated /?tenant=<id>).
    ALL selectors scoped under .lcp-single — nothing leaks into .lcp (the
    Flevoland board grid) or the dashboards. Tenant colour comes only from the
-   theme variables applyTenantTheme() sets on :root. */
+   theme variables applyTenantTheme() sets on :root.
+   --ink, --muted and --line differ from the shared neutrals in tokens.css
+   and stay local until that is settled (#374). */
 
 .lcp-single {
   --tint:  color-mix(in oklch, var(--color-primary) 9%, #fff);
   --ink:   #0f172a;
-  --text:  #1f2937;
+  --text:  var(--rba-ink);
   --muted: #5b6472;
   --line:  #e3e8ef;
-  --pink:  #e70077;
-  --blue:  #0046ad;
+  --pink:  var(--rba-flevoland-pink);
+  --blue:  var(--rba-flevoland-blue);
 
   box-sizing: border-box;
   font-family: "Inter", -apple-system, "Segoe UI", sans-serif;

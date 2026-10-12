@@ -6,11 +6,11 @@
    ============================================================ */
 
 .pbd {
-  --pb-green:  #3fa535;
-  --pb-amber:  #e5b700;
-  --pb-red:    #b0103c;
+  --pb-green:  var(--rba-ok);
+  --pb-amber:  var(--rba-warn);
+  --pb-red:    var(--rba-bad);
   --pb-blue:   var(--v2-chrome, #0046ad);
-  --pb-grey:   #c2c7d0;
+  --pb-grey:   var(--rba-idle);
 }
 
 /* The project-board uses a wider rail-card label sub-line */
