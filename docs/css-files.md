@@ -1,7 +1,7 @@
 # CSS files — what each stylesheet is for
 
-The repository tracks 20 `.css` files across the Keycloak theme and four
-frontend packages. Nearly all of them scope every selector under a single
+The repository tracks 21 `.css` files across the Keycloak theme, the shared
+token file and four frontend packages. Nearly all of them scope every selector under a single
 root class per surface (`.cwd-v2`, `.pbd`, `.wood`, `.pac`, `.lcp`, …), so a
 stylesheet cannot leak into another app or dashboard. Tailwind is used for
 utility classes; these files hold the hand-written, surface-specific styling.
@@ -27,6 +27,34 @@ below; the issue's checklist tracks progress.
 Do not add an `@import` of the default Keycloak CSS to either file:
 `theme.properties` already loads the base styles, and an `@import` would load
 PatternFly again _after_ the custom styles and override them.
+
+## `packages/shared` — design tokens
+
+| File                | Lines | Root class | Function                                                                                                                                                                                                                                |
+| ------------------- | ----: | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `styles/tokens.css` |    42 | `:root`    | The shared design tokens (`--rba-*`): Flevoland's fixed brand colours, the themed brand (chained to the tenant's `--color-primary`/`-dark`/`--color-secondary`), the neutrals and the status colours. The only file allowed hex values. |
+
+The caseworker app imports it in `App.tsx`; `@ronl/pa-cockpit`'s `styles.css`
+`@import`s it, which is how `pa-demo` gets it. Each surface's own variables
+(`--v2-*`, `--pac-*`, `--pb-*`, `--w-*`, the landing pages' `--blue`,
+`--text`, …) point at a token rather than repeating the value.
+`packages/frontend/src/css-tokens.test.ts` fails when a stylesheet uses a
+`var(--rba-*)` the file does not define, or when a host stops loading it.
+
+Not every surface variable points at a token yet. Where a surface uses a
+different value, it keeps its own until a design decision unifies them,
+because unifying changes how the page looks:
+
+| Surface       | Variable                     | Value                           | Shared token                                                             |
+| ------------- | ---------------------------- | ------------------------------- | ------------------------------------------------------------------------ |
+| PA-Cockpit    | `--pac-green`, `--pac-amber` | `#2f8f4e`, `#b88407`            | `--rba-ok` `#3fa535`, `--rba-warn` `#e5b700`                             |
+| Landing pages | `--ink`, `--muted`, `--line` | `#0f172a`, `#5b6472`, `#e3e8ef` | `--rba-ink` `#1f2937`, `--rba-ink-3` `#6b7280`, `--rba-rule-2` `#e5e7eb` |
+| Login portal  | `--amber`                    | `#d98800`                       | `--rba-warn` `#e5b700`                                                   |
+
+Hex values written directly into rules are not replaced in bulk. Swapping a
+fixed `#0046ad` for the themed `--rba-brand` would recolour the page for every
+other tenant, so each one needs a decision: replace them when already editing
+that section.
 
 ## `packages/frontend` — caseworker and board app
 
@@ -89,12 +117,12 @@ and wiring them into CI is a later step of
 | `npm run lint:css:summary` | A Markdown table: warnings per rule and per file.     |
 | `npm run test:stylelint`   | The tests for the custom rule and the summary script. |
 
-| Rule                       | Checks                                                                                                  |
-| -------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `rba/selector-root-class`  | Every selector in a scoped stylesheet starts with that file's root class. Global files are exempt.      |
-| `color-no-hex`             | No hex colours. There is no token file yet, so every hex value counts; this is the baseline for tokens. |
-| `no-duplicate-selectors`   | The same selector defined twice in one file.                                                            |
-| `declaration-no-important` | No `!important`.                                                                                        |
+| Rule                       | Checks                                                                                             |
+| -------------------------- | -------------------------------------------------------------------------------------------------- |
+| `rba/selector-root-class`  | Every selector in a scoped stylesheet starts with that file's root class. Global files are exempt. |
+| `color-no-hex`             | No hex colours outside the shared token file, `packages/shared/styles/tokens.css`.                 |
+| `no-duplicate-selectors`   | The same selector defined twice in one file.                                                       |
+| `declaration-no-important` | No `!important`.                                                                                   |
 
 The configuration is `stylelint.config.mjs`; its `ROOTS` map sets each scoped
 file's root class(es). The custom rule lives in
@@ -112,12 +140,49 @@ duplicate selectors. Of the 75 selectors:
 - 5 are in the demo's `demo-overrides.css`: four deliberate page-level rules
   (`html`, `body`, `#root`) and one `.pac-db-*` rule outside `.pac`.
 
+**After the shared tokens (#374 item 3):** 843 warnings in 19 of 21 files.
+Moving the surface variables onto the tokens took the hex count from 800 to
+754; the other three rules are unchanged.
+
+### The remaining hex values
+
+The 754 `color-no-hex` warnings, measured 12 October 2026 after item 3. Zero
+is not the goal. The plan: exempt what cannot or should not use the tokens,
+replace what maps to a token with no visual change, settle the brand
+literals with Flevoland, and stop the count from growing. The long tail gets
+replaced when someone is already editing that section.
+
+|     | Category                                              | Count | Approach                                                                                                                                                                                                          |
+| --- | ----------------------------------------------------- | ----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A   | The two Keycloak `login.css` copies                   |    98 | Exempt: Keycloak serves them outside the build, so they cannot load the token file.                                                                                                                               |
+| B   | `public-site`'s `pub.css`                             |    85 | Exempt, or give it its own `:root` token block: it is a separate brand (Rijkshuisstijl).                                                                                                                          |
+| C   | `--color-*` defaults in the two `index.css` files     |    10 | Exempt: these are the tenant-theme fallbacks, not palette colours.                                                                                                                                                |
+| D   | Surface variables with a different value              |    18 | Wait for the design decision in the table under [`packages/shared`](#packagesshared--design-tokens), then point them at tokens.                                                                                   |
+| E   | Flevoland blue, dark blue or pink written into a rule |    24 | Decide per place. The fixed token changes nothing; the themed `--rba-brand` recolours the page for other tenants. In the dashboards, whose chrome is already themed, a hard-coded blue is probably a missed spot. |
+| F   | `#fff` / `#ffffff` in a rule                          |   129 | Replace by meaning, with no visual change: `--rba-paper` for backgrounds, a new `--rba-on-brand` for text on the brand colour.                                                                                    |
+| G   | An exact match of a shared token                      |    63 | Replace mechanically, with the surface variable inside its own surface (`var(--v2-ink)`). No visual change.                                                                                                       |
+| H   | Hex with transparency (`#0046ad18`)                   |    26 | The same decision as E, then `color-mix(in srgb, var(--rba-…) 9%, transparent)`.                                                                                                                                  |
+| I   | Other tints and one-offs                              |   301 | 146 distinct values; 30 of them are used three or more times (158 uses) and could become a small tint scale (`--rba-brand-50`, `--rba-ok-50`, …). The other ~140 stay until their section is edited.              |
+
+Proposed order, one PR each:
+
+1. **Exemptions plus G and F.** Changes nothing visually and brings the count
+   to roughly 370, every one of which then means something.
+2. **E and H**, with a list for Flevoland to choose fixed or themed per place.
+3. **A tint scale** for the 30 repeated values. Tints built with `color-mix`
+   shift slightly, so this one changes pixels and needs a visual check.
+4. **A ratchet in CI**, the "make it an error" step of item 2. A stored
+   per-file count that may only go down; files already at zero become hard
+   errors. New hex values cannot creep in, without first clearing the long
+   tail.
+
 ## Default for new work
 
 Write new styling as scoped CSS: one root class per surface, as the V2
 dashboards do, and colocate a component's styles with the component (as
 `process-view.css` and `signing-panel.css` are). Use existing custom
-properties rather than new hex values. Leave the older Tailwind-styled
+properties rather than new hex values: a surface variable or a shared
+`--rba-*` token. Leave the older Tailwind-styled
 components as they are; do not migrate them.
 
 ## State and planned improvements
@@ -130,9 +195,12 @@ Measured 12 October 2026; tracked in
 - **No shared design tokens.** 225 distinct hex colours across the
   stylesheets. Flevoland blue `#0046ad` is written out 51 times in 11 files,
   and every file redefines its own `--ink`, `--text`, `--muted` and `--line`.
+  _Since item 3: the shared token file exists and the surface variables
+  point at it; the hex values written directly into rules remain._
 - **Rules enforced only by comments.** The scoping rule, "no new colours",
   "no prettier" and "no `@import` in `login.css`" exist only as comments.
-  There is no stylelint.
+  _Since item 2: stylelint reports the first two, but does not enforce them
+  yet._
 - **Copies that drift.** The two Keycloak `login.css` files; the
   `pa-demo` copy of the app shell; and the cockpit's copy of every `v2-*`
   rule, which `pa-cockpit-class-coverage.test.ts` exists to guard.

@@ -1,17 +1,19 @@
 /* Login portal — Provincie Flevoland board catalogue (unauthenticated /).
    ALL selectors scoped under .lcp — nothing leaks into .cwd-v2 / .pac / .pbd
-   or the citizen Dashboard. */
+   or the citizen Dashboard.
+   --ink, --muted and --line differ from the shared neutrals in tokens.css
+   and stay local until that is settled (#374). */
 
 .lcp {
-  --blue:    #0046ad;
-  --blue-700:#033b8e;
-  --pink:    #e70077;
+  --blue:    var(--rba-flevoland-blue);
+  --blue-700:var(--rba-flevoland-blue-d);
+  --pink:    var(--rba-flevoland-pink);
   --amber:   #d98800;
   --ink:     #0f172a;
-  --text:    #1f2937;
+  --text:    var(--rba-ink);
   --muted:   #5b6472;
   --line:    #e3e8ef;
-  --card:    #ffffff;
+  --card:    var(--rba-paper);
 
   box-sizing: border-box;
   scroll-behavior: smooth;

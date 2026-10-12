@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard';
 import LoginChoice from './pages/LoginChoice';
 import keycloak, { initializeKeycloak } from './services/keycloak';
 import './index.css';
+import '@ronl/shared/styles/tokens.css';
 import '@ronl/pa-cockpit/styles.css';
 
 /**
