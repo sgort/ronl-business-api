@@ -128,6 +128,10 @@ router.post(
       // Who acted, for background eDOCS archiving (spec §6): from the token only,
       // never from the body -- a sent value is dropped, as municipality is.
       for (const name of EDOCS_AUTHOR_VARIABLES) delete operatonVariables[name];
+      // The merged object comes from the verified token, not the request body,
+      // and carries only the two fixed keys edocsAuthor/edocsAuthorName. The
+      // variables go to Operaton; the response returns none of them.
+      // nosemgrep: javascript.express.security.express-data-exfiltration.express-data-exfiltration
       Object.assign(operatonVariables, edocsAuthorVariables(req.user));
 
       // The business key is the case's human-facing handle, so it names the
