@@ -1541,6 +1541,21 @@ describe('getDecisionDocument', () => {
     await expect(svc.getDecisionDocument('pi1')).resolves.toEqual({ template: 'x' });
   });
 
+  // #371: the fallback took the attribute as it stands, so a list resolved the
+  // template id "toelichting, objectenboom" where the path-taken branch takes
+  // "toelichting".
+  it('takes the first entry of a documentRef list in the fallback too', async () => {
+    setup(
+      `<bpmn:definitions>
+        <bpmn:userTask id="Task_Concept" ronl:documentRef="toelichting, objectenboom" />
+        <bpmn:userTask id="Task_Registreer" />
+      </bpmn:definitions>`,
+      resources('toelichting'),
+      [{ activityId: 'Task_Registreer' }]
+    );
+    await expect(svc.getDecisionDocument('pi1')).resolves.toEqual({ template: 'x' });
+  });
+
   it('resolves and parses the referenced document template', async () => {
     setup('<bpmn ronl:documentRef="doc1" />', [
       { id: 'r1', name: 'doc1.document', deploymentId: 'dep1' },
