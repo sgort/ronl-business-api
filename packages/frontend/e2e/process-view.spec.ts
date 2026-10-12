@@ -40,16 +40,11 @@ async function assertProcessViewRules(view: Locator) {
     }
   }
 
-  // Every clamped label fits its box.
-  const overflowing = await view
-    .locator('.pb-swim-node .nlabel')
-    .evaluateAll((els) =>
-      els.filter((e) => e.scrollHeight > e.clientHeight + 1).map((e) => e.textContent)
-    );
-  expect(overflowing, 'labels spilling out of their node').toEqual([]);
-
-  // ... and every label ends inside its node: a label squeezed by a footer
-  // would otherwise be cut mid-line while still "fitting" its own box.
+  // Every label ends inside its node and shows whole lines. Not scrollHeight
+  // against clientHeight: a label clamped on purpose (three lines, two beside
+  // a document footer) keeps its full text, so its scrollHeight always exceeds
+  // what it shows. What must not happen is a label cut mid-line or running
+  // past its node.
   const outsideNode = await view.locator('.pb-swim-node').evaluateAll((els) =>
     els
       .filter((node) => {
