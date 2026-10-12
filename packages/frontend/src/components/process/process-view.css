@@ -145,7 +145,7 @@
 .pbd .cwp-swim .cwp-jij{display:block;margin:4px 0 0;width:max-content;padding:1px 6px;font-family:var(--v2-mono);font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--rba-ink-inverse);background:var(--v2-chrome,#0046ad)}
 .pbd .cwp-swim .pb-swim-lane-label.cwp-mine{background:#eaf1fb;color:var(--v2-ink)}
 .pbd .cwp-swim .pb-swim-band.cwp-mine{background:rgba(0,70,173,.045)}
-.pbd .cwp-swim .pb-swim-node .nlabel{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.pbd .cwp-swim .pb-swim-node .nlabel{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;flex-shrink:0}
 .pbd .cwp-swim .pb-swim-node.pb-swim-node-claimed{outline:2px solid var(--v2-accent);outline-offset:2px}
 .pbd .cwp-swim .pb-swim-inprogress{top:-10px;right:6px;padding:1px 5px;border:0;border-radius:0;font-family:var(--v2-mono);font-size:9px;font-weight:700;line-height:normal;text-transform:uppercase;color:var(--rba-ink-inverse);background:var(--v2-accent)}
 .pbd .pb-swim-node .cwp-kind{position:absolute;bottom:-8px;left:8px;padding:0 4px;font-family:var(--v2-mono);font-size:8.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--v2-ink-3);background:var(--v2-paper);border:1px solid var(--v2-rule)}
@@ -156,3 +156,91 @@
 .pbd .cwp-swim .pb-swim-edgelabel{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pbd .cwp-swim .pb-swim-node{padding:12px 10px 14px}
 .pbd .cwp-swim .pb-swim-node .nlabel{font-size:12px}
+
+/* ProcessView (shared path): slim empty lanes, the "geclaimd" tab, the focus
+   outline and the docs footer. Scoped like the caseworker rules above. */
+.pbd .cwp-swim .pb-swim-lane-label.slim {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.pbd .cwp-swim .pb-swim-lane-label.slim .cwp-jij {
+  margin: 0;
+}
+.pbd .cwp-swim .pb-swim-inprogress.other {
+  color: var(--v2-ink-2);
+  background: var(--v2-paper);
+  border: 1px solid var(--v2-ink-3);
+}
+.pbd .cwp-swim .pb-swim-node.pv-focus {
+  outline: 2px dashed var(--v2-accent);
+  outline-offset: 2px;
+}
+.pbd .cwp-swim .pb-swim-node .nfoot {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.pbd .cwp-swim .pb-swim-node .nfoot .ndoc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ProcessView legend (moved from caseworker-process.css's .cwp-legend). */
+.pbd .pv-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  font-size: 11.5px;
+  color: var(--v2-ink-2);
+}
+.pbd .pv-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pbd .pv-legend .sw {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 14px;
+  height: 10px;
+  border: 1px solid var(--v2-rule);
+  border-top-width: 3px;
+  background: var(--v2-paper);
+}
+.pbd .pv-legend .sw.done {
+  background: #f3faf2;
+  border-top-color: var(--rba-ok);
+}
+.pbd .pv-legend .sw.active {
+  background: #eef4fd;
+  border-top-color: #0046ad;
+}
+.pbd .pv-legend .sw.mine {
+  background: #eef4fd;
+  border: 2px solid var(--v2-accent);
+}
+.pbd .pv-legend .sw.claimed {
+  background: var(--v2-paper);
+  border: 2px solid var(--v2-ink-3);
+}
+.pbd .pv-legend .sw.role {
+  background: #eaf1fb;
+  border-color: #cbd9ee;
+}
+.pbd .pv-legend .sw.auto {
+  border-style: dashed;
+}
+
+/* A node with a document footer has room for two label lines, not three:
+   the label keeps its height and clamps with an ellipsis instead of being
+   cut mid-line; the full label is the node's tooltip. */
+.pbd .cwp-swim .pb-swim-node.has-docs .nlabel{-webkit-line-clamp:2}

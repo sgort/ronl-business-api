@@ -1,8 +1,12 @@
 import './process-view.css';
-import { STATUS, type StatusKey } from '../../pages/infra-board/rip-model';
+import { STATUS, type StatusKey } from './status';
 import { useEffect, useRef } from 'react';
 import { edgeLabelText } from './swimlaneText';
 import type { NodeKind, PhaseSwimlaneModel, SwimNode } from '@ronl/shared';
+import { isIdLabel, type NodeMark } from './processMarks';
+
+/** Row height of a lane with no nodes in this process. */
+const SLIM_H = 44;
 
 /**
  * Grid and node sizes. compact is the Infra-board's, unchanged; roomy is the
@@ -39,6 +43,9 @@ export default function PhaseSwimlane({
   onOpenCall,
   scrollToNodeId,
   density = 'compact',
+  marks,
+  myLanes,
+  focusNodeId,
 }: {
   model: PhaseSwimlaneModel;
   statusById: Record<string, StatusKey>;
@@ -53,15 +60,26 @@ export default function PhaseSwimlane({
   scrollToNodeId?: string | null;
   /** Grid size; the Infra-board's compact by default. */
   density?: keyof typeof DENSITY;
+  /** ProcessView's marks per node. Its presence selects the shared look: roomy grid, slim empty lanes, tabs by mark. */
+  marks?: ReadonlyMap<string, NodeMark>;
+  /** ProcessView's lanes to tint, replacing myLaneKeys on the marks path. */
+  myLanes?: ReadonlySet<string>;
+  /** Outlined (unless it is the viewer's own task); scrolled to when no scrollToNodeId is given. */
+  focusNodeId?: string | null;
 }) {
-  const { COL_W, ROW_H, NODE_W, NODE_H, GATE } = DENSITY[density];
+  const shared = marks !== undefined;
+  const { COL_W, ROW_H, NODE_W, NODE_H, GATE } = DENSITY[shared ? 'roomy' : density];
   const { lanes, nodes, edges } = model;
   const caseworker =
+    shared ||
     myLaneKeys !== undefined ||
     claimedLabel !== undefined ||
     onOpenCall !== undefined ||
     scrollToNodeId !== undefined;
-  const mine = (key: string) => myLaneKeys?.has(key) ?? false;
+  const lanesMine = shared ? myLanes : myLaneKeys;
+  const mine = (key: string) => lanesMine?.has(key) ?? false;
+  // On the shared path scrollToNodeId (when given) scrolls and focusNodeId only outlines.
+  const scrollTarget = shared && scrollToNodeId === undefined ? focusNodeId : scrollToNodeId;
   const scrollRef = useRef<HTMLDivElement>(null);
   const nodeById = Object.fromEntries(nodes.map((n) => [n.id, n]));
   const nCols = nodes.length ? Math.max(...nodes.map((n) => n.col)) + 1 : 1;
@@ -95,7 +113,11 @@ export default function PhaseSwimlane({
     slotByNodeId[n.id] = slot;
     seenInCell.set(key, slot + 1);
   }
-  const laneHeights = slotsPerRow.map((slots) => slots * ROW_H);
+  const rowsWithNodes = new Set(nodes.map((n) => n.row));
+  const isEmptyLane = (row: number) => shared && !rowsWithNodes.has(row);
+  const laneHeights = slotsPerRow.map((slots, row) => (isEmptyLane(row) ? SLIM_H : slots * ROW_H));
+  const emptyAttr = (row: number) => (isEmptyLane(row) ? { 'data-lane-empty': '' } : {});
+  const idAttr = (id: string) => (shared ? { 'data-node-id': id } : {});
   const laneTop: number[] = [];
   {
     let acc = 0;
@@ -118,13 +140,13 @@ export default function PhaseSwimlane({
   const st = (id: string): StatusKey => statusById[id] ?? 'todo';
 
   useEffect(() => {
-    if (scrollToNodeId === undefined || !scrollRef.current) return;
-    const target = scrollToNodeId === null ? undefined : nodeById[scrollToNodeId];
+    if (scrollTarget === undefined || !scrollRef.current) return;
+    const target = scrollTarget === null ? undefined : nodeById[scrollTarget];
     const el = scrollRef.current;
     el.scrollLeft = target ? Math.max(0, cx(target) - el.clientWidth / 2) : 0;
     // cx and nodeById derive from model, which is in the deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollToNodeId, model]);
+  }, [scrollTarget, model]);
   const edgeColor = (from: string) => (st(from) === 'done' ? '#3fa535' : '#c2c7d0');
 
   // Incremented only for back (rework-loop) edges, in edge order — never by
@@ -181,9 +203,10 @@ export default function PhaseSwimlane({
       <div className="pb-swim-lanes">
         {lanes.map((l, i) => (
           <div
-            className={`pb-swim-lane-label${mine(l.key) ? ' cwp-mine' : ''}`}
+            className={`pb-swim-lane-label${mine(l.key) ? ' cwp-mine' : ''}${isEmptyLane(i) ? ' slim' : ''}`}
             key={l.key}
             style={{ height: laneHeights[i] }}
+            {...emptyAttr(i)}
           >
             {l.label}
             {mine(l.key) && <span className="cwp-jij">jouw rol</span>}
@@ -197,6 +220,7 @@ export default function PhaseSwimlane({
               key={l.key}
               className={`pb-swim-band ${i % 2 ? 'alt' : ''}${mine(l.key) ? ' cwp-mine' : ''}`}
               style={{ top: laneTop[i], height: laneHeights[i], width: W }}
+              {...emptyAttr(i)}
             />
           ))}
           <svg className="pb-swim-svg" width={W} height={H}>
@@ -242,6 +266,7 @@ export default function PhaseSwimlane({
                 <div
                   key={n.id}
                   className={`pb-swim-event ${st(n.id)}`}
+                  {...idAttr(n.id)}
                   style={{ left: cx(n) - 34, top: cy(n) - 22 }}
                 >
                   <span className="ev-dot" style={{ borderColor: s.color }} />
@@ -254,6 +279,7 @@ export default function PhaseSwimlane({
                 <div
                   key={n.id}
                   className={`pb-swim-gate ${st(n.id)} ${n.kind}`}
+                  {...idAttr(n.id)}
                   style={{
                     left: cx(n) - GATE / 2,
                     top: cy(n) - GATE / 2,
@@ -262,11 +288,22 @@ export default function PhaseSwimlane({
                   }}
                 >
                   <span className="gx">{n.kind === 'parallel' ? '+' : '×'}</span>
-                  <span className="gl">{n.label}</span>
+                  {!(shared && isIdLabel(n)) && <span className="gl">{n.label}</span>}
                 </div>
               );
             }
-            const claimed = claimedNodeIds.has(n.id);
+            const mark = shared ? marks.get(n.id) : undefined;
+            const claimed = shared ? mark === 'mine' : claimedNodeIds.has(n.id);
+            const tab = shared
+              ? mark === 'mine'
+                ? 'jouw taak'
+                : mark === 'claimed'
+                  ? 'geclaimd'
+                  : null
+              : claimed
+                ? (claimedLabel ?? '✏')
+                : null;
+            const focus = shared && focusNodeId === n.id && mark !== 'mine';
             // Script and rule tasks run without a person: drawn dashed like a
             // service task, and told apart by their foot badge.
             const kindClass = n.kind === 'script' || n.kind === 'rule' ? 'service' : n.kind;
@@ -275,7 +312,9 @@ export default function PhaseSwimlane({
               <div
                 key={n.id}
                 {...(caseworker ? { title: n.dmn ? `${n.label} (${n.dmn})` : n.label } : {})}
-                className={`pb-swim-node ${st(n.id)} ${kindClass}${claimed ? ' pb-swim-node-claimed' : ''}`}
+                className={`pb-swim-node ${st(n.id)} ${kindClass}${claimed ? ' pb-swim-node-claimed' : ''}${focus ? ' pv-focus' : ''}${shared && n.docs?.length ? ' has-docs' : ''}`}
+                {...idAttr(n.id)}
+                {...(mark ? { 'data-mark': mark } : {})}
                 style={{
                   left: cx(n) - NODE_W / 2,
                   top: cy(n) - NODE_H / 2,
@@ -285,11 +324,23 @@ export default function PhaseSwimlane({
                 }}
               >
                 <span className="nlabel">{n.label}</span>
-                {n.docs?.map((doc) => (
-                  <span key={doc} className="ndoc">
-                    {doc}
-                  </span>
-                ))}
+                {shared ? (
+                  n.docs?.length ? (
+                    <span className="nfoot">
+                      {n.docs.map((doc) => (
+                        <span key={doc} className="ndoc">
+                          {doc}
+                        </span>
+                      ))}
+                    </span>
+                  ) : null
+                ) : (
+                  n.docs?.map((doc) => (
+                    <span key={doc} className="ndoc">
+                      {doc}
+                    </span>
+                  ))
+                )}
                 {n.kind === 'service' && <span className="nauto">automatisch</span>}
                 {badge && <span className="cwp-kind">{badge}</span>}
                 {n.kind === 'call' && onOpenCall && (
@@ -302,9 +353,12 @@ export default function PhaseSwimlane({
                     open ↘
                   </button>
                 )}
-                {claimed && (
-                  <span className="pb-swim-inprogress" title="In behandeling">
-                    {claimedLabel ?? '✏'}
+                {tab && (
+                  <span
+                    className={`pb-swim-inprogress${mark === 'claimed' ? ' other' : ''}`}
+                    title={mark === 'claimed' ? 'Geclaimd door een collega' : 'In behandeling'}
+                  >
+                    {tab}
                   </span>
                 )}
               </div>
