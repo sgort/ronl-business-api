@@ -81,7 +81,9 @@ describe('PhaseSwimlane', () => {
 
   it('renders every node', () => {
     const { container } = render(<PhaseSwimlane model={MODEL} statusById={{}} />);
-    const drawn = container.querySelectorAll('.pb-swim-node, .pb-swim-event, .pb-swim-gate');
+    const drawn = container.querySelectorAll(
+      '.pb-swim-node, .pb-swim-event, .pb-swim-gate, .pb-swim-bar, .pb-swim-merge'
+    );
     expect(drawn).toHaveLength(5);
   });
 
@@ -93,11 +95,11 @@ describe('PhaseSwimlane', () => {
     expect(getByText('Klaar B')).toBeInTheDocument();
   });
 
-  it('marks a parallel gateway differently from an exclusive one', () => {
+  it('draws a parallel split as a bar captioned "tegelijk"', () => {
     const { container } = render(<PhaseSwimlane model={MODEL} statusById={{}} />);
-    const gate = container.querySelector('.pb-swim-gate.parallel');
-    expect(gate).not.toBeNull();
-    expect(gate?.querySelector('.gx')?.textContent).toBe('+');
+    const bar = container.querySelector('.pb-swim-bar[data-gateway="split"]');
+    expect(bar).not.toBeNull();
+    expect(bar?.textContent).toBe('tegelijk');
   });
 
   it('applies status by node id', () => {
@@ -137,11 +139,14 @@ describe('PhaseSwimlane', () => {
     expect(svg.getAttribute('height')).not.toContain('NaN');
   });
 
-  it('renders an exclusive gateway with the × marker, distinct from a parallel one', () => {
+  it('draws exclusive gateways without two outgoing edges as merge dots, without a label', () => {
     const { container } = render(<PhaseSwimlane model={RICH_MODEL} statusById={{}} />);
-    const gate = container.querySelector('.pb-swim-gate.gateway');
-    expect(gate).not.toBeNull();
-    expect(gate?.querySelector('.gx')?.textContent).toBe('×');
+    for (const id of ['g1', 'g2']) {
+      const g = container.querySelector(`[data-node-id="${id}"]`)!;
+      expect(g.classList).toContain('pb-swim-merge');
+      expect(g.textContent).toBe('');
+    }
+    expect(container.textContent).not.toContain('×');
   });
 
   it('drops a dangling edge (no matching node) instead of drawing a broken path', () => {
@@ -174,9 +179,9 @@ describe('PhaseSwimlane', () => {
     expect(getByText('automatisch')).toBeInTheDocument();
   });
 
-  it('marks a claimed node with the claimed class and an in-progress indicator', () => {
+  it('marks the own node of the viewer with the claimed class and an in-progress tab', () => {
     const { container, getByTitle } = render(
-      <PhaseSwimlane model={RICH_MODEL} statusById={{}} claimedNodeIds={new Set(['claimed'])} />
+      <PhaseSwimlane model={RICH_MODEL} statusById={{}} marks={new Map([['claimed', 'mine']])} />
     );
     expect(container.querySelector('.pb-swim-node-claimed')).not.toBeNull();
     expect(getByTitle('In behandeling')).toBeInTheDocument();
@@ -265,7 +270,7 @@ describe('PhaseSwimlane', () => {
     // lane-only formula exactly: no rework loops, no visual change.
     const { container } = render(<PhaseSwimlane model={MODEL} statusById={{}} />);
     const svg = container.querySelector('svg.pb-swim-svg')!;
-    expect(svg.getAttribute('height')).toBe(String(MODEL.lanes.length * 88));
+    expect(svg.getAttribute('height')).toBe(String(MODEL.lanes.length * 132));
   });
 
   it('leaves each lane band and label at exactly ROW_H under the reserve — reserve is empty canvas, nothing stretches', () => {
@@ -286,14 +291,15 @@ describe('PhaseSwimlane', () => {
     const bands = Array.from(container.querySelectorAll('.pb-swim-band')) as HTMLElement[];
     const labels = Array.from(container.querySelectorAll('.pb-swim-lane-label')) as HTMLElement[];
 
-    // 2 lanes + 1 back edge → reserve = 1*14+10 = 24; H = 2*88 + 24 = 200.
+    // Lane B has no nodes, so it is slim (44). 1 back edge → reserve = 1*14+10 = 24;
+    // H = 132 + 44 + 24 = 200.
     expect(svg.getAttribute('height')).toBe('200');
-    // Every band and every label stays exactly ROW_H tall — the reserve
-    // below them is not band/label coverage, so it must be blank canvas.
-    for (const b of bands) expect(b.style.height).toBe('88px');
-    for (const l of labels) expect(l.style.height).toBe('88px');
+    // Every band and label keeps its lane height — the reserve below them is
+    // not band/label coverage, so it must be blank canvas.
+    expect(bands.map((b) => b.style.height)).toEqual(['132px', '44px']);
+    expect(labels.map((l) => l.style.height)).toEqual(['132px', '44px']);
     const bandCoverage = bands.reduce((sum, b) => sum + parseFloat(b.style.height), 0);
-    expect(bandCoverage).toBe(176); // lanes.length * ROW_H — strictly less than H (200)
+    expect(bandCoverage).toBe(176); // strictly less than H (200)
   });
 
   describe('collision stacking (nodes sharing a row/col cell)', () => {
@@ -340,11 +346,11 @@ describe('PhaseSwimlane', () => {
       // Lane 0 holds the worst cell in the model (3 nodes) so it spans [0, 3*ROW_H).
       for (const top of tops) {
         expect(top).toBeGreaterThanOrEqual(0);
-        expect(top).toBeLessThan(3 * 88);
+        expect(top).toBeLessThan(3 * 132);
       }
       // None of the three may spill into lane 1, which starts at 3*ROW_H.
       const laneOneNode = getByText('D').closest('.pb-swim-node') as HTMLElement;
-      expect(parseFloat(laneOneNode.style.top)).toBeGreaterThanOrEqual(3 * 88);
+      expect(parseFloat(laneOneNode.style.top)).toBeGreaterThanOrEqual(3 * 132);
     });
 
     it('keeps lane label heights equal to their band heights when lane occupancy is uneven', () => {
@@ -366,8 +372,8 @@ describe('PhaseSwimlane', () => {
       const paths = Array.from(container.querySelectorAll('svg.pb-swim-svg > path'));
       expect(paths).toHaveLength(1);
       const bandY = bandYOf(paths[0]);
-      // Total lane height = 3*88 + 2*88 + 1*88 = 528; the band must sit below that.
-      expect(bandY).toBeGreaterThanOrEqual(528);
+      // Total lane height = 3*132 + 2*132 + 1*132 = 792; the band must sit below that.
+      expect(bandY).toBeGreaterThanOrEqual(792);
     });
   });
 
@@ -379,14 +385,14 @@ describe('PhaseSwimlane', () => {
     const svg = container.querySelector('svg.pb-swim-svg')!;
     const bands = Array.from(container.querySelectorAll('.pb-swim-band')) as HTMLElement[];
     const labels = Array.from(container.querySelectorAll('.pb-swim-lane-label')) as HTMLElement[];
-    expect(svg.getAttribute('height')).toBe(String(MODEL.lanes.length * 88));
-    for (const b of bands) expect(b.style.height).toBe('88px');
-    for (const l of labels) expect(l.style.height).toBe('88px');
+    expect(svg.getAttribute('height')).toBe(String(MODEL.lanes.length * 132));
+    for (const b of bands) expect(b.style.height).toBe('132px');
+    for (const l of labels) expect(l.style.height).toBe('132px');
   });
 });
 
 describe('PhaseSwimlane — caseworker additions', () => {
-  // Col 0..4 so the call node's centre (col 3 → 3*190+95 = 665) can be
+  // Col 0..4 so the call node's centre (col 3 → 3*240+120 = 840) can be
   // scrolled to; the lane keys mirror the Awb BPMNs.
   const AWB: PhaseSwimlaneModel = {
     phaseCode: 'AwbShellProcess',
@@ -403,18 +409,6 @@ describe('PhaseSwimlane — caseworker additions', () => {
     ],
     edges: [],
   };
-
-  it('adds nothing caseworker-specific when no caseworker prop is given (the Infra-board)', () => {
-    const { container } = render(
-      <PhaseSwimlane model={AWB} statusById={{}} claimedNodeIds={new Set(['t'])} />
-    );
-    expect(container.querySelector('.pb-swim')!.classList.contains('cwp-swim')).toBe(false);
-    expect(container.querySelector('.cwp-mine, .cwp-jij, .cwp-callbtn')).toBeNull();
-    expect(container.querySelector('button')).toBeNull();
-    // The claimed node keeps the Infra-board's pencil, and no node gains a tooltip.
-    expect(container.querySelector('.pb-swim-inprogress')!.textContent).toBe('✏');
-    expect(container.querySelector('.pb-swim-node[title]')).toBeNull();
-  });
 
   it('badges script, rule and call nodes, and draws script and rule dashed', () => {
     const { container } = render(<PhaseSwimlane model={AWB} statusById={{}} />);
@@ -434,7 +428,7 @@ describe('PhaseSwimlane — caseworker additions', () => {
 
   it('tints the user’s lanes and marks them "jouw rol"', () => {
     const { container } = render(
-      <PhaseSwimlane model={AWB} statusById={{}} myLaneKeys={new Set(['Lane_Behandelaar'])} />
+      <PhaseSwimlane model={AWB} statusById={{}} myLanes={new Set(['Lane_Behandelaar'])} />
     );
     const labels = [...container.querySelectorAll('.pb-swim-lane-label')];
     const bands = [...container.querySelectorAll('.pb-swim-band')];
@@ -442,21 +436,8 @@ describe('PhaseSwimlane — caseworker additions', () => {
     expect(bands.map((b) => b.classList.contains('cwp-mine'))).toEqual([true, false]);
     expect(labels[0].querySelector('.cwp-jij')?.textContent).toBe('jouw rol');
     expect(labels[1].querySelector('.cwp-jij')).toBeNull();
-    expect(container.querySelector('.pb-swim')!.classList.contains('cwp-swim')).toBe(true);
-  });
-
-  it('labels the claimed node with claimedLabel instead of the pencil, and titles every task', () => {
-    const { container } = render(
-      <PhaseSwimlane
-        model={AWB}
-        statusById={{}}
-        claimedNodeIds={new Set(['t'])}
-        claimedLabel="jouw taak"
-      />
-    );
-    expect(container.querySelector('.pb-swim-inprogress')!.textContent).toBe('jouw taak');
-    const task = container.querySelector('.pb-swim-node-claimed') as HTMLElement;
-    expect(task.getAttribute('title')).toBe('Informeren');
+    // One look for every dashboard: no opt-in class any more.
+    expect(container.querySelector('.pb-swim')!.classList.contains('cwp-swim')).toBe(false);
   });
 
   it('offers "open ↘" on a call node and reports the node', () => {
@@ -476,7 +457,7 @@ describe('PhaseSwimlane — caseworker additions', () => {
       <PhaseSwimlane model={AWB} statusById={{}} scrollToNodeId="c" />
     );
     const scroll = container.querySelector('.pb-swim-scroll') as HTMLElement;
-    expect(scroll.scrollLeft).toBe(665 - 200);
+    expect(scroll.scrollLeft).toBe(840 - 200);
     rerender(<PhaseSwimlane model={AWB} statusById={{}} scrollToNodeId="s" />);
     expect(scroll.scrollLeft).toBe(0);
     width.mockRestore();
@@ -496,7 +477,7 @@ describe('edgeLabelText', () => {
   });
 });
 
-describe('PhaseSwimlane — roomy density and readable edge labels', () => {
+describe('PhaseSwimlane — roomy grid and readable edge labels', () => {
   const EXPR: PhaseSwimlaneModel = {
     ...MODEL,
     edges: [
@@ -505,15 +486,8 @@ describe('PhaseSwimlane — roomy density and readable edge labels', () => {
     ],
   };
 
-  it('keeps the Infra-board’s sizes by default', () => {
+  it('uses the roomy grid for every dashboard', () => {
     const { container } = render(<PhaseSwimlane model={MODEL} statusById={{}} />);
-    const node = container.querySelector('.pb-swim-node') as HTMLElement;
-    expect(node.style.width).toBe('152px');
-    expect(node.style.height).toBe('54px');
-  });
-
-  it('gives nodes, rows and columns more room when roomy', () => {
-    const { container } = render(<PhaseSwimlane model={MODEL} statusById={{}} density="roomy" />);
     const node = container.querySelector('.pb-swim-node') as HTMLElement;
     expect(node.style.width).toBe('184px');
     expect(node.style.height).toBe('84px');
@@ -521,17 +495,8 @@ describe('PhaseSwimlane — roomy density and readable edge labels', () => {
     expect(svg.getAttribute('height')).toBe(String(MODEL.lanes.length * 132));
   });
 
-  it('shows the Infra-board’s edge labels verbatim, without a tooltip', () => {
+  it('shortens expression labels, with the full expression as tooltip', () => {
     const { container } = render(<PhaseSwimlane model={EXPR} statusById={{}} />);
-    const labels = [...container.querySelectorAll('.pb-swim-edgelabel')];
-    expect(labels[0].textContent).toBe('${completenessResult.isComplete == false}');
-    expect(labels[0].hasAttribute('title')).toBe(false);
-  });
-
-  it('shortens expression labels in caseworker mode, with the full expression as tooltip', () => {
-    const { container } = render(
-      <PhaseSwimlane model={EXPR} statusById={{}} claimedLabel="jouw taak" />
-    );
     const labels = [...container.querySelectorAll('.pb-swim-edgelabel')];
     expect(labels[0].textContent).toBe('isComplete = false');
     expect(labels[0].getAttribute('title')).toBe('${completenessResult.isComplete == false}');
@@ -557,6 +522,11 @@ describe('PhaseSwimlane — marks path (ProcessView)', () => {
     edges: [
       { from: 't1', to: 't2' },
       { from: 't2', to: 't3' },
+      // Two outgoing edges each: both gateways are decisions (diamonds with a label).
+      { from: 'Gateway_X', to: 'g2' },
+      { from: 'Gateway_X', to: 't3' },
+      { from: 'g2', to: 't2' },
+      { from: 'g2', to: 't3' },
     ],
   };
   const marks = new Map([
@@ -666,5 +636,139 @@ describe('PhaseSwimlane — marks path (ProcessView)', () => {
     const t1 = container.querySelector<HTMLElement>('[data-node-id="t1"]')!;
     expect(t1.style.width).toBe('184px');
     expect(t1.style.height).toBe('84px');
+  });
+});
+
+describe('PhaseSwimlane — gateway shapes', () => {
+  it('draws a decision as a ? diamond, split and join as captioned bars, a merge as a dot', () => {
+    const model: PhaseSwimlaneModel = {
+      phaseCode: 'X',
+      lanes: [{ key: 'l', label: 'L' }],
+      nodes: [
+        { id: 'd', bpmnId: 'd', kind: 'gateway', col: 0, row: 0, label: 'Akkoord?' },
+        { id: 's', bpmnId: 's', kind: 'parallel', col: 1, row: 0, label: 's' },
+        { id: 'a', bpmnId: 'a', kind: 'task', col: 2, row: 0, label: 'A' },
+        { id: 'b', bpmnId: 'b', kind: 'task', col: 2, row: 0, label: 'B' },
+        { id: 'j', bpmnId: 'j', kind: 'parallel', col: 3, row: 0, label: 'j' },
+        { id: 'm', bpmnId: 'm', kind: 'gateway', col: 4, row: 0, label: 'm' },
+      ],
+      edges: [
+        { from: 'd', to: 's' },
+        { from: 'd', to: 'm' },
+        { from: 's', to: 'a' },
+        { from: 's', to: 'b' },
+        { from: 'a', to: 'j' },
+        { from: 'b', to: 'j' },
+        { from: 'j', to: 'm' },
+      ],
+    };
+    const { container } = render(<PhaseSwimlane model={model} statusById={{}} marks={new Map()} />);
+    const g = (id: string) => container.querySelector(`[data-node-id="${id}"]`)!;
+    expect(g('d').getAttribute('data-gateway')).toBe('decision');
+    expect(g('d').querySelector('.gx')!.textContent).toBe('?');
+    expect(g('s').classList).toContain('pb-swim-bar');
+    expect(g('s').textContent).toBe('tegelijk');
+    expect(g('j').textContent).toBe('alles klaar');
+    expect(g('m').classList).toContain('pb-swim-merge');
+    expect(g('m').textContent).toBe('');
+  });
+
+  it('attaches edges to a bar edge, not a diamond tip', () => {
+    const model: PhaseSwimlaneModel = {
+      phaseCode: 'X',
+      lanes: [{ key: 'l', label: 'L' }],
+      nodes: [
+        { id: 's', bpmnId: 's', kind: 'parallel', col: 0, row: 0, label: 's' },
+        { id: 'a', bpmnId: 'a', kind: 'task', col: 1, row: 0, label: 'A' },
+        { id: 'b', bpmnId: 'b', kind: 'task', col: 1, row: 0, label: 'B' },
+      ],
+      edges: [
+        { from: 's', to: 'a' },
+        { from: 's', to: 'b' },
+      ],
+    };
+    const { container } = render(<PhaseSwimlane model={model} statusById={{}} marks={new Map()} />);
+    const d = container.querySelector('.pb-swim-svg > path')!.getAttribute('d')!;
+    // column 0 centre is 120 (COL_W 240 / 2); the bar is 8 wide, so the edge starts at 124.
+    expect(d.startsWith('M 124 ')).toBe(true);
+  });
+});
+
+describe('PhaseSwimlane — decision diamond', () => {
+  it('keeps the gate upright with the diamond as its own element, so the label sits above it', () => {
+    const model: PhaseSwimlaneModel = {
+      phaseCode: 'X',
+      lanes: [{ key: 'l', label: 'L' }],
+      nodes: [
+        { id: 'd', bpmnId: 'd', kind: 'gateway', col: 0, row: 0, label: 'Akkoord?' },
+        { id: 'a', bpmnId: 'a', kind: 'task', col: 1, row: 0, label: 'A' },
+        { id: 'b', bpmnId: 'b', kind: 'task', col: 1, row: 0, label: 'B' },
+      ],
+      edges: [
+        { from: 'd', to: 'a' },
+        { from: 'd', to: 'b' },
+      ],
+    };
+    const { container } = render(<PhaseSwimlane model={model} statusById={{}} marks={new Map()} />);
+    const gate = container.querySelector('[data-node-id="d"]')!;
+    expect(gate.querySelector(':scope > .gd')).not.toBeNull();
+    expect(gate.querySelector(':scope > .gl')!.textContent).toBe('Akkoord?');
+    expect(gate.querySelector('.gd .gl')).toBeNull();
+  });
+});
+
+describe('PhaseSwimlane — vertical edge attachment', () => {
+  it('ends a rework edge at the bottom of a merge dot, not a task-height below its centre', () => {
+    const model: PhaseSwimlaneModel = {
+      phaseCode: 'X',
+      lanes: [{ key: 'l', label: 'L' }],
+      nodes: [
+        { id: 'm', bpmnId: 'm', kind: 'gateway', col: 0, row: 0, label: 'm' },
+        { id: 't', bpmnId: 't', kind: 'task', col: 1, row: 0, label: 'T' },
+        { id: 'x', bpmnId: 'x', kind: 'task', col: 2, row: 0, label: 'X' },
+      ],
+      edges: [
+        { from: 'm', to: 't' },
+        { from: 'x', to: 'm', back: true },
+        { from: 't', to: 'm', back: true },
+      ],
+    };
+    const { container } = render(<PhaseSwimlane model={model} statusById={{}} marks={new Map()} />);
+    const back = [...container.querySelectorAll('.pb-swim-svg > path')].map((p) =>
+      p.getAttribute('d')!
+    )[1];
+    // Row centre 66; the 14px dot rotated 45° reaches 7·√2 ≈ 9.9px below it.
+    const endY = Number(back.trim().split(/\s+/).pop());
+    expect(endY).toBeCloseTo(66 + 7 * Math.SQRT2, 1);
+  });
+});
+
+describe('PhaseSwimlane — open tasks', () => {
+  it('outlines every task node that is not the viewer own: open (no tab) and claimed by a colleague', () => {
+    const model: PhaseSwimlaneModel = {
+      phaseCode: 'X',
+      lanes: [{ key: 'l', label: 'L' }],
+      nodes: [
+        { id: 'o', bpmnId: 'o', kind: 'task', col: 0, row: 0, label: 'Open' },
+        { id: 'c', bpmnId: 'c', kind: 'task', col: 1, row: 0, label: 'Claimed' },
+      ],
+      edges: [],
+    };
+    const { container } = render(
+      <PhaseSwimlane
+        model={model}
+        statusById={{}}
+        marks={
+          new Map([
+            ['o', 'open'],
+            ['c', 'claimed'],
+          ])
+        }
+      />
+    );
+    const open = container.querySelector('[data-node-id="o"]')!;
+    expect(open.classList).toContain('pv-focus');
+    expect(open.querySelector('.pb-swim-inprogress')).toBeNull();
+    expect(container.querySelector('[data-node-id="c"]')!.classList).toContain('pv-focus');
   });
 });

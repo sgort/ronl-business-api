@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import ProcessLaneSteps from './ProcessLaneSteps';
-import { NOTIFY, REVIEW } from '../../test/kapvergunningFixtures';
+import { NOTIFY, REVIEW, S } from '../../test/kapvergunningFixtures';
 
 const groupsIn = (c: HTMLElement) => [...c.querySelectorAll('section.cwp-lg')];
 
@@ -71,7 +71,7 @@ describe('ProcessLaneSteps', () => {
     const next = [...container.querySelectorAll('li.cwp-st.next .cwp-st-meta')].map(
       (m) => m.textContent
     );
-    expect(next).toEqual(['Hierna', 'Hierna · splitst: verleend / geweigerd']);
+    expect(next).toEqual(['Hierna', 'Hierna · keuze: verleend / geweigerd']);
   });
 
   it('shows a gateway with its taken branch, and a running call activity as a running subprocess', () => {
@@ -159,5 +159,46 @@ describe('ProcessLaneSteps', () => {
     fireEvent.click(screen.getByRole('button', { name: /eerdere stappen tonen/ }));
     const names = [...container.querySelectorAll('.cwp-st-name')].map((n) => n.textContent);
     expect(names).toContain('Aanvraag volledig? → isComplete = true');
+  });
+});
+
+describe('ProcessLaneSteps — gateways by kind', () => {
+  it('reads an unnamed parallel split as "Tegelijk", never by its element id', () => {
+    const sub = REVIEW.models[S];
+    const ctx = {
+      ...REVIEW,
+      models: {
+        ...REVIEW.models,
+        [S]: {
+          ...sub,
+          nodes: sub.nodes.map((n) =>
+            n.id === 'Sub_FinalGateway' ? { ...n, kind: 'parallel' as const, label: n.id } : n
+          ),
+        },
+      },
+    };
+    const { container } = render(
+      <ProcessLaneSteps ctx={ctx} roles={['caseworker']} onOpen={vi.fn()} />
+    );
+    const step = [...container.querySelectorAll('li.cwp-st')].find((li) =>
+      li.classList.contains('split')
+    )!;
+    expect(step.querySelector('.cwp-st-name')!.textContent).toBe('Tegelijk');
+    expect(step.querySelector('.cwp-st-type')!.textContent).toBe('TEGELIJK');
+    expect(step.querySelector('.cwp-st-meta')!.textContent).toContain('Hierna · tegelijk verder');
+    expect(container.textContent).not.toContain('Sub_FinalGateway');
+  });
+
+  it('reads a named decision by its question, with readable branch labels', () => {
+    const { container } = render(
+      <ProcessLaneSteps ctx={REVIEW} roles={['caseworker']} onOpen={vi.fn()} />
+    );
+    const step = [...container.querySelectorAll('li.cwp-st')].find((li) =>
+      li.classList.contains('decision')
+    )!;
+    expect(step.querySelector('.cwp-st-type')!.textContent).toBe('KEUZE');
+    expect(step.querySelector('.cwp-st-meta')!.textContent).toContain(
+      'Hierna · keuze: verleend / geweigerd'
+    );
   });
 });

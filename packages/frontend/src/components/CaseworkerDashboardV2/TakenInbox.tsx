@@ -14,7 +14,7 @@
  *   - Quick-filter rail (alle / overdue / mine / today / this week)
  *   - Sort by deadline by default (most urgent first)
  *   - Detail pane uses a sectioned layout instead of a single card
- *   - "Procesgegevens" rendered as a clean key/value table, not collapsed
+ *   - "Procesgegevens" as a clean key/value table, folded by default (ProcessVarsDisclosure)
  *
  * The component still exposes `onCountChange` so the V2 shell can
  * show a badge in the left rail.
@@ -25,7 +25,7 @@ import type { ActivityHistoryItem, KeycloakUser, PhaseSwimlaneModel, Task } from
 import { businessApi } from '../../services/api';
 import TaskFormViewer from '../CaseworkerDashboard/TaskFormViewer';
 import { activityTypeLabel, AUTOMATED_TYPES } from '../CaseworkerDashboard/processSteps';
-import ProcessVarsSection from '../CaseworkerDashboard/ProcessVarsSection';
+import ProcessVarsDisclosure from '../process/ProcessVarsDisclosure';
 import { useTaskProcessContext } from '../process/useTaskProcessContext';
 import ProcessWhere from '../process/ProcessWhere';
 import ProcessLaneSteps from '../process/ProcessLaneSteps';
@@ -106,8 +106,6 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
    * a phase the process declares itself could be coded anything, "open" too.
    */
   const [overlay, setOverlay] = useState<{ phase?: string } | null>(null);
-  /** Procesgegevens is a long table; it stays folded until asked for, per task. */
-  const [varsOpen, setVarsOpen] = useState(false);
   /** Swimlane model per process key in the list, for the Awb-fase hint; null when it failed. */
   const [listModels, setListModels] = useState<Record<string, PhaseSwimlaneModel | null>>({});
   const [actionMessage, setActionMessage] = useState<{
@@ -237,7 +235,6 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
     selectingRef.current = task.id;
     setSelectedId(task.id);
     setOverlay(null);
-    setVarsOpen(false);
     setTaskVariables(null);
     setActivity(null);
     setActionMessage(null);
@@ -427,30 +424,11 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
               </div>
             </dl>
 
-            <section className="v2-taken-section">
-              <h3>
-                <button
-                  type="button"
-                  className="cwp-disclosure"
-                  aria-expanded={varsOpen}
-                  aria-controls="v2-taken-procesgegevens"
-                  onClick={() => setVarsOpen((open) => !open)}
-                >
-                  <span>Procesgegevens</span>
-                  <span className="cwp-disclosure-hint">
-                    {varsOpen ? 'Gegevens verbergen' : 'Gegevens tonen'}
-                    <span className="cwp-disclosure-icon" aria-hidden="true">
-                      {varsOpen ? '▲' : '▼'}
-                    </span>
-                  </span>
-                </button>
-              </h3>
-              {varsOpen && (
-                <div id="v2-taken-procesgegevens">
-                  <ProcessVarsSection variables={taskVariables} loading={detailLoading} />
-                </div>
-              )}
-            </section>
+            <ProcessVarsDisclosure
+              key={selected.id}
+              variables={taskVariables}
+              loading={detailLoading}
+            />
 
             <section className="v2-taken-section">
               <h3>Processtappen</h3>

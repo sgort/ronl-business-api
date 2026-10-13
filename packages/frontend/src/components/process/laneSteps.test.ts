@@ -13,6 +13,10 @@ import {
   h,
 } from '../../test/kapvergunningFixtures';
 import {
+  GATEWAY_TAG,
+  nextMeta,
+  stepName,
+  type TrailStep,
   buildTrail,
   collapseFrom,
   currentGroupIndex,
@@ -210,5 +214,85 @@ describe('groupByLane and transitions', () => {
     );
     const g2 = groupByLane(buildTrail(done), done);
     expect(currentGroupIndex(g2)).toBe(g2.length - 1);
+  });
+});
+
+const step = (over: Partial<TrailStep>): TrailStep => ({
+  processKey: 'P',
+  nodeId: 'n',
+  label: 'n',
+  kind: 'gateway',
+  laneKey: 'l',
+  state: 'next',
+  isMine: false,
+  ...over,
+});
+
+describe('gateway steps', () => {
+  it('names an unnamed gateway by its kind, a named decision by its question', () => {
+    expect(
+      stepName(
+        step({
+          gateway: 'split',
+          idLabel: true,
+          kind: 'parallel',
+          label: 'Gateway_OnderzoekenSplit',
+        })
+      )
+    ).toBe('Tegelijk');
+    expect(stepName(step({ gateway: 'join', idLabel: true, kind: 'parallel' }))).toBe(
+      'Alles klaar'
+    );
+    expect(stepName(step({ gateway: 'merge', idLabel: true }))).toBe('Samenkomst');
+    expect(stepName(step({ gateway: 'decision', idLabel: true }))).toBe('Beslissing');
+    expect(stepName(step({ gateway: 'decision', idLabel: false, label: 'Akkoord?' }))).toBe(
+      'Akkoord?'
+    );
+    expect(stepName(step({ kind: 'task', label: 'Taak' }))).toBe('Taak');
+  });
+
+  it('tags gateways by kind', () => {
+    expect(GATEWAY_TAG).toEqual({
+      decision: 'KEUZE',
+      split: 'TEGELIJK',
+      join: 'SAMENKOMST',
+      merge: 'SAMENKOMST',
+    });
+  });
+
+  it('describes what comes next per kind', () => {
+    expect(nextMeta(step({ gateway: 'split', branches: ['—', '—'] }))).toBe(
+      'Hierna · tegelijk verder'
+    );
+    expect(nextMeta(step({ gateway: 'decision', branches: ['ja', '${x == false}'] }))).toBe(
+      'Hierna · keuze: ja / x = false'
+    );
+    expect(nextMeta(step({ gateway: 'decision', branches: ['—', '—'] }))).toBe('Hierna · keuze');
+    expect(nextMeta(step({ gateway: 'join' }))).toBe('Hierna');
+    expect(nextMeta(step({ kind: 'task', gateway: undefined }))).toBe('Hierna');
+  });
+
+  it('carries gateway kind and id-label flag onto trail steps', () => {
+    // REVIEW's "Hierna" stops at Sub_FinalGateway: exclusive, two outgoing edges.
+    const next = buildTrail(REVIEW).filter((s) => s.state === 'next');
+    expect(next[1].gateway).toBe('decision');
+    // The same node as an unnamed parallel gateway reads as a split with an id label.
+    const sub = REVIEW.models[S];
+    const parallel = {
+      ...REVIEW,
+      models: {
+        ...REVIEW.models,
+        [S]: {
+          ...sub,
+          nodes: sub.nodes.map((n) =>
+            n.id === 'Sub_FinalGateway' ? { ...n, kind: 'parallel' as const, label: n.id } : n
+          ),
+        },
+      },
+    };
+    const step = buildTrail(parallel).filter((s) => s.state === 'next')[1];
+    expect(step.gateway).toBe('split');
+    expect(step.idLabel).toBe(true);
+    expect(stepName(step)).toBe('Tegelijk');
   });
 });

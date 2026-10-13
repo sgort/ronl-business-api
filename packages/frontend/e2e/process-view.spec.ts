@@ -1,6 +1,11 @@
 import { expect, test, type Locator } from '@playwright/test';
 import { loginAsMedewerker } from './helpers/auth';
 import { watchForRateLimit } from './helpers/rate-limit';
+import { recordPendingCleanup } from './helpers/operaton-cleanup';
+import { OPERATON_URL } from './helpers/target';
+
+const OPERATON = OPERATON_URL;
+const COLLEAGUE = 'e2e-collega';
 
 /**
  * The shared process view (ProcessView) on every dashboard that shows one.
@@ -23,7 +28,7 @@ async function assertProcessViewRules(view: Locator) {
     const keys = new Set<string>();
     root.querySelectorAll('[data-mark]').forEach((e) => {
       const m = e.getAttribute('data-mark');
-      if (m === 'mine' || m === 'claimed') keys.add(m);
+      if (m === 'mine' || m === 'claimed' || m === 'open') keys.add(m);
     });
     if (root.querySelector('.pb-swim-lane-label.cwp-mine')) keys.add('role');
     root.querySelectorAll('[data-gateway]').forEach((e) => {
@@ -35,7 +40,7 @@ async function assertProcessViewRules(view: Locator) {
   });
   for (const key of present) expect(legend, `legend entry for "${key}"`).toContain(key);
   for (const key of legend) {
-    if (['mine', 'claimed', 'role', 'decision', 'parallel'].includes(key)) {
+    if (['mine', 'claimed', 'open', 'role', 'decision', 'parallel'].includes(key)) {
       expect(present, `diagram shows "${key}" from the legend`).toContain(key);
     }
   }
@@ -139,6 +144,14 @@ test.describe('ProcessView', () => {
     if (!(await link.isVisible())) {
       test.skip(true, 'The selected task has no process model; the overlay is not offered.');
     }
+    // The step list shows no gateway element id, and Procesgegevens starts folded.
+    const stepNames = await page.locator('.cwp-st-name').allTextContents();
+    expect(stepNames.filter((n) => /^Gateway_/.test(n.trim()))).toEqual([]);
+    await expect(page.getByRole('button', { name: /Procesgegevens/ })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
+
     await link.click();
 
     const dialog = page.getByRole('dialog');
@@ -147,5 +160,202 @@ test.describe('ProcessView', () => {
 
     // The overlay's own task: tab by assignee, never more than one.
     expect(await dialog.locator('.pb-swim-inprogress').count()).toBeLessThanOrEqual(1);
+  });
+
+  test('test 1 — Infra-board follows the shared rules', async ({ page }) => {
+    rateLimit = watchForRateLimit(page);
+    await loginAsMedewerker(page, 'test-infra-flevoland', 'test123');
+    await page.locator('.v2-tabs button', { hasText: 'Mijn dag' }).first().click();
+
+    // Mijn dag always lists curated mock todos too, and they come first. A live
+    // item shows its process key ("RipR24Process"); wait for one (the live list
+    // loads after the page) and skip only when none appears.
+    const item = page
+      .locator('.pb-todo-item')
+      .filter({ hasText: /RipR\d+Process/ })
+      .first();
+    const hasItem = await item.waitFor({ state: 'visible', timeout: 30_000 }).then(
+      () => true,
+      () => false
+    );
+    if (!hasItem) {
+      test.skip(true, 'No live project in the Mijn dag queue on this tier; nothing to open.');
+    }
+    await item.click();
+
+    const view = page.locator('.pv');
+    await expect(view).toBeVisible({ timeout: 30_000 });
+
+    // Tabs agree with the page's own "Open taken" list. Polled: the selected
+    // phase starts at R2.1 and moves to the project's own once its live phase
+    // has loaded, and only then do the instance's tasks meet their nodes.
+    await expect
+      .poll(
+        async () => {
+          const pills = await page.locator('.pb-taken-section .v2-taken-pill').allTextContents();
+          const claimed = pills.filter((p) => /Geclaimd/i.test(p)).length > 0;
+          const tabs = (await view.locator('.pb-swim-inprogress').count()) > 0;
+          return claimed === tabs;
+        },
+        { message: 'a claimed task shows a tab in the diagram', timeout: 30_000 }
+      )
+      .toBe(true);
+    await assertProcessViewRules(view);
+
+    // Procesgegevens starts folded in the task panel, and opens on click.
+    const row = page.locator('.pb-taken-item').first();
+    await expect(row).toBeVisible();
+    await row.click();
+    const disclosure = page.getByRole('button', { name: /Procesgegevens/ });
+    await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    await disclosure.click();
+    await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+  });
+});
+
+/** The targets of the deployed process's first parallel split with two branches, from its XML. */
+async function parallelBranchTargets(definitionId: string): Promise<string[]> {
+  const res = await fetch(`${OPERATON}/process-definition/${definitionId}/xml`);
+  const { bpmn20Xml } = (await res.json()) as { bpmn20Xml: string };
+  const gateways = [...bpmn20Xml.matchAll(/<(?:bpmn:)?parallelGateway[^>]*\bid="([^"]+)"/g)].map(
+    (m) => m[1]
+  );
+  for (const id of gateways) {
+    const flows = [...bpmn20Xml.matchAll(/<(?:bpmn:)?sequenceFlow\b[^>]*>/g)].map((m) => m[0]);
+    const targets = flows
+      .filter((f) => f.includes(`sourceRef="${id}"`))
+      .map((f) => /targetRef="([^"]+)"/.exec(f)?.[1])
+      .filter((t): t is string => Boolean(t));
+    if (targets.length >= 2) return targets;
+  }
+  return [];
+}
+
+test.describe('ProcessView — controlled marks', () => {
+  let rateLimit: ReturnType<typeof watchForRateLimit>;
+  let instanceId: string | null = null;
+
+  test.afterEach(async () => {
+    if (instanceId) {
+      await fetch(`${OPERATON}/process-instance/${instanceId}?skipCustomListeners=true`, {
+        method: 'DELETE',
+      });
+      await fetch(`${OPERATON}/history/process-instance/${instanceId}`, { method: 'DELETE' });
+      instanceId = null;
+    }
+    const throttled = rateLimit?.hit();
+    if (throttled) throw new Error(throttled);
+  });
+
+  test('test 2 — mine, claimed and open marks, and parallel bars', async ({ page }) => {
+    test.slow(); // starts, claims and reloads against a real engine
+    const defs = (await (
+      await fetch(`${OPERATON}/process-definition?key=RipR24Process&latestVersion=true`)
+    ).json()) as Array<{ id: string; tenantId: string | null }>;
+    const def = defs.find((d) => d.tenantId === 'flevoland') ?? defs[0];
+    if (!def) test.skip(true, 'RipR24Process is not deployed on this tier.');
+    const targets = await parallelBranchTargets(def!.id);
+    if (targets.length < 2)
+      test.skip(true, 'RipR24Process has no parallel split with two branches.');
+
+    // Start an own instance with both parallel branches open.
+    const businessKey = `e2e-process-view-${Date.now()}`;
+    const started = await fetch(`${OPERATON}/process-definition/${def!.id}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        businessKey,
+        variables: {
+          municipality: { value: 'flevoland', type: 'String' },
+          projectNumber: { value: 'E2E-PV', type: 'String' },
+          projectName: { value: 'E2E ProcessView', type: 'String' },
+        },
+        startInstructions: targets.map((activityId) => ({
+          type: 'startBeforeActivity',
+          activityId,
+        })),
+      }),
+    });
+    expect(started.ok, `start failed: HTTP ${started.status}`).toBe(true);
+    instanceId = ((await started.json()) as { id: string }).id;
+    recordPendingCleanup(businessKey);
+
+    const tasks = (await (
+      await fetch(`${OPERATON}/task?processInstanceId=${instanceId}`)
+    ).json()) as Array<{ id: string; taskDefinitionKey: string; name: string }>;
+    expect(tasks.length, 'both parallel branches are open tasks').toBeGreaterThanOrEqual(2);
+    const [mineTask, colleagueTask] = tasks;
+    // BPMN names can hold line breaks; the page shows them as one line.
+    const mineName = mineTask.name.replace(/\s+/g, ' ').trim();
+
+    // The queue shows a live project by process key and task name, not by
+    // project name: another running R2.4 with the same open task would be
+    // indistinguishable from this one, so the test cannot run then.
+    const sameName = (await (
+      await fetch(
+        `${OPERATON}/task?processDefinitionKey=RipR24Process&name=${encodeURIComponent(mineTask.name)}`
+      )
+    ).json()) as Array<{ processInstanceId: string }>;
+    if (sameName.some((t) => t.processInstanceId !== instanceId)) {
+      test.skip(
+        true,
+        `Another running RipR24Process has an open "${mineTask.name}"; the queue cannot tell it from this test's own instance.`
+      );
+    }
+
+    await fetch(`${OPERATON}/task/${colleagueTask.id}/assignee`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: COLLEAGUE }),
+    });
+
+    rateLimit = watchForRateLimit(page);
+    await loginAsMedewerker(page, 'test-infra-flevoland', 'test123');
+    const openOwnProject = async () => {
+      await page.locator('.v2-tabs button', { hasText: 'Mijn dag' }).first().click();
+      await page
+        .locator('.pb-todo-item', { hasText: mineName })
+        .filter({ hasText: 'RipR24Process' })
+        .first()
+        .click({ timeout: 60_000 });
+    };
+    await openOwnProject();
+
+    // Before any claim: the colleague's task is "geclaimd", ours has no tab.
+    const view = page.locator('.pv');
+    const node = (key: string) => view.locator(`[data-node-id="${key}"]`);
+    await expect(node(colleagueTask.taskDefinitionKey)).toHaveAttribute('data-mark', 'claimed', {
+      timeout: 30_000,
+    });
+    await expect(node(colleagueTask.taskDefinitionKey).locator('.pb-swim-inprogress')).toHaveText(
+      'geclaimd'
+    );
+    await expect(node(mineTask.taskDefinitionKey)).toHaveAttribute('data-mark', 'open');
+    await expect(node(mineTask.taskDefinitionKey).locator('.pb-swim-inprogress')).toHaveCount(0);
+    await expect(view.locator('[data-legend="claimed"]')).toBeVisible();
+    await expect(
+      view.locator('[data-gateway="split"], [data-gateway="join"]').first()
+    ).toBeVisible();
+
+    // Claim ours through the screen, so its assignee is the logged-in user's own id.
+    await page.locator('.pb-taken-item', { hasText: mineName }).first().click();
+    await page.getByRole('button', { name: 'Taak claimen' }).click();
+    await expect(page.getByRole('button', { name: 'Taak claimen' })).toHaveCount(0, {
+      timeout: 15_000,
+    });
+
+    // Reopen through Mijn dag, not page.reload(): the token lives in memory, so a
+    // full reload logs the test out. ProjectDetail fetches the open tasks again
+    // when it mounts, so the diagram reads the fresh assignee.
+    await openOwnProject();
+    await expect(node(mineTask.taskDefinitionKey)).toHaveAttribute('data-mark', 'mine', {
+      timeout: 30_000,
+    });
+    await expect(node(mineTask.taskDefinitionKey).locator('.pb-swim-inprogress')).toHaveText(
+      'jouw taak'
+    );
+    await expect(view.locator('[data-legend="mine"]')).toBeVisible();
+    await expect(view.locator('.pb-swim-lane-label.cwp-mine').first()).toBeVisible();
+    await assertProcessViewRules(view);
   });
 });

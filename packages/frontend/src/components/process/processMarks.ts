@@ -1,5 +1,5 @@
 import type { PhaseSwimlaneModel, SwimEdge, SwimNode, Task } from '@ronl/shared';
-import type { StatusKey } from './status';
+import { STATUS, type StatusKey } from './status';
 
 /**
  * What the shared process view derives from data, as pure functions: the
@@ -20,7 +20,20 @@ export interface Viewer {
 export type ProcessTask = Pick<Task, 'taskDefinitionKey' | 'assignee'>;
 
 export type LegendKey =
-  'done' | 'active' | 'mine' | 'claimed' | 'role' | 'auto' | 'decision' | 'parallel' | 'todo';
+  | 'done'
+  | 'active'
+  | 'action'
+  | 'risk'
+  | 'overdue'
+  | 'wachtend'
+  | 'mine'
+  | 'claimed'
+  | 'open'
+  | 'role'
+  | 'auto'
+  | 'decision'
+  | 'parallel'
+  | 'todo';
 
 export interface LegendEntry {
   key: LegendKey;
@@ -65,6 +78,7 @@ export function gatewayKind(node: SwimNode, edges: readonly SwimEdge[]): Gateway
   return outgoing >= 2 ? 'decision' : 'merge';
 }
 
+const FLAG_STATUSES = ['action', 'risk', 'overdue', 'wachtend'] as const;
 const AUTO_KINDS = new Set<SwimNode['kind']>(['script', 'rule', 'service']);
 const FLOW_KINDS = new Set<SwimNode['kind']>(['start', 'end', 'gateway', 'parallel']);
 
@@ -91,8 +105,13 @@ export function legendEntries(input: {
   const entries: LegendEntry[] = [];
   if (steps.some((n) => status(n.id) === 'done')) entries.push({ key: 'done', label: 'Afgerond' });
   if (steps.some((n) => status(n.id) === 'active')) entries.push({ key: 'active', label: 'Loopt' });
+  // The Infra-board draws mock projects with these statuses (deriveMockStatus).
+  for (const key of FLAG_STATUSES) {
+    if (steps.some((n) => status(n.id) === key)) entries.push({ key, label: STATUS[key].label });
+  }
   if (markValues.has('mine')) entries.push({ key: 'mine', label: 'Jouw taak' });
   if (markValues.has('claimed')) entries.push({ key: 'claimed', label: 'Geclaimd' });
+  if (markValues.has('open')) entries.push({ key: 'open', label: 'Open taak' });
   if (myLanes.size > 0) {
     entries.push({
       key: 'role',
@@ -101,6 +120,11 @@ export function legendEntries(input: {
   }
   if (model.nodes.some((n) => AUTO_KINDS.has(n.kind))) {
     entries.push({ key: 'auto', label: 'Automatisch (script / DMN)' });
+  }
+  const kinds = new Set(model.nodes.map((n) => gatewayKind(n, model.edges)));
+  if (kinds.has('decision')) entries.push({ key: 'decision', label: 'Beslissing' });
+  if (kinds.has('split') || kinds.has('join')) {
+    entries.push({ key: 'parallel', label: 'Tegelijk / alles klaar' });
   }
   if (steps.some((n) => status(n.id) === 'todo')) {
     entries.push({ key: 'todo', label: 'Nog niet / niet doorlopen' });

@@ -1,6 +1,6 @@
 # CSS files — what each stylesheet is for
 
-The repository tracks 21 `.css` files across the Keycloak theme, the shared
+The repository tracks 22 `.css` files across the Keycloak theme, the shared
 token file and four frontend packages. Nearly all of them scope every selector under a single
 root class per surface (`.cwd-v2`, `.pbd`, `.wood`, `.pac`, `.lcp`, …), so a
 stylesheet cannot leak into another app or dashboard. Tailwind is used for
@@ -70,6 +70,7 @@ that section.
 | `src/components/LoginChoice/access-denied.css`  |    96 | `.lcp-denied`     | The no-access dialog on the landing pages (`AccessDeniedDialog`).                                                                                                                 |
 | `src/components/process/process-view.css`       |   158 | `.pbd`            | Phase stepper and BPMN swimlane, shared by the Infra-board and the caseworker process view. Moved verbatim from `dashboard-infra.css`; a caseworker container opts in with `pbd`. |
 | `src/components/process/caseworker-process.css` |   106 | `.cwd-v2`, `.pbd` | Caseworker process view: "Waar sta ik", process steps per role, and the swimlane overlay in the Taken inbox.                                                                      |
+| `src/components/process/process-disclosure.css` |     9 | `.cwd-v2`         | The folded "Procesgegevens" disclosure (`ProcessVarsDisclosure`) on every dashboard's task panel.                                                                                 |
 | `src/components/signing/signing-panel.css`      |    42 | `.pb-sign-panel`  | The ValidSign signing panel embedded in task views. Owned by the component, not a dashboard, because the Infra-board and the caseworker inbox both show it.                       |
 
 ## `packages/pa-cockpit` — shared PA-Cockpit package

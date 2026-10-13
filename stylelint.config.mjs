@@ -16,6 +16,7 @@ const ROOTS = {
   "packages/frontend/src/components/LoginChoice/access-denied.css": [".lcp-denied"],
   "packages/frontend/src/components/LoginChoice/single-board.css": [".lcp-single"],
   "packages/frontend/src/components/process/caseworker-process.css": [".cwd-v2", ".pbd"],
+  "packages/frontend/src/components/process/process-disclosure.css": [".cwd-v2"],
   "packages/frontend/src/components/process/process-view.css": [".pbd"],
   "packages/frontend/src/components/signing/signing-panel.css": [".pb-sign-panel"],
   "packages/frontend/src/pages/caseworker-v2/dashboard-v2.css": [".cwd-v2"],
