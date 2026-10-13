@@ -353,9 +353,28 @@ not "whichever ran last."
 
 ### Regenerate the release SBOM
 
+**Generate it with the npm CI uses, not your own.** `sbom.yml` pins an exact
+Node version, and that Node's bundled npm is what the pull request checks
+with. Look it up, then run the generator under that npm:
+
 ```bash
-npm run sbom
+NODE=$(grep -oE "node-version: '[0-9.]+'" .github/workflows/sbom.yml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+CI_NPM=$(curl -s https://nodejs.org/dist/index.json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const r=JSON.parse(s).find(v=>v.version==='v'+process.argv[1]);if(!r)process.exit(1);console.log(r.npm)})" "$NODE")
+echo "sbom.yml: Node $NODE, npm $CI_NPM"
+npx -y -p "npm@$CI_NPM" node scripts/write-sbom.mjs
 ```
+
+Stop if `CI_NPM` comes back empty: the lookup failed, and guessing the version
+brings back the failure below.
+
+The SBOM records the npm that generated it (`metadata.tools`), and the strict
+check compares that field along with everything else. So a file written by a
+different npm fails `release-sbom` with identical components, and `npm run
+sbom:check` cannot warn you locally: it generates with the same npm that wrote
+the file, so it always agrees with itself. That happened on v2026.10.3's
+release pull request (#384): written with npm 11.21.0, checked by CI with the
+11.19.0 bundled with Node 24.21.0. It went red after every local check had
+passed and needed a second commit (`d61564f`) to regenerate the file.
 
 Writes `docs/sbom/<name>-<version>.cdx.json` — CycloneDX, production
 dependencies only, read from the lockfile without installing. **Run it after
@@ -373,13 +392,15 @@ repository; the committed copy is the durable one.
 file describes the lockfile it will ship with:
 
 ```bash
-npm run sbom:check
+npx -y -p "npm@$CI_NPM" node scripts/write-sbom.mjs --check
 ```
 
-Run it after `npm run sbom`, and again after anything that can move the
-lockfile before the commit: a rebase, a late dependency merge, a manual
-`npm install`. It exits 1 on a missing or stale file; the fix is
-`npm run sbom`. `sbom.yml` runs the same check on the release pull request,
+Under the same npm as the generation, for the reason above. Run it after
+generating, and again after anything that can move the lockfile before the
+commit: a rebase, a late dependency merge, a manual `npm install`. It exits 1
+on a missing or stale file; the fix is to regenerate it as above. Prettier
+(step 6) reformats the file without changing what the check compares, so it
+still passes afterwards. `sbom.yml` runs the same check on the release pull request,
 the one that changes this version's file, and re-runs it on every push to
 that pull request. On the promotion it only asserts the file exists: a
 promotion carries commits merged after the release, so drift there is a
