@@ -48,7 +48,9 @@ export interface PortfolioProject {
   /** Set when this row is backed by a live Operaton process instance. */
   instanceId?: string;
   ripPhaseCode: string;
-  ripPhaseState: 'wip' | 'wachtend';
+  /** 'wachtend': the phase is finished and the next one not started.
+   *  'afgerond': the last phase is finished (live rows only). */
+  ripPhaseState: 'wip' | 'wachtend' | 'afgerond';
 }
 
 export interface TodoItem {
@@ -685,6 +687,121 @@ export function makeLivePhaseRow(
     ripPhaseCode: phaseCode,
     ripPhaseState: 'wip',
   };
+}
+
+/** A finished instance as GET /v1/rip/phases/completed reports it. */
+export interface LiveCompletedInstance {
+  id: string;
+  businessKey: string | null;
+  startTime: string;
+  endTime: string;
+  projectNumber: string;
+  projectName: string;
+  leadRole?: string;
+  phaseCode: string;
+}
+
+/**
+ * The finished instances that stand for a project waiting between phases:
+ * per businessKey, the furthest finished phase (the latest run when a phase
+ * finished twice), and nothing at all when the project is running anywhere
+ * on the ladder -- the running instance already represents it.
+ *
+ * An instance without a businessKey cannot be joined to its project's other
+ * instances, so it is kept, as the readiness list in Beheer keeps it
+ * (useRipPhaseReadiness): offering a duplicate is recoverable, silently
+ * hiding a project is not.
+ */
+export function waitingInstances(
+  active: ReadonlyArray<{ businessKey: string | null }>,
+  completed: ReadonlyArray<LiveCompletedInstance>
+): LiveCompletedInstance[] {
+  const running = new Set(active.map((i) => i.businessKey).filter((k): k is string => !!k));
+  const phaseIdx = (code: string) => RIP_PHASES.findIndex((p) => p.code === code);
+  const furthest = new Map<string, LiveCompletedInstance>();
+  const unkeyed: LiveCompletedInstance[] = [];
+  for (const inst of completed) {
+    if (phaseIdx(inst.phaseCode) < 0) continue;
+    if (!inst.businessKey) {
+      unkeyed.push(inst);
+      continue;
+    }
+    if (running.has(inst.businessKey)) continue;
+    const seen = furthest.get(inst.businessKey);
+    const further =
+      !seen ||
+      phaseIdx(inst.phaseCode) > phaseIdx(seen.phaseCode) ||
+      (inst.phaseCode === seen.phaseCode && inst.endTime > seen.endTime);
+    if (further) furthest.set(inst.businessKey, inst);
+  }
+  return [...furthest.values(), ...unkeyed];
+}
+
+/**
+ * Portfolio row for a project that finished `phaseCode` and has not started
+ * the next phase: the same shape the mock 'wachtend' projects have (the
+ * finished phase is current and drawn as wachtend), anchored like
+ * makeLivePhaseRow on the instance's start quarter. A project that finished
+ * the last phase is done throughout.
+ */
+export function makeWaitingPhaseRow(
+  inst: {
+    id: string;
+    startTime: string;
+    projectNumber: string;
+    projectName: string;
+    leadRole?: string;
+  },
+  phaseCode: string
+): PortfolioProject {
+  const d = new Date(inst.startTime);
+  const fromIdx = qIdx(d.getFullYear(), Math.floor(d.getMonth() / 3) + 1);
+  const doneIdx = RIP_PHASES.findIndex((p) => p.code === phaseCode);
+  const finishedLadder = doneIdx === RIP_PHASES.length - 1;
+  const statuses: StatusKey[] = RIP_PHASES.map((_, i) =>
+    i < doneIdx || finishedLadder ? 'done' : i === doneIdx ? 'wachtend' : 'todo'
+  );
+  const segments = buildRipSegments(fromIdx, statuses);
+  const last = segments[segments.length - 1];
+  return {
+    id: 'live-' + inst.id,
+    nr: liveProjectNumber(inst.projectNumber, inst.id),
+    // Not liveProjectName: its R2.1 fallback says the intake is still open,
+    // which is untrue of an instance that has finished.
+    naam: isMissing(inst.projectName) ? `RIP ${phaseCode} afgerond` : inst.projectName,
+    role: normalizeLeadRole(inst.leadRole),
+    health: 'groen',
+    milestone: finishedLadder
+      ? 'RIP afgerond'
+      : `${phaseCode} afgerond · wacht op start van ${RIP_PHASES[doneIdx + 1].code}`,
+    budget: '—',
+    startYear: d.getFullYear(),
+    start: fromIdx,
+    end: last.from + last.len,
+    segments,
+    instanceId: inst.id,
+    ripPhaseCode: phaseCode,
+    ripPhaseState: finishedLadder ? 'afgerond' : 'wachtend',
+  };
+}
+
+/**
+ * Every live project as a portfolio row: the running ones, then those waiting
+ * between phases. The one place the portfolio and the board's rail stats get
+ * their live rows from, so the two cannot disagree. Either list may still be
+ * loading (null).
+ */
+export function liveProjectRows(
+  active: ReadonlyArray<
+    Parameters<typeof makeLivePhaseRow>[0] & { businessKey: string | null; phaseCode: string }
+  > | null,
+  completed: ReadonlyArray<LiveCompletedInstance> | null
+): PortfolioProject[] {
+  const running = active ?? [];
+  return [
+    ...running.map((i) => makeLivePhaseRow(i, i.phaseCode)),
+    ...waitingInstances(running, completed ?? []).map((i) => makeWaitingPhaseRow(i, i.phaseCode)),
+  ];
 }
 
 function pbHash(s: string): number {

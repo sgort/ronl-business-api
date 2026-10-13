@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import InfraBoardDashboard from './InfraBoardDashboard';
+import { getMockPortfolio } from './infra-board/infra-board.data';
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 vi.mock('react-router-dom', () => ({ useNavigate: () => mockNavigate }));
@@ -44,6 +45,7 @@ vi.mock('./ChangelogPanel', () => ({ default: () => null }));
 
 const mockUseOpenTasks = vi.hoisted(() => vi.fn());
 const mockUseRipActiveAcrossPhases = vi.hoisted(() => vi.fn());
+const mockUseRipCompletedAcrossPhases = vi.hoisted(() => vi.fn());
 const mockUseDeployedProcessKeys = vi.hoisted(() => vi.fn());
 const mockUseLivePhaseCounts = vi.hoisted(() => vi.fn());
 vi.mock('../services/infra.api', async (importOriginal) => {
@@ -52,6 +54,7 @@ vi.mock('../services/infra.api', async (importOriginal) => {
     ...actual,
     useOpenTasks: mockUseOpenTasks,
     useRipActiveAcrossPhases: mockUseRipActiveAcrossPhases,
+    useRipCompletedAcrossPhases: mockUseRipCompletedAcrossPhases,
     useDeployedProcessKeys: mockUseDeployedProcessKeys,
     useLivePhaseCounts: mockUseLivePhaseCounts,
   };
@@ -64,6 +67,12 @@ describe('InfraBoardDashboard', () => {
     window.sessionStorage.clear();
     mockUseOpenTasks.mockReturnValue({ data: null, loading: false, error: false, reload: vi.fn() });
     mockUseRipActiveAcrossPhases.mockReturnValue({
+      data: null,
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    mockUseRipCompletedAcrossPhases.mockReturnValue({
       data: null,
       loading: false,
       error: false,
@@ -220,6 +229,40 @@ describe('InfraBoardDashboard', () => {
     expect(screen.getByText('Aandacht')).toBeInTheDocument();
     expect(screen.getByText('Risico')).toBeInTheDocument();
     expect(screen.getByText('Wacht op start')).toBeInTheDocument();
+  });
+
+  it('Portfolio rail counts a live project waiting between phases under "Wacht op start"', async () => {
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: ['infra-projectteam'] });
+    mockUseRipCompletedAcrossPhases.mockReturnValue({
+      data: [
+        {
+          id: 'c1',
+          businessKey: 'k-wait',
+          startTime: '2026-09-01T10:00:00Z',
+          endTime: '2026-10-08T10:00:00Z',
+          projectNumber: 'MANUAL-1',
+          projectName: 'Wacht op R2.2',
+          edocsWorkspaceId: 'w1',
+          leadRole: '',
+          phaseCode: 'R2.1',
+        },
+      ],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    const user = userEvent.setup();
+
+    render(<InfraBoardDashboard />);
+    await user.click(screen.getByRole('button', { name: 'Portfolio' }));
+
+    const mockWaiting = getMockPortfolio().filter((p) => p.ripPhaseState === 'wachtend').length;
+    await waitFor(() =>
+      expect(screen.getByText('Wacht op start').parentElement!.textContent).toContain(
+        String(mockWaiting + 1)
+      )
+    );
   });
 
   it('Beheer rail shows the faseladder subtitle and a deployed-phase item with no muted class', async () => {

@@ -182,6 +182,39 @@ export const useRipActiveAcrossPhases = (): AsyncState<RipPhaseInstanceRow[]> =>
   return ctx;
 };
 
+/** A finished instance carrying the phase it belongs to. */
+export interface RipPhaseCompletedRow extends RipPhaseCompletedInstance {
+  leadRole: string;
+  phaseCode: string;
+}
+
+/** The fetch behind `useRipCompletedAcrossPhases`, run once by
+ *  `RipActiveAcrossPhasesProvider` — see `useRipActiveAcrossPhasesResource`. */
+export const useRipCompletedAcrossPhasesResource = () =>
+  useAsync<RipPhaseCompletedRow[]>(() => businessApi.rip.phasesCompleted(), []);
+
+export const RipCompletedAcrossPhasesContext = createContext<AsyncState<
+  RipPhaseCompletedRow[]
+> | null>(null);
+
+/**
+ * Finished instances portfolio-wide, across every phase: the running list's
+ * counterpart, needed for a project that finished a phase and has not
+ * started the next one -- it has no running instance, so
+ * `useRipActiveAcrossPhases` alone leaves it out (see waitingInstances in
+ * infra-board.data.ts). Shared by the same provider, refreshed with it, and
+ * throws outside it for the same reason.
+ */
+export const useRipCompletedAcrossPhases = (): AsyncState<RipPhaseCompletedRow[]> => {
+  const ctx = useContext(RipCompletedAcrossPhasesContext);
+  if (!ctx) {
+    throw new Error(
+      'useRipCompletedAcrossPhases must be used inside RipActiveAcrossPhasesProvider'
+    );
+  }
+  return ctx;
+};
+
 /** A project that finished the preceding phase and can start this one. */
 export interface RipPhaseCandidate {
   /** The completed predecessor instance this candidate came from. */

@@ -39,6 +39,7 @@ import ChangelogPanel from './ChangelogPanel';
 import {
   useOpenTasks,
   useRipActiveAcrossPhases,
+  useRipCompletedAcrossPhases,
   useDeployedProcessKeys,
   useLivePhaseCounts,
 } from '../services/infra.api';
@@ -46,7 +47,7 @@ import {
   getMockPortfolio,
   getMockTodos,
   getMockPhaseCounts,
-  makeLivePhaseRow,
+  liveProjectRows,
   type PortfolioProject,
 } from './infra-board/infra-board.data';
 import { RIP_PHASES } from './infra-board/rip-phases.catalog';
@@ -171,6 +172,7 @@ function InfraBoardDashboardContent() {
   // rather than lifting it here and threading it down as props.
   const { data: liveTasks } = useOpenTasks();
   const { data: liveInstances, reload: reloadLiveInstances } = useRipActiveAcrossPhases();
+  const { data: finishedInstances } = useRipCompletedAcrossPhases();
 
   // Refresh the shared live instances on every mode switch (Mijn dag,
   // Portfolio, Beheer), so a project started from Beheer or outside the board
@@ -188,9 +190,9 @@ function InfraBoardDashboardContent() {
   const { data: deployment } = useDeployedProcessKeys();
   const { data: liveCountsRaw } = useLivePhaseCounts();
 
-  const liveRows: PortfolioProject[] = (liveInstances ?? []).map((i) =>
-    makeLivePhaseRow(i, i.phaseCode)
-  );
+  // The same live rows the portfolio shows, waiting-between-phases included,
+  // so its "Wacht op start" stat counts them too.
+  const liveRows: PortfolioProject[] = liveProjectRows(liveInstances, finishedInstances);
   const liveNrs = new Set(liveRows.map((r) => r.nr));
   const allProjects = [...liveRows, ...getMockPortfolio().filter((p) => !liveNrs.has(p.nr))];
 

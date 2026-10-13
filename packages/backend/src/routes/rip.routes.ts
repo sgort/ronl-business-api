@@ -73,54 +73,69 @@ function resolvePhaseKey(code: string, req: Request, res: Response): string | nu
  * catch itself (infra.api.ts) and reports success iff at least one phase
  * succeeded.
  */
-router.get('/phases/active', async (req, res) => {
-  if (!req.user) {
-    return sendProblem(res, req, {
-      status: 401,
-      code: 'UNAUTHORIZED',
-      detail: 'Authentication required',
-    });
-  }
-  const tenantId = req.user.tenantId;
-  // No filter since #85 — every phase carries a process-definition key, so the
-  // type predicate that used to narrow this list has nothing left to narrow.
-  const settled = await Promise.allSettled(
-    RIP_PHASE_KEYS.map((p) =>
-      operatonService.getRipPhaseActiveList(p.processDefinitionKey, tenantId)
-    )
-  );
-  const rows: Array<
-    Awaited<ReturnType<typeof operatonService.getRipPhaseActiveList>>[number] & {
-      phaseCode: string;
-    }
-  > = [];
-  let anySucceeded = false;
-  settled.forEach((result, i) => {
-    if (result.status === 'fulfilled') {
-      anySucceeded = true;
-      for (const instance of result.value) {
-        rows.push({ ...instance, phaseCode: RIP_PHASE_KEYS[i].code });
-      }
-    } else {
-      logger.error('Failed to list active RIP phase instances for the aggregate', {
-        phaseCode: RIP_PHASE_KEYS[i].code,
-        tenantId,
-        error:
-          result.reason instanceof Error
-            ? result.reason.message
-            : String(result.reason ?? 'Unknown error'),
+function phaseAggregate(state: 'active' | 'completed') {
+  const list =
+    state === 'active'
+      ? (key: string, tenantId: string) => operatonService.getRipPhaseActiveList(key, tenantId)
+      : (key: string, tenantId: string) => operatonService.getRipPhaseCompletedList(key, tenantId);
+  const failCode =
+    state === 'active' ? 'RIP_ACTIVE_AGGREGATE_FAILED' : 'RIP_COMPLETED_AGGREGATE_FAILED';
+  return async (req: Request, res: Response) => {
+    if (!req.user) {
+      return sendProblem(res, req, {
+        status: 401,
+        code: 'UNAUTHORIZED',
+        detail: 'Authentication required',
       });
     }
-  });
-  if (!anySucceeded) {
-    return sendProblem(res, req, {
-      status: 500,
-      code: 'RIP_ACTIVE_AGGREGATE_FAILED',
-      detail: 'Failed to retrieve active RIP phase instances for any modelled phase',
+    const tenantId = req.user.tenantId;
+    // No filter since #85 — every phase carries a process-definition key, so the
+    // type predicate that used to narrow this list has nothing left to narrow.
+    const settled = await Promise.allSettled(
+      RIP_PHASE_KEYS.map((p) => list(p.processDefinitionKey, tenantId))
+    );
+    const rows: Array<Record<string, unknown> & { phaseCode: string }> = [];
+    let anySucceeded = false;
+    settled.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        anySucceeded = true;
+        for (const instance of result.value) {
+          rows.push({ ...instance, phaseCode: RIP_PHASE_KEYS[i].code });
+        }
+      } else {
+        logger.error(`Failed to list ${state} RIP phase instances for the aggregate`, {
+          phaseCode: RIP_PHASE_KEYS[i].code,
+          tenantId,
+          error:
+            result.reason instanceof Error
+              ? result.reason.message
+              : String(result.reason ?? 'Unknown error'),
+        });
+      }
     });
-  }
-  res.json({ success: true, data: rows });
-});
+    if (!anySucceeded) {
+      return sendProblem(res, req, {
+        status: 500,
+        code: failCode,
+        detail: `Failed to retrieve ${state} RIP phase instances for any modelled phase`,
+      });
+    }
+    res.json({ success: true, data: rows });
+  };
+}
+
+router.get('/phases/active', phaseAggregate('active'));
+
+/**
+ * GET /v1/rip/phases/completed
+ * Completed instances of EVERY modelled RIP phase, tagged with their phase
+ * code -- the same aggregate as /phases/active above, with the same
+ * one-phase-failing-does-not-blank-the-rest rule. The portfolio needs it to
+ * show a project that has finished a phase while the next one has not been
+ * started: such a project has no running instance at all, so /phases/active
+ * alone drops it.
+ */
+router.get('/phases/completed', phaseAggregate('completed'));
 
 /**
  * GET /v1/rip/phases/:code/active

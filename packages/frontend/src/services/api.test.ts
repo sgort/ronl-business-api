@@ -572,6 +572,29 @@ describe('businessApi.rip', () => {
     expect(seen).toBe('/v1/rip/phases/active');
   });
 
+  it('phasesCompleted fetches the finished instances of every phase in one request', async () => {
+    let seen = '';
+    const row = {
+      id: 'c1',
+      businessKey: 'k1',
+      startTime: '2026-01-01T00:00:00Z',
+      endTime: '2026-02-01T00:00:00Z',
+      projectNumber: '11111',
+      projectName: 'Klaar',
+      edocsWorkspaceId: 'w1',
+      leadRole: '',
+      phaseCode: 'R2.1',
+    };
+    server.use(
+      http.get('*/rip/phases/completed', ({ request }) => {
+        seen = new URL(request.url).pathname;
+        return HttpResponse.json({ success: true, data: [row] });
+      })
+    );
+    expect(await businessApi.rip.phasesCompleted()).toEqual({ success: true, data: [row] });
+    expect(seen).toBe('/v1/rip/phases/completed');
+  });
+
   it('instanceDocuments fetches an instance document bundle', async () => {
     server.use(
       http.get('*/rip/instances/pi-1/documents', () =>

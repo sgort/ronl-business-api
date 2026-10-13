@@ -1,7 +1,9 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import {
   RipActiveAcrossPhasesContext,
+  RipCompletedAcrossPhasesContext,
   useRipActiveAcrossPhasesResource,
+  useRipCompletedAcrossPhasesResource,
 } from '../../services/infra.api';
 
 /**
@@ -32,7 +34,19 @@ import {
  * the same single aggregate request, never one per consumer or per phase.
  */
 export function RipActiveAcrossPhasesProvider({ children }: { children: ReactNode }) {
-  const resource = useRipActiveAcrossPhasesResource();
+  const active = useRipActiveAcrossPhasesResource();
+  // The finished instances ride along: a project between phases has no
+  // running instance, so the portfolio needs both lists, refreshed together.
+  const completed = useRipCompletedAcrossPhasesResource();
+  // A reload of the running list (e.g. the board's mode switch) refreshes
+  // the finished list too, so the two never disagree about a project.
+  const resource = {
+    ...active,
+    reload: () => {
+      active.reload();
+      completed.reload();
+    },
+  };
 
   // `reload` is a new function on every render; the listener reads the latest
   // through a ref so it is attached once rather than on every render.
@@ -48,7 +62,9 @@ export function RipActiveAcrossPhasesProvider({ children }: { children: ReactNod
 
   return (
     <RipActiveAcrossPhasesContext.Provider value={resource}>
-      {children}
+      <RipCompletedAcrossPhasesContext.Provider value={completed}>
+        {children}
+      </RipCompletedAcrossPhasesContext.Provider>
     </RipActiveAcrossPhasesContext.Provider>
   );
 }
