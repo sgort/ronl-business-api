@@ -6,12 +6,17 @@ import {
   type StatusKey,
 } from '../../pages/infra-board/rip-model';
 import { RIP_PHASES, ripPhaseByCode } from '../../pages/infra-board/rip-phases.catalog';
-import { getMockPortfolio, type PortfolioProject } from '../../pages/infra-board/infra-board.data';
+import {
+  getMockPortfolio,
+  makeWaitingPhaseRow,
+  type PortfolioProject,
+} from '../../pages/infra-board/infra-board.data';
 import {
   useActivityHistory,
   useInstanceDocuments,
   useOpenTasks,
   useRipActiveAcrossPhases,
+  useRipCompletedAcrossPhases,
   useRipPhaseCompleted,
   usePhaseSwimlane,
 } from '../../services/infra.api';
@@ -222,9 +227,18 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
   // ProjectRef: MijnDag also opens live projects (from a task, which carries
   // no phase), so a prop would arrive undefined on that path.
   const { data: liveInstances } = useRipActiveAcrossPhases();
-  const currentRow = isLive
+  const { data: finishedInstances } = useRipCompletedAcrossPhases();
+  const runningRow = isLive
     ? (liveInstances ?? []).find((i) => i.id === projectRef.instanceId)
     : undefined;
+  // A project waiting between phases is opened by its finished instance,
+  // which only the finished list knows; its phase is the one it finished.
+  const finishedRow =
+    isLive && !runningRow
+      ? (finishedInstances ?? []).find((i) => i.id === projectRef.instanceId)
+      : undefined;
+  const waiting = finishedRow ? makeWaitingPhaseRow(finishedRow, finishedRow.phaseCode) : undefined;
+  const currentRow = runningRow ?? finishedRow;
   const livePhaseCode = currentRow?.phaseCode;
   const currentPhaseCode = isLive ? (livePhaseCode ?? 'R2.1') : (mock?.ripPhaseCode ?? 'R2.1');
   const [selPhase, setSelPhase] = useState(currentPhaseCode);
@@ -275,16 +289,22 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
       ? nodeStatusFromHistory(history)
       : deriveMockStatus(mock, phaseModel?.nodes ?? []);
 
-  const naam = mock?.naam ?? (docs?.variables?.projectName as string) ?? `Project ${projectRef.nr}`;
+  const naam =
+    mock?.naam ??
+    (docs?.variables?.projectName as string) ??
+    waiting?.naam ??
+    `Project ${projectRef.nr}`;
   const health = mock?.health ?? 'groen';
   const budget = mock?.budget ?? (docs?.variables?.confirmedBudget as string) ?? '—';
-  const milestone = mock?.milestone ?? 'Lopende processtap';
+  const milestone = mock?.milestone ?? waiting?.milestone ?? 'Lopende processtap';
   const startYear = mock?.startYear ?? new Date().getFullYear();
 
   const stepClass = (code: string) => {
     const idx = RIP_PHASES.findIndex((p) => p.code === code);
     const curIdx = RIP_PHASES.findIndex((p) => p.code === currentPhaseCode);
     if (idx < curIdx) return 'done';
+    // A waiting project has finished its current phase.
+    if (idx === curIdx && waiting) return 'done';
     if (idx === curIdx) {
       const f = mock?.segments[idx]?.status;
       return f && (['risk', 'overdue', 'action'] as StatusKey[]).includes(f)

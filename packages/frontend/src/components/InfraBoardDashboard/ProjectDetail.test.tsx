@@ -18,6 +18,7 @@ const mockUseActivityHistory = vi.hoisted(() => vi.fn());
 const mockUseInstanceDocuments = vi.hoisted(() => vi.fn());
 const mockUseOpenTasks = vi.hoisted(() => vi.fn());
 const mockUseRipActiveAcrossPhases = vi.hoisted(() => vi.fn());
+const mockUseRipCompletedAcrossPhases = vi.hoisted(() => vi.fn());
 const mockUsePhaseSwimlane = vi.hoisted(() => vi.fn());
 const mockUseRipPhaseCompleted = vi.hoisted(() => vi.fn());
 vi.mock('../../services/infra.api', async (importOriginal) => {
@@ -28,6 +29,7 @@ vi.mock('../../services/infra.api', async (importOriginal) => {
     useInstanceDocuments: mockUseInstanceDocuments,
     useOpenTasks: mockUseOpenTasks,
     useRipActiveAcrossPhases: mockUseRipActiveAcrossPhases,
+    useRipCompletedAcrossPhases: mockUseRipCompletedAcrossPhases,
     usePhaseSwimlane: mockUsePhaseSwimlane,
     useRipPhaseCompleted: mockUseRipPhaseCompleted,
   };
@@ -72,6 +74,12 @@ beforeEach(() => {
   });
   mockUseOpenTasks.mockReturnValue({ data: null, loading: false, error: false, reload: vi.fn() });
   mockUseRipActiveAcrossPhases.mockReturnValue({
+    data: null,
+    loading: false,
+    error: false,
+    reload: vi.fn(),
+  });
+  mockUseRipCompletedAcrossPhases.mockReturnValue({
     data: null,
     loading: false,
     error: false,
@@ -432,6 +440,53 @@ describe('ProjectDetail — live instance with open tasks', () => {
 
     expect(await screen.findByText('Ondertekening controleren…')).toBeTruthy();
     expect(screen.queryByTestId('task-form-viewer')).toBeNull();
+  });
+});
+
+describe('ProjectDetail — live project waiting between phases', () => {
+  // Finished R2.2, R2.3 not started: no running instance, so the phase can
+  // only come from the finished list.
+  const DONE_R22 = {
+    id: 'pi-22-done',
+    businessKey: 'MANUAL-20261008-113402',
+    startTime: '2026-10-01T10:00:00Z',
+    endTime: '2026-10-08T11:34:02Z',
+    projectNumber: 'MANUAL-20261008-113402',
+    projectName: 'ValidSign handmatige testrun',
+    edocsWorkspaceId: '',
+    leadRole: 'projectleider',
+    phaseCode: 'R2.2',
+  };
+  const ref = { nr: DONE_R22.projectNumber, instanceId: DONE_R22.id };
+
+  beforeEach(() => {
+    mockUseRipCompletedAcrossPhases.mockReturnValue({
+      data: [DONE_R22],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+  });
+
+  it('reports the phase it finished, not R2.1, with what it waits for as the milestone', () => {
+    const { container } = render(<ProjectDetail projectRef={ref} onBack={vi.fn()} />);
+
+    const strip = container.querySelector('.pb-proj-meta-strip') as HTMLElement;
+    expect(within(strip).getByText('R2.2')).toBeInTheDocument();
+    expect(within(strip).getByText('R2.2 afgerond · wacht op start van R2.3')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'ValidSign handmatige testrun'
+    );
+  });
+
+  it('marks the finished rung done rather than active', () => {
+    const { container } = render(<ProjectDetail projectRef={ref} onBack={vi.fn()} />);
+
+    const steps = container.querySelectorAll('.pb-stepper .pb-step');
+    expect(steps[0].className).toContain('done');
+    expect(steps[1].className).toContain('done');
+    expect(steps[1].className).not.toContain('active');
+    expect(steps[2].className).toContain('todo');
   });
 });
 

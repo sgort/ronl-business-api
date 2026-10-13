@@ -211,6 +211,56 @@ describe('GET /phases/active', () => {
   });
 });
 
+describe('GET /phases/completed', () => {
+  const completed = (over: Record<string, unknown> = {}) =>
+    ripInstance({ id: 'c1', endTime: '2026-10-08T10:00:00.000Z', ...over });
+
+  it('401 without a token', async () => {
+    const res = await request(app).get('/v1/rip/phases/completed');
+    expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/rip/phases/completed');
+  });
+
+  it('aggregates completed instances across every modelled phase, tagging each row with its phaseCode', async () => {
+    svc.getRipPhaseCompletedList.mockImplementation((key: string) =>
+      Promise.resolve(key === 'RipR21Process' ? [completed()] : [])
+    );
+    const res = await auth(request(app).get('/v1/rip/phases/completed'));
+    expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/rip/phases/completed');
+    expect(res.body.data).toEqual([completed({ phaseCode: 'R2.1' })]);
+    expect(svc.getRipPhaseCompletedList).toHaveBeenCalledTimes(MODELLED_KEYS.length);
+    expect(svc.getRipPhaseCompletedList).toHaveBeenCalledWith('RipR22Process', 'flevoland');
+    expect(svc.getRipPhaseActiveList).not.toHaveBeenCalled();
+  });
+
+  it('is not swallowed by /phases/:code/completed', async () => {
+    svc.getRipPhaseCompletedList.mockResolvedValue([]);
+    const res = await auth(request(app).get('/v1/rip/phases/completed'));
+    expect(res.status).toBe(200);
+    expect(res.body.code).toBeUndefined();
+    expect(res.body.data).toEqual([]);
+  });
+
+  it('omits a failing phase rather than blanking the rest of the aggregate', async () => {
+    svc.getRipPhaseCompletedList.mockImplementation((key: string) => {
+      if (key === 'RipR22Process') return Promise.reject('socket hang up');
+      return Promise.resolve(key === 'RipR21Process' ? [completed()] : []);
+    });
+    const res = await auth(request(app).get('/v1/rip/phases/completed'));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([completed({ phaseCode: 'R2.1' })]);
+  });
+
+  it('500s with RIP_COMPLETED_AGGREGATE_FAILED when every modelled phase fails', async () => {
+    svc.getRipPhaseCompletedList.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/rip/phases/completed'));
+    expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/phases/completed');
+    expect(res.body.code).toBe('RIP_COMPLETED_AGGREGATE_FAILED');
+  });
+});
+
 describe('GET /phases/deployment-status', () => {
   it('401 without a token', async () => {
     const res = await request(app).get('/v1/rip/phases/deployment-status');
@@ -308,6 +358,7 @@ describe('handler guards for an authenticated request without a user', () => {
 
   it.each([
     ['/v1/rip/phases/active'],
+    ['/v1/rip/phases/completed'],
     ['/v1/rip/phases/R2.1/active'],
     ['/v1/rip/phases/deployment-status'],
     ['/v1/rip/phases/counts'],

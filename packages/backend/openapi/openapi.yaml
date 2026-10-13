@@ -5414,6 +5414,38 @@ paths:
           description: '`RIP_ACTIVE_AGGREGATE_FAILED`.'
           $ref: '#/components/responses/Error'
 
+  /rip/phases/completed:
+    get:
+      operationId: listRipCompletedPhases
+      tags: [RIP]
+      summary: Completed instances across every RIP phase
+      description: |
+        Each row is tagged with its `phaseCode`. A phase whose query fails is
+        left out; the call fails only when every phase does. The portfolio
+        uses it to show projects that finished a phase while the next one has
+        not been started.
+      responses:
+        '200':
+          description: One entry per finished instance, carrying an `endTime`.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/RipInstance' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`RIP_COMPLETED_AGGREGATE_FAILED`.'
+          $ref: '#/components/responses/Error'
+
   /rip/phases/counts:
     get:
       operationId: getRipPhaseCounts

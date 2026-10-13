@@ -11,9 +11,12 @@ import {
   getReadyProjects,
   liveProjectName,
   liveProjectNumber,
+  liveProjectRows,
   makeLivePhaseRow,
+  makeWaitingPhaseRow,
   normalizeLeadRole,
   TL,
+  waitingInstances,
 } from './infra-board.data';
 import { getKlaarCounts } from './rip-phase-counts';
 import { RIP_PHASES } from './rip-phases.catalog';
@@ -51,6 +54,136 @@ describe('liveProjectName / liveProjectNumber', () => {
   it('falls back to the instance id prefix for a missing number', () => {
     expect(liveProjectNumber('', 'abcdefgh-1234')).toBe('abcdefgh');
     expect(liveProjectNumber('—', 'abcdefgh-1234')).toBe('abcdefgh');
+  });
+});
+
+describe('waitingInstances', () => {
+  const done = (
+    id: string,
+    phaseCode: string,
+    businessKey: string | null,
+    endTime = '2026-10-08T10:00:00Z'
+  ) => ({
+    id,
+    businessKey,
+    startTime: '2026-09-01T10:00:00Z',
+    endTime,
+    projectNumber: id.toUpperCase(),
+    projectName: `Project ${id}`,
+    leadRole: '',
+    phaseCode,
+  });
+
+  it('keeps a project whose finished phase has no running successor', () => {
+    expect(waitingInstances([], [done('a', 'R2.1', 'k-a')]).map((r) => r.id)).toEqual(['a']);
+  });
+
+  it('drops a project that is running somewhere on the ladder', () => {
+    const active = [{ businessKey: 'k-a' }];
+    expect(waitingInstances(active, [done('a', 'R2.1', 'k-a')])).toEqual([]);
+  });
+
+  it('keeps only the furthest finished phase of one project', () => {
+    const rows = waitingInstances([], [done('a1', 'R2.1', 'k-a'), done('a2', 'R2.2', 'k-a')]);
+    expect(rows.map((r) => r.id)).toEqual(['a2']);
+  });
+
+  it('takes the latest run when one phase finished more than once', () => {
+    const rows = waitingInstances(
+      [],
+      [
+        done('old', 'R2.1', 'k-a', '2026-09-01T10:00:00Z'),
+        done('new', 'R2.1', 'k-a', '2026-10-01T10:00:00Z'),
+      ]
+    );
+    expect(rows.map((r) => r.id)).toEqual(['new']);
+  });
+
+  it('keeps every instance without a businessKey: a duplicate is recoverable, a hidden project is not', () => {
+    const rows = waitingInstances(
+      [{ businessKey: null }],
+      [done('x', 'R2.1', null), done('y', 'R2.2', null)]
+    );
+    expect(rows.map((r) => r.id).sort()).toEqual(['x', 'y']);
+  });
+
+  it('ignores a row whose phase code the catalogue does not know', () => {
+    expect(waitingInstances([], [done('a', 'R9.9', 'k-a')])).toEqual([]);
+  });
+});
+
+describe('liveProjectRows', () => {
+  const running = {
+    id: 'run-1',
+    businessKey: 'k-run',
+    startTime: '2026-09-01T10:00:00Z',
+    projectNumber: '111',
+    projectName: 'Loopt',
+    leadRole: '',
+    phaseCode: 'R2.2',
+  };
+  const finished = (id: string, businessKey: string, phaseCode: string) => ({
+    id,
+    businessKey,
+    startTime: '2026-08-01T10:00:00Z',
+    endTime: '2026-09-01T09:00:00Z',
+    projectNumber: id,
+    projectName: `Klaar ${id}`,
+    leadRole: '',
+    phaseCode,
+  });
+
+  it('lists running projects first, then the ones waiting between phases', () => {
+    const rows = liveProjectRows(
+      [running],
+      [finished('old', 'k-run', 'R2.1'), finished('wait', 'k-wait', 'R2.1')]
+    );
+    expect(rows.map((r) => [r.instanceId, r.ripPhaseState])).toEqual([
+      ['run-1', 'wip'],
+      ['wait', 'wachtend'],
+    ]);
+  });
+
+  it('copes with either list still loading', () => {
+    expect(liveProjectRows(null, null)).toEqual([]);
+    expect(liveProjectRows(null, [finished('wait', 'k-wait', 'R2.1')])).toHaveLength(1);
+  });
+});
+
+describe('makeWaitingPhaseRow', () => {
+  const inst = (over: Record<string, unknown> = {}) => ({
+    id: 'abcdefgh-1234',
+    startTime: '2024-04-15T00:00:00Z',
+    projectNumber: '24099',
+    projectName: 'Test project',
+    leadRole: 'manager-pb',
+    ...over,
+  });
+
+  it('marks the finished phase wachtend, earlier phases done and later ones todo', () => {
+    const row = makeWaitingPhaseRow(inst(), 'R2.2');
+    expect(row.id).toBe('live-abcdefgh-1234');
+    expect(row.instanceId).toBe('abcdefgh-1234');
+    expect(row.ripPhaseCode).toBe('R2.2');
+    expect(row.ripPhaseState).toBe('wachtend');
+    expect(row.role).toBe('manager-pb');
+    expect(row.segments.map((s) => s.status).slice(0, 3)).toEqual(['done', 'wachtend', 'todo']);
+    expect(row.milestone).toBe('R2.2 afgerond · wacht op start van R2.3');
+    expect(row.start).toBe((2024 - TL.startYear) * 4 + 1);
+  });
+
+  it('shows a project that finished the last phase as done throughout', () => {
+    const lastCode = RIP_PHASES[RIP_PHASES.length - 1].code;
+    const row = makeWaitingPhaseRow(inst(), lastCode);
+    expect(row.ripPhaseState).toBe('afgerond');
+    expect(row.segments.every((s) => s.status === 'done')).toBe(true);
+    expect(row.milestone).toBe('RIP afgerond');
+  });
+
+  it('names a nameless finished instance by the phase it finished, not as an open intake', () => {
+    const row = makeWaitingPhaseRow(inst({ projectName: '', projectNumber: '' }), 'R2.1');
+    expect(row.naam).toBe('RIP R2.1 afgerond');
+    expect(row.nr).toBe('abcdefgh');
   });
 });
 

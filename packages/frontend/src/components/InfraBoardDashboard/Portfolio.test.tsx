@@ -7,13 +7,24 @@ import { getMockPortfolio, MIJN_PROJECT_NRS } from '../../pages/infra-board/infr
 import { RIP_PHASES, RIP_STAGES } from '../../pages/infra-board/rip-phases.catalog';
 
 const mockUseRipActiveAcrossPhases = vi.hoisted(() => vi.fn());
+const mockUseRipCompletedAcrossPhases = vi.hoisted(() => vi.fn());
 vi.mock('../../services/infra.api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../services/infra.api')>();
-  return { ...actual, useRipActiveAcrossPhases: mockUseRipActiveAcrossPhases };
+  return {
+    ...actual,
+    useRipActiveAcrossPhases: mockUseRipActiveAcrossPhases,
+    useRipCompletedAcrossPhases: mockUseRipCompletedAcrossPhases,
+  };
 });
 
 beforeEach(() => {
   mockUseRipActiveAcrossPhases.mockReturnValue({
+    data: null,
+    loading: false,
+    error: false,
+    reload: vi.fn(),
+  });
+  mockUseRipCompletedAcrossPhases.mockReturnValue({
     data: null,
     loading: false,
     error: false,
@@ -134,7 +145,7 @@ describe('Portfolio', () => {
     });
   });
 
-  it('shows Kanban cards with status wachtend as "Wacht op start van {code}" instead of their milestone', async () => {
+  it('shows a wachtend Kanban card as waiting for the NEXT phase, not the one it finished', async () => {
     const user = userEvent.setup();
     render(<Portfolio onOpenProject={vi.fn()} />);
 
@@ -142,10 +153,50 @@ describe('Portfolio', () => {
 
     const wachtendProject = getMockPortfolio().find((p) => p.ripPhaseState === 'wachtend');
     expect(wachtendProject).toBeDefined();
+    const idx = RIP_PHASES.findIndex((p) => p.code === wachtendProject!.ripPhaseCode);
+    const card = screen.getByText(wachtendProject!.naam).closest('.pb-kan-card')!;
+    expect(card.querySelector('.ms')!.textContent).toBe(
+      `Wacht op start van ${RIP_PHASES[idx + 1].code}`
+    );
+  });
+
+  it('shows a live project that finished a phase and has not started the next one', async () => {
+    mockUseRipCompletedAcrossPhases.mockReturnValue({
+      data: [
+        {
+          id: 'c1',
+          businessKey: 'k-wait',
+          startTime: '2026-09-01T10:00:00Z',
+          endTime: '2026-10-08T10:00:00Z',
+          projectNumber: 'MANUAL-1',
+          projectName: 'Wacht op R2.2',
+          edocsWorkspaceId: 'w1',
+          leadRole: '',
+          phaseCode: 'R2.1',
+        },
+      ],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    const onOpenProject = vi.fn();
+    const user = userEvent.setup();
+    const { container } = render(<Portfolio onOpenProject={onOpenProject} />);
+
+    const row = screen.getByText('Wacht op R2.2').closest('.pb-gantt-row')!;
+    expect(row.querySelector('.pb-live-badge')).not.toBeNull();
+    expect(row.querySelector('.pb-gantt-bar.current')!.classList).toContain('wachtend');
     expect(
-      screen.getAllByText(`Wacht op start van ${wachtendProject!.ripPhaseCode}`, { exact: false })
-        .length
-    ).toBeGreaterThan(0);
+      screen.getByText(`${getMockPortfolio().length + 1} projecten`, { exact: false })
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByText('Wacht op R2.2'));
+    expect(onOpenProject).toHaveBeenCalledWith({ nr: 'MANUAL-1', instanceId: 'c1' });
+
+    await user.click(screen.getByRole('button', { name: 'Per fase' }));
+    const card = screen.getByText('Wacht op R2.2').closest('.pb-kan-card')!;
+    expect(card.querySelector('.ms')!.textContent).toBe('Wacht op start van R2.2');
+    expect(container.querySelector('.pb-kanban')).not.toBeNull();
   });
 
   it('marks a live instance on its Kanban card and shows "—" in phases without projects', async () => {

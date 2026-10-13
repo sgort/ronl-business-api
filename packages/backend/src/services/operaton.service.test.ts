@@ -1965,6 +1965,23 @@ describe('archive list builders', () => {
     );
   });
 
+  it('getRipPhaseCompletedList carries the lead role, empty when the instance has none', async () => {
+    // A finished phase whose successor has not started still shows on the
+    // portfolio, and its role filter reads leadRole just as a running one does.
+    mockClient.post.mockResolvedValue({
+      data: [
+        { id: 'i1', businessKey: 'k1', startTime: 's', endTime: 'e' },
+        { id: 'i2', businessKey: 'k2', startTime: 's', endTime: 'e' },
+      ],
+    });
+    mockClient.get.mockResolvedValue({
+      data: [{ processInstanceId: 'i1', name: 'leadRole', value: 'ontwerper' }],
+    });
+
+    const res = await svc.getRipPhaseCompletedList('RipR21Process', 'flevoland');
+    expect(res.map((r) => r.leadRole)).toEqual(['ontwerper', '']);
+  });
+
   it('maps a missing businessKey to null on both RIP list builders', async () => {
     // Operaton omits businessKey rather than sending null when an instance
     // was started without one. The readiness filter treats null as "no key,
