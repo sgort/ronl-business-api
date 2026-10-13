@@ -112,6 +112,102 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.10.3',
+      status: 'Released',
+      date: '13 okt 2026',
+      scope: ['frontend', 'backend', 'pa-demo'],
+      commits: [
+        {
+          sha: '94084db',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The portfolio shows live projects waiting between phases',
+          details: [
+            'The portfolio was fed only by running RIP instances, so a project that finished a phase while the next had not been started dropped out, although Beheer\'s "Starten" list showed it. `GET /v1/rip/phases/completed` returns the finished instances of every phase, tagged with `phaseCode`, under the same aggregate rules as `/phases/active`; the finished list now carries `leadRole` for the role filter.',
+            'The shared provider fetches running and finished instances together. Per `businessKey` the furthest finished phase becomes a portfolio row drawn as wachtend, dropped while the project runs anywhere; an instance without a key is kept, as the Beheer list keeps it. Finishing R6.1 shows as "RIP afgerond". The rail\'s "Wacht op start" counts them, the project page shows the finished phase and what it waits for instead of falling back to R2.1, and a wachtend card on the Per fase board names the next phase (#383).',
+          ],
+        },
+        {
+          sha: '76a7ba5',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'The Infra-board draws its processes through ProcessView, with distinct gateways',
+          details: [
+            'The project detail renders its BPMN through the shared ProcessView, so it has the Caseworker look: legend, the viewer\'s lanes marked "jouw rol", "jouw taak" on the viewer\'s own task, "geclaimd" on a colleague\'s, a dashed outline on every task that is not the viewer\'s own, slim rows for empty lanes. The old opt-in path of PhaseSwimlane and `.cwp-swim` are gone; `process-view-guard.test.ts` fails when anything outside `components/process` imports PhaseSwimlane.',
+            'A decision is a diamond with "?" and its question above it, a parallel split or join a bar captioned "tegelijk" / "alles klaar", an exclusive merge a small dot. The Caseworker step list names gateways by kind instead of element id, Procesgegevens is folded by default in both task panels, and claiming a task on the Infra-board refreshes the open tasks at once. e2e checks the mine / claimed / open marks on a controlled R2.4 instance (#381, closes #277).',
+          ],
+        },
+        {
+          sha: 'bda1e2a',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'e2e checks clamped process labels by their box',
+          details: [
+            'A label clamped on purpose keeps its full text, so its scrollHeight always exceeds what it shows and the rule failed on ACC for a correct node. The remaining rule checks that every label ends inside its node and shows whole lines (#380).',
+          ],
+        },
+        {
+          sha: '708fa70',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'ProcessView: one BPMN rendering for every dashboard, first used by the Caseworker overlay',
+          details: [
+            "ProcessView (`components/process`) is a stepper slot, title bar, legend and swimlane. A dashboard passes data; the viewer comes from the Keycloak token (`useViewer`), and task marks, the viewer's lanes and the legend are derived in `processMarks.ts`. The legend lists only what the diagram shows; lanes without nodes get slim rows and no label is a bare element id. The status vocabulary moves to `components/process/status.ts` (re-exported).",
+            '`e2e/process-view.spec.ts` checks rules that hold whatever the engine state: legend matches the diagram, labels fit, no overlaps, no raw ids, slim empty lanes (#379).',
+          ],
+        },
+        {
+          sha: '75f93b8',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Stylesheets: white and exact-match hex values replaced with tokens',
+          details: [
+            '192 hex values in 12 stylesheets become shared tokens with no visual change: 129 whites by property (`--rba-ink-inverse` on color, `--rba-paper` elsewhere) and 63 exact matches. Stylelint exempts the token file, the Keycloak login themes, the public site and the two tenant-theme fallbacks, each with its reason. Hex warnings drop from 754 to 369 (#374 3a).',
+          ],
+        },
+        {
+          sha: 'd2b6a93',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Shared design tokens',
+          details: [
+            "`packages/shared/styles/tokens.css` holds one `:root` block of `--rba-*` tokens: Flevoland's fixed brand colours, the themed brand chained to the tenant's `--color-primary`, neutrals and status colours. The caseworker app and pa-cockpit (and so pa-demo) load it, and the surface variables of seven stylesheets point at it with every value unchanged.",
+            '`css-tokens.test.ts` fails when a stylesheet uses an undefined `--rba-*` token or a host stops loading the file. `docs/css-files.md` documents the tokens, the values that still diverge and the plan for the remaining hex values (#374).',
+          ],
+        },
+        {
+          sha: '84b6da6',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Stylelint, report-only',
+          details: [
+            'Four rules, all warnings: no hex colours, no duplicate selectors, no `!important`, and a custom `rba/selector-root-class` rule that every selector in a scoped stylesheet starts with its root class. `npm run lint:css` lists the warnings and `lint:css:summary` counts them; nothing runs in CI or a hook yet. Baseline 889 warnings (#374).',
+          ],
+        },
+        {
+          sha: '34cd5d0',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Semgrep: a false positive on the eDOCS author merge suppressed',
+          details: [
+            'Semgrep Code flagged the merge of `edocsAuthorVariables(req.user)` into the process variables. The object comes from the verified token, carries only `edocsAuthor` and `edocsAuthorName`, and goes to Operaton, not into the response; suppressed inline with the reason and the full rule id.',
+          ],
+        },
+        {
+          sha: '883936d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Decision document fallback splits a documentRef list',
+          details: [
+            'When no completed user task carried a reference, `getDecisionDocument` took the first `ronl:documentRef` as written, so a list such as `doc-a,doc-b` resolved a template that does not exist and answered DOCUMENT_NOT_FOUND. Both branches now share `firstDocumentRef` (#371).',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.10.2',
       status: 'Released',
       date: '10 okt 2026',
