@@ -26,6 +26,7 @@ import { LdeMcpProvider } from '@services/mcp/LdeMcpProvider';
 import { llmRegistry } from '@services/llm/LlmRegistry';
 import { AnthropicLlmProvider } from '@services/llm/AnthropicLlmProvider';
 import { OpenAILlmProvider } from '@services/llm/OpenAILlmProvider';
+import { StubLlmProvider } from '@services/llm/StubLlmProvider';
 import { initDb } from '@services/audit.service';
 import { initPaDb } from './pa-monitoring/pa-monitoring.db';
 import { initDossiersDb } from './pa-monitoring/pa-dossiers.db';
@@ -219,6 +220,9 @@ const startServer = async () => {
 
   llmRegistry.register(new AnthropicLlmProvider());
   llmRegistry.register(new OpenAILlmProvider());
+  // Listed only when LLM_STUB_ENABLED is on (the E2E suite's model); registered
+  // last, so it is never the default choice.
+  llmRegistry.register(new StubLlmProvider());
 
   if (config.mcp.enabled) {
     if (config.edocsMcp.enabled) {
