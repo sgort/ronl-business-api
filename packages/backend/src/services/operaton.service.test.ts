@@ -1541,6 +1541,21 @@ describe('getDecisionDocument', () => {
     await expect(svc.getDecisionDocument('pi1')).resolves.toEqual({ template: 'x' });
   });
 
+  // #371: the fallback took the attribute as it stands, so a list resolved the
+  // template id "toelichting, objectenboom" where the path-taken branch takes
+  // "toelichting".
+  it('takes the first entry of a documentRef list in the fallback too', async () => {
+    setup(
+      `<bpmn:definitions>
+        <bpmn:userTask id="Task_Concept" ronl:documentRef="toelichting, objectenboom" />
+        <bpmn:userTask id="Task_Registreer" />
+      </bpmn:definitions>`,
+      resources('toelichting'),
+      [{ activityId: 'Task_Registreer' }]
+    );
+    await expect(svc.getDecisionDocument('pi1')).resolves.toEqual({ template: 'x' });
+  });
+
   it('resolves and parses the referenced document template', async () => {
     setup('<bpmn ronl:documentRef="doc1" />', [
       { id: 'r1', name: 'doc1.document', deploymentId: 'dep1' },
@@ -1948,6 +1963,23 @@ describe('archive list builders', () => {
       '/history/process-instance',
       expect.objectContaining({ finished: true })
     );
+  });
+
+  it('getRipPhaseCompletedList carries the lead role, empty when the instance has none', async () => {
+    // A finished phase whose successor has not started still shows on the
+    // portfolio, and its role filter reads leadRole just as a running one does.
+    mockClient.post.mockResolvedValue({
+      data: [
+        { id: 'i1', businessKey: 'k1', startTime: 's', endTime: 'e' },
+        { id: 'i2', businessKey: 'k2', startTime: 's', endTime: 'e' },
+      ],
+    });
+    mockClient.get.mockResolvedValue({
+      data: [{ processInstanceId: 'i1', name: 'leadRole', value: 'ontwerper' }],
+    });
+
+    const res = await svc.getRipPhaseCompletedList('RipR21Process', 'flevoland');
+    expect(res.map((r) => r.leadRole)).toEqual(['ontwerper', '']);
   });
 
   it('maps a missing businessKey to null on both RIP list builders', async () => {

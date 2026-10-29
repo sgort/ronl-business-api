@@ -1135,13 +1135,22 @@ export class OperatonService {
       const ref =
         this.readTaskRonlAttribute(bpmnXml, activity.activityId, 'ronl:documentRef') ??
         this.readTaskRonlAttribute(bpmnXml, activity.activityId, 'ronl:signatureRef');
-      const first = ref
-        ?.split(',')
-        .map((id) => id.trim())
-        .find(Boolean);
+      const first = this.firstDocumentRef(ref);
       if (first) return first;
     }
     return null;
+  }
+
+  /**
+   * The main document of a ronl:documentRef value: its first entry, since
+   * documentRef can hold a comma-separated list (sgort/linked-data-explorer#231).
+   * Both the path-taken lookup and the BPMN fallback go through here (#371).
+   */
+  private firstDocumentRef(ref: string | null | undefined): string | undefined {
+    return ref
+      ?.split(',')
+      .map((id) => id.trim())
+      .find(Boolean);
   }
 
   async getDecisionDocument(processInstanceId: string): Promise<Record<string, unknown>> {
@@ -1158,7 +1167,7 @@ export class OperatonService {
     //    ronl:documentRef anywhere in the BPMN, as before.
     const documentRef =
       (await this.documentRefOnPathTaken(processInstanceId, bpmnXml)) ??
-      bpmnXml.match(/ronl:documentRef="([^"]+)"/)?.[1];
+      this.firstDocumentRef(bpmnXml.match(/ronl:documentRef="([^"]+)"/)?.[1]);
     if (!documentRef) {
       throw new Error('DOCUMENT_NOT_FOUND');
     }
@@ -1786,6 +1795,7 @@ export class OperatonService {
       projectNumber: string;
       projectName: string;
       edocsWorkspaceId: string;
+      leadRole: string;
     }[]
   > {
     const instancesRes = await this.client.post('/history/process-instance', {
@@ -1810,7 +1820,8 @@ export class OperatonService {
 
     const varMap: Record<string, Record<string, string>> = {};
     for (const v of varsRes.data as { processInstanceId: string; name: string; value: unknown }[]) {
-      if (!['projectNumber', 'projectName', 'edocsWorkspaceId'].includes(v.name)) continue;
+      if (!['projectNumber', 'projectName', 'edocsWorkspaceId', 'leadRole'].includes(v.name))
+        continue;
       if (!varMap[v.processInstanceId]) varMap[v.processInstanceId] = {};
       varMap[v.processInstanceId][v.name] = String(v.value ?? '');
     }
@@ -1825,6 +1836,9 @@ export class OperatonService {
       projectNumber: varMap[i.id]?.projectNumber ?? '',
       projectName: varMap[i.id]?.projectName ?? '',
       edocsWorkspaceId: varMap[i.id]?.edocsWorkspaceId ?? '—',
+      // As on the active list: a finished phase waiting for its successor
+      // still sits on the portfolio, filtered by this role.
+      leadRole: varMap[i.id]?.leadRole ?? '',
     }));
   }
 

@@ -7,11 +7,30 @@ import type { McpProvider, McpProviderMeta, McpToolResult, ToolDefinition } from
 
 const logger = createLogger('cprmv-provider');
 
-const ALLOWED_TOOLS = new Set([
-  'rules_rules__rule_id_path__get',
-  'ref_ref__referencemethod___reference__get',
-  'celex_cellar_by_celex__celexid___language___format__get',
-]);
+// The names fastmcp 4 gives the CPRMV API's routes (cprmv !21). fastmcp derives
+// them, so a fastmcp upgrade in cprmv can rename them: allowedTools() warns when
+// one goes missing rather than leaving the source quietly without tools.
+const ALLOWED_TOOLS = new Set(['rules_rules', 'ref_ref_get', 'celex_cellar_by_celex']);
+
+type ListedTool = { name: string; description?: string; inputSchema: unknown };
+
+function allowedTools(listed: ListedTool[]): ToolDefinition[] {
+  const names = new Set(listed.map((t) => t.name));
+  const missing = [...ALLOWED_TOOLS].filter((n) => !names.has(n)).sort();
+  if (missing.length > 0) {
+    logger.warn('CPRMV tools not listed by the MCP server — renamed or removed?', {
+      missing,
+      listed: [...names].sort(),
+    });
+  }
+  return listed
+    .filter((t) => ALLOWED_TOOLS.has(t.name))
+    .map((t) => ({
+      name: t.name,
+      description: t.description ?? '',
+      input_schema: t.inputSchema as Record<string, unknown>,
+    }));
+}
 
 export class CprmvMcpProvider implements McpProvider {
   readonly meta: McpProviderMeta = {
@@ -29,12 +48,21 @@ export class CprmvMcpProvider implements McpProvider {
 
     this.client = new Client({ name: 'ronl-business-api', version: '1.0.0' }, { capabilities: {} });
 
-    await Promise.race([
-      this.client.connect(transport),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('CPRMV MCP connect timed out after 30s')), 30_000)
-      ),
-    ]);
+    try {
+      await Promise.race([
+        this.client.connect(transport),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('CPRMV MCP connect timed out after 30s')), 30_000)
+        ),
+      ]);
+    } catch (err) {
+      // isConnected() reads `client`, so a failed connect must clear it. Left set,
+      // the source was offered as connected and every chat that selected it failed
+      // with the SDK's "Not connected" (29 October 2026, CPRMV).
+      await this.client.close().catch(() => undefined);
+      this.client = null;
+      throw err;
+    }
 
     logger.info('CPRMV MCP provider connected', { url: config.cprmv.url });
   }
@@ -51,13 +79,7 @@ export class CprmvMcpProvider implements McpProvider {
 
     try {
       const result = await this.client!.listTools();
-      return result.tools
-        .filter((t) => ALLOWED_TOOLS.has(t.name))
-        .map((t) => ({
-          name: t.name,
-          description: t.description ?? '',
-          input_schema: t.inputSchema as Record<string, unknown>,
-        }));
+      return allowedTools(result.tools);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (message.includes('Session not found')) {
@@ -65,13 +87,7 @@ export class CprmvMcpProvider implements McpProvider {
         await this.disconnect();
         await this.connect();
         const result = await this.client!.listTools();
-        return result.tools
-          .filter((t) => ALLOWED_TOOLS.has(t.name))
-          .map((t) => ({
-            name: t.name,
-            description: t.description ?? '',
-            input_schema: t.inputSchema as Record<string, unknown>,
-          }));
+        return allowedTools(result.tools);
       }
       throw err;
     }
@@ -106,9 +122,9 @@ export class CprmvMcpProvider implements McpProvider {
 You have access to Dutch and European legislation via the CPRMV API at: ${config.cprmv.url}
 
 Available tools:
-- rules_rules__rule_id_path__get   — retrieves a rule or rule set from BWB (Dutch national law), CVDR (municipal regulations), or EU CELLAR (European publications); supports path navigation to individual articles
-- ref_ref__referencemethod___reference__get — resolves a rule by reference method (juriconnect); supports jci 1.3 and 1.31 for artikel, hoofdstuk, paragraaf, onderdeel, lid
-- celex_cellar_by_celex__celexid___language___format__get — finds EU CELLAR publications by CELEX id; returns ruleset IDs usable with rules_rules__rule_id_path__get
+- rules_rules           — retrieves a rule or rule set from BWB (Dutch national law), CVDR (municipal regulations), or EU CELLAR (European publications); supports path navigation to individual articles
+- ref_ref_get           — resolves a rule by reference method (juriconnect); supports jci 1.3 and 1.31 for artikel, hoofdstuk, paragraaf, onderdeel, lid
+- celex_cellar_by_celex — finds EU CELLAR publications by CELEX id; returns ruleset IDs usable with rules_rules
 
 Rule ID path format examples:
 - BWB: \`BWBR0015703, Artikel 20, onderdeel a.\`  (current version)

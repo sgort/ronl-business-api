@@ -386,6 +386,27 @@ export const businessApi = {
       return response.data;
     },
 
+    /** Finished instances of every phase in one request, tagged like
+     *  phasesActive — the portfolio needs them for projects between phases. */
+    phasesCompleted: async (): Promise<
+      ApiResponse<
+        Array<{
+          id: string;
+          businessKey: string | null;
+          startTime: string;
+          endTime: string;
+          projectNumber: string;
+          projectName: string;
+          edocsWorkspaceId: string;
+          leadRole: string;
+          phaseCode: string;
+        }>
+      >
+    > => {
+      const response = await api.get('/rip/phases/completed');
+      return response.data;
+    },
+
     instanceDocuments: async (
       instanceId: string
     ): Promise<

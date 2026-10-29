@@ -3,15 +3,21 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Task } from '@ronl/shared';
+const kc = vi.hoisted(() => ({
+  tokenParsed: { sub: 'sub-me', realm_access: { roles: ['caseworker'] } } as Record<
+    string,
+    unknown
+  >,
+}));
+vi.mock('../../services/keycloak', () => ({ default: kc }));
+
 import ProcessOverlay from './ProcessOverlay';
 import { A, NOTIFY, REVIEW, S } from '../../test/kapvergunningFixtures';
 
-const task = { id: 'task-1', name: 'Beoordeling behandelaar' } as Task;
+const task = { id: 'task-1', name: 'Beoordeling behandelaar', assignee: 'sub-me' } as Task;
 
 const open = (props: Partial<Parameters<typeof ProcessOverlay>[0]> = {}) =>
-  render(
-    <ProcessOverlay task={task} ctx={REVIEW} roles={['caseworker']} onClose={vi.fn()} {...props} />
-  );
+  render(<ProcessOverlay task={task} ctx={REVIEW} onClose={vi.fn()} {...props} />);
 
 const title = (c: HTMLElement) => c.querySelector('.pb-phase-titlebar .rcode')!.textContent;
 
@@ -71,6 +77,7 @@ describe('ProcessOverlay', () => {
     expect(title(container)).toBe(A);
     // On the main process the task's node is not drawn, so nothing is "jouw taak".
     expect(container.querySelector('.pb-swim-node-claimed')).toBeNull();
+    expect(container.querySelector('.pb-swim-inprogress')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /^open deelproces/ }));
     expect(title(container)).toBe(S);
     fireEvent.click(screen.getByRole('button', { name: 'Hoofdproces' }));
@@ -94,18 +101,50 @@ describe('ProcessOverlay', () => {
     );
   });
 
-  it('shows the legend with its text, not colour alone', () => {
+  it('shows the legend with its text, not colour alone, for what the diagram shows', () => {
     const { container } = open();
-    const legend = container.querySelector('.cwp-legend')!.textContent;
+    expect(container.querySelector('.cwp-legend')).toBeNull();
+    const legend = container.querySelector('.pv-legend')!.textContent;
     for (const t of [
-      'Afgerond',
-      'Loopt',
       'Jouw taak',
       'Jouw rol (caseworker)',
       'Automatisch (script / DMN)',
       'Nog niet / niet doorlopen',
     ])
       expect(legend).toContain(t);
+    // No node of the fixture has a status yet, and nothing is held by a colleague.
+    expect(legend).not.toContain('Afgerond');
+    expect(legend).not.toContain('Geclaimd');
+  });
+
+  it('adds "Afgerond" to the legend once a node is done', () => {
+    const done = REVIEW.models[S].nodes.find((n) => n.kind === 'task' || n.kind === 'rule')!;
+    const { container } = open({
+      ctx: { ...REVIEW, statusByProcess: { [S]: { [done.id]: 'done' } } },
+    });
+    expect(container.querySelector('.pv-legend')!.textContent).toContain('Afgerond');
+  });
+
+  it('on an unassigned task shows no tab but outlines its node', () => {
+    const { container } = open({ task: { ...task, assignee: undefined } as Task });
+    expect(container.querySelector('.pb-swim-inprogress')).toBeNull();
+    expect(
+      container.querySelector(`[data-node-id="${REVIEW.current.nodeId}"]`)!.classList
+    ).toContain('pv-focus');
+  });
+
+  it('outlines only the own node of the task, not the node a picked phase scrolls to', () => {
+    const { container } = open({ task: { ...task, assignee: undefined } as Task });
+    fireEvent.click(screen.getByRole('button', { name: 'Fase 6 · Bekendmaking' }));
+    expect(container.querySelector('.pv-focus')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Fase 4+5 · Behandeling en besluit' }));
+    const focused = [...container.querySelectorAll('.pv-focus')];
+    expect(focused.map((e) => e.getAttribute('data-node-id'))).toEqual([REVIEW.current.nodeId]);
+  });
+
+  it('on a task a colleague holds shows "geclaimd"', () => {
+    const { container } = open({ task: { ...task, assignee: 'sub-colleague' } as Task });
+    expect(container.querySelector('.pb-swim-inprogress')!.textContent).toBe('geclaimd');
   });
 
   it('names the dossier and the process in the eyebrow', () => {

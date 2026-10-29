@@ -28,7 +28,7 @@
 }
 .cwd-v2 .sim-btn {
   font-family: var(--v2-sans); font-size: 13px; font-weight: 600; cursor: pointer;
-  background: var(--v2-chrome); color: #fff; border: none; padding: 9px 18px; display: inline-flex; align-items: center; gap: 8px;
+  background: var(--v2-chrome); color: var(--rba-ink-inverse); border: none; padding: 9px 18px; display: inline-flex; align-items: center; gap: 8px;
 }
 .cwd-v2 .sim-btn:hover { background: var(--v2-chrome-d); }
 .cwd-v2 .sim-btn.ghost { background: transparent; color: var(--v2-ink-2); border: 1px solid var(--v2-rule); }
@@ -59,7 +59,7 @@
   font-family: var(--v2-sans); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--v2-ink-3); margin: 0 0 14px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
 }
-.cwd-v2 .sim-card h2 .h2-note { font-family: var(--v2-mono); font-size: 10.5px; letter-spacing: 0; text-transform: none; color: var(--v2-ink-4, #9ca3af); font-weight: 500; }
+.cwd-v2 .sim-card h2 .h2-note { font-family: var(--v2-mono); font-size: 10.5px; letter-spacing: 0; text-transform: none; color: var(--v2-ink-4, var(--rba-ink-4)); font-weight: 500; }
 
 /* ---- metric strip -------------------------------------- */
 .cwd-v2 .sim-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1px; background: var(--v2-rule-2); border: 1px solid var(--v2-rule-2); margin-bottom: 16px; }
@@ -81,9 +81,9 @@
 .cwd-v2 .sim-pot-fig b { color: var(--v2-ink); }
 .cwd-v2 .sim-bar { height: 30px; width: 100%; background: var(--v2-bg); border: 1px solid var(--v2-rule-2); display: flex; overflow: hidden; }
 .cwd-v2 .sim-seg { height: 100%; flex-shrink: 0; transition: width 200ms ease; display: flex; align-items: center; justify-content: center; font-family: var(--v2-mono); font-size: 10px; font-weight: 600; white-space: nowrap; overflow: hidden; }
-.cwd-v2 .sim-seg.used { background: var(--v2-chrome); color: #fff; }
-.cwd-v2 .sim-seg.over { background: repeating-linear-gradient(135deg, var(--v2-overdue) 0 6px, #c93258 6px 12px); color: #fff; }
-.cwd-v2 .sim-seg.hold { background: repeating-linear-gradient(135deg, var(--sim-hold) 0 6px, #9166f0 6px 12px); color: #fff; }
+.cwd-v2 .sim-seg.used { background: var(--v2-chrome); color: var(--rba-ink-inverse); }
+.cwd-v2 .sim-seg.over { background: repeating-linear-gradient(135deg, var(--v2-overdue) 0 6px, #c93258 6px 12px); color: var(--rba-ink-inverse); }
+.cwd-v2 .sim-seg.hold { background: repeating-linear-gradient(135deg, var(--sim-hold) 0 6px, #9166f0 6px 12px); color: var(--rba-ink-inverse); }
 .cwd-v2 .sim-seg.free { background: transparent; color: var(--v2-ink-3); }
 .cwd-v2 .sim-ceilmark { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--v2-ink); }
 .cwd-v2 .sim-ceilmark::after { content: 'plafond'; position: absolute; top: -14px; left: 3px; font-family: var(--v2-mono); font-size: 8.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--v2-ink); }
@@ -125,7 +125,7 @@
 .cwd-v2 .sim-feed { display: flex; flex-direction: column; gap: 0; max-height: 420px; overflow: auto; border: 1px solid var(--v2-rule-2); }
 .cwd-v2 .sim-fitem { display: grid; grid-template-columns: 26px 1fr auto; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--v2-rule-2); background: var(--v2-paper); }
 .cwd-v2 .sim-fitem:last-child { border-bottom: none; }
-.cwd-v2 .sim-fitem .f-badge { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-family: var(--v2-mono); font-size: 11px; font-weight: 700; color: #fff; }
+.cwd-v2 .sim-fitem .f-badge { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-family: var(--v2-mono); font-size: 11px; font-weight: 700; color: var(--rba-ink-inverse); }
 .cwd-v2 .sim-fitem .f-title { font-size: 13px; font-weight: 600; color: var(--v2-ink); }
 .cwd-v2 .sim-fitem .f-sub { font-family: var(--v2-mono); font-size: 10.5px; color: var(--v2-ink-3); margin-top: 2px; line-height: 1.45; }
 .cwd-v2 .sim-fitem .f-amt { font-family: var(--v2-mono); font-size: 13px; font-weight: 600; text-align: right; white-space: nowrap; }

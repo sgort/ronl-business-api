@@ -16,7 +16,7 @@
   height: 100%;
   width: 100%;
   max-width: 480px;
-  background: #fff;
+  background: var(--rba-paper);
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   z-index: 60;
   display: flex;
@@ -29,7 +29,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--rba-rule-2);
 }
 
 .pac-dchangelog-title {
@@ -41,7 +41,7 @@
 }
 
 .pac-dchangelog-close {
-  color: #6b7280;
+  color: var(--rba-ink-3);
   background: none;
   border: none;
   border-radius: 9999px;
@@ -73,13 +73,13 @@
 .pac-dchangelog-entry + .pac-dchangelog-entry {
   margin-top: 1.75rem;
   padding-top: 1.75rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--rba-rule-2);
 }
 
 .pac-dchangelog-meta {
   flex-shrink: 0;
   width: 5.5rem;
-  color: #6b7280;
+  color: var(--rba-ink-3);
 }
 
 .pac-dchangelog-version {

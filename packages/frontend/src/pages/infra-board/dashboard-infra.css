@@ -6,11 +6,11 @@
    ============================================================ */
 
 .pbd {
-  --pb-green:  #3fa535;
-  --pb-amber:  #e5b700;
-  --pb-red:    #b0103c;
+  --pb-green:  var(--rba-ok);
+  --pb-amber:  var(--rba-warn);
+  --pb-red:    var(--rba-bad);
   --pb-blue:   var(--v2-chrome, #0046ad);
-  --pb-grey:   #c2c7d0;
+  --pb-grey:   var(--rba-idle);
 }
 
 /* The project-board uses a wider rail-card label sub-line */
@@ -278,7 +278,7 @@
 }
 .pbd .pb-legend .sw {
   width: 14px; height: 14px; display: grid; place-items: center;
-  font-size: 10px; font-weight: 700; color: #fff;
+  font-size: 10px; font-weight: 700; color: var(--rba-ink-inverse);
 }
 .pbd .pb-legend .sw.done   { background: var(--pb-green); }
 .pbd .pb-legend .sw.active { background: var(--pb-blue); }
@@ -296,7 +296,7 @@
   padding: 7px 14px; cursor: pointer;
 }
 .pbd .pb-segment button + button { border-left: 1px solid var(--v2-rule); }
-.pbd .pb-segment button.active { background: var(--pb-blue); color: #fff; }
+.pbd .pb-segment button.active { background: var(--pb-blue); color: var(--rba-ink-inverse); }
 
 .pbd .pb-matrix-wrap {
   border: 1px solid var(--v2-rule);
@@ -339,7 +339,7 @@
 .pbd .pb-tile {
   width: 26px; height: 26px;
   display: inline-grid; place-items: center;
-  font-size: 13px; font-weight: 700; color: #fff;
+  font-size: 13px; font-weight: 700; color: var(--rba-ink-inverse);
   margin: 0 auto;
 }
 .pbd .pb-tile.done   { background: var(--pb-green); }
@@ -415,7 +415,7 @@
   width: 22px; height: 22px; border-radius: 50%;
   display: grid; place-items: center; z-index: 1;
   border: 2px solid var(--v2-rule); background: var(--v2-paper);
-  font-size: 11px; font-weight: 700; color: #fff;
+  font-size: 11px; font-weight: 700; color: var(--rba-ink-inverse);
 }
 .pbd .pb-flow-step.done .pb-flow-node    { background: var(--pb-green); border-color: var(--pb-green); }
 .pbd .pb-flow-step.active .pb-flow-node  { background: var(--pb-blue);  border-color: var(--pb-blue); }
@@ -482,26 +482,26 @@
 /* ── Tweaks panel ──────────────────────────────────────────────────────────── */
 .pb-tweaks {
   position: fixed; top: 70px; right: 18px; width: 250px; z-index: 1200;
-  background: #fff; border: 1px solid var(--v2-rule, #d1d5db);
+  background: var(--rba-paper); border: 1px solid var(--v2-rule, var(--rba-rule));
   box-shadow: 0 16px 40px rgba(0,0,0,0.18);
   font-family: "Inter", sans-serif;
 }
 .pb-tweaks h4 {
   margin: 0; padding: 12px 14px; font-size: 12px; font-weight: 700;
-  letter-spacing: 0.04em; text-transform: uppercase; color: #1f2937;
-  border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--rba-ink);
+  border-bottom: 1px solid var(--rba-rule-2); display: flex; justify-content: space-between; align-items: center;
 }
-.pb-tweaks h4 button { background: none; border: none; font-size: 16px; cursor: pointer; color: #6b7280; line-height: 1; }
+.pb-tweaks h4 button { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--rba-ink-3); line-height: 1; }
 .pb-tweaks .row { padding: 11px 14px; border-bottom: 1px solid #f1f3f5; }
 .pb-tweaks .row:last-child { border-bottom: none; }
-.pb-tweaks .lab { font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+.pb-tweaks .lab { font-size: 11px; font-weight: 600; color: var(--rba-ink-3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
 .pb-tweaks .swatches { display: flex; gap: 8px; }
 .pb-tweaks .swatches button { width: 26px; height: 26px; border: 2px solid transparent; cursor: pointer; }
-.pb-tweaks .swatches button.on { border-color: #1f2937; }
-.pb-tweaks .seg { display: flex; border: 1px solid #d1d5db; }
-.pb-tweaks .seg button { flex: 1; background: #fff; border: none; font: inherit; font-size: 12px; font-weight: 600; color: #6b7280; padding: 6px; cursor: pointer; }
-.pb-tweaks .seg button + button { border-left: 1px solid #d1d5db; }
-.pb-tweaks .seg button.on { background: var(--v2-chrome, #0046ad); color: #fff; }
+.pb-tweaks .swatches button.on { border-color: var(--rba-ink); }
+.pb-tweaks .seg { display: flex; border: 1px solid var(--rba-rule); }
+.pb-tweaks .seg button { flex: 1; background: var(--rba-paper); border: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--rba-ink-3); padding: 6px; cursor: pointer; }
+.pb-tweaks .seg button + button { border-left: 1px solid var(--rba-rule); }
+.pb-tweaks .seg button.on { background: var(--v2-chrome, #0046ad); color: var(--rba-ink-inverse); }
 
 /* density: compact */
 .pbd.density-compact .pb-todo-item { padding-top: 9px; padding-bottom: 9px; }
@@ -569,7 +569,7 @@
 .pbd .pb-gantt-row:hover { background: var(--v2-accent-50); }
 .pbd .pb-gantt-namecol .nm { font-size: 12.5px; font-weight: 600; color: var(--v2-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pbd .pb-gantt-namecol .meta { font-family: var(--v2-mono); font-size: 10px; color: var(--v2-ink-3); margin-top: 1px; }
-.pbd .pb-live-badge { display: inline-block; margin-left: 5px; padding: 0 4px; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: var(--v2-accent); color: #fff; border-radius: 3px; vertical-align: middle; }
+.pbd .pb-live-badge { display: inline-block; margin-left: 5px; padding: 0 4px; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: var(--v2-accent); color: var(--rba-ink-inverse); border-radius: 3px; vertical-align: middle; }
 .pbd .pb-gantt-namecol .pb-health { position: absolute; }
 .pbd .pb-gantt-row .pb-gantt-namecol { position: relative; padding-left: 26px; }
 .pbd .pb-gantt-row .pb-gantt-namecol .pb-health { left: 14px; top: 50%; transform: translateY(-50%); }
@@ -579,7 +579,7 @@
 .pbd .pb-gantt-todayline { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed var(--v2-accent); opacity: 0.5; }
 .pbd .pb-gantt-bar {
   position: absolute; top: 50%; transform: translateY(-50%); height: 18px;
-  display: flex; align-items: center; padding: 0 5px; color: #fff;
+  display: flex; align-items: center; padding: 0 5px; color: var(--rba-ink-inverse);
   font-family: var(--v2-mono); font-size: 9px; font-weight: 700;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25);
 }
@@ -595,7 +595,7 @@
   padding: 11px 12px; border-bottom: 2px solid var(--v2-rule); background: var(--v2-paper);
 }
 .pbd .pb-kan-head .t { font-family: var(--v2-serif); font-weight: 700; font-size: 13.5px; letter-spacing: -0.01em; }
-.pbd .pb-kan-head .c { font-family: var(--v2-mono); font-size: 11px; color: #fff; background: var(--v2-chrome); padding: 1px 7px; }
+.pbd .pb-kan-head .c { font-family: var(--v2-mono); font-size: 11px; color: var(--rba-ink-inverse); background: var(--v2-chrome); padding: 1px 7px; }
 .pbd .pb-kan-cards { padding: 10px; display: grid; gap: 10px; }
 .pbd .pb-kan-card {
   background: var(--v2-paper); border: 1px solid var(--v2-rule-2); border-left: 3px solid var(--v2-chrome);
@@ -623,7 +623,7 @@
 .pbd .pb-doc4:last-child { border-right: none; }
 .pbd .pb-doc4 .num {
   width: 26px; height: 26px; flex-shrink: 0; display: grid; place-items: center;
-  font-family: var(--v2-mono); font-weight: 700; font-size: 12px; color: #fff; background: var(--v2-ink-3);
+  font-family: var(--v2-mono); font-weight: 700; font-size: 12px; color: var(--rba-ink-inverse); background: var(--v2-ink-3);
 }
 .pbd .pb-doc4.ok .num { background: var(--pb-green); }
 .pbd .pb-doc4 .info { display: flex; flex-direction: column; }
@@ -650,8 +650,8 @@
 /* Tweaks: phase labels */
 .pb-tweaks .pb-tweak-labels { display: grid; gap: 6px; }
 .pb-tweaks .pb-tweak-labels label { display: flex; align-items: center; gap: 7px; }
-.pb-tweaks .pb-tweak-labels .code { font-family: "JetBrains Mono", monospace; font-size: 9px; color: #6b7280; width: 30px; flex-shrink: 0; }
-.pb-tweaks .pb-tweak-labels input { flex: 1; min-width: 0; border: 1px solid #d1d5db; padding: 4px 6px; font: inherit; font-size: 11.5px; }
+.pb-tweaks .pb-tweak-labels .code { font-family: "JetBrains Mono", monospace; font-size: 9px; color: var(--rba-ink-3); width: 30px; flex-shrink: 0; }
+.pb-tweaks .pb-tweak-labels input { flex: 1; min-width: 0; border: 1px solid var(--rba-rule); padding: 4px 6px; font: inherit; font-size: 11.5px; }
 
 /* ============================================================
    FASELADDER OVERVIEW
@@ -724,7 +724,7 @@
   display: inline-block;
   padding: 2px 8px;
   background: var(--v2-chrome);
-  color: #fff;
+  color: var(--rba-ink-inverse);
   font-family: var(--v2-mono);
   font-size: 13px;
   border-radius: 3px;
@@ -796,7 +796,7 @@
   margin-left: 8px;
   padding: 1px 6px;
   background: #e7f6e8;
-  color: #3fa535;
+  color: var(--rba-ok);
   font-size: 11px;
   border-radius: 3px;
 }
@@ -812,7 +812,7 @@
   margin: 0 0 12px;
   padding: 8px 12px;
   border-left: 3px solid var(--v2-ink-3);
-  background: var(--v2-surface-2, #f4f5f7);
+  background: var(--v2-surface-2, var(--rba-bg));
   font-size: 12px;
   color: var(--v2-ink-2);
 }
@@ -842,8 +842,8 @@
   padding: 8px 10px;
   font: inherit;
   font-size: 13px;
-  color: var(--v2-ink, #1f2937);
-  background: #fff;
+  color: var(--v2-ink, var(--rba-ink));
+  background: var(--rba-paper);
 }
 .pbd .pb-new-project input::placeholder {
   color: var(--v2-ink-3);
@@ -859,17 +859,17 @@
 .pbd .pb-banner {
   padding: 10px 14px;
   background: #fdf6e3;
-  border: 1px solid #e5b700;
+  border: 1px solid var(--rba-warn);
   margin-bottom: 14px;
   font-size: 13px;
 }
 .pbd .pb-banner-success {
   background: #e7f6e8;
-  border-color: #3fa535;
+  border-color: var(--rba-ok);
 }
 .pbd .pb-banner-error {
   background: #fdeceb;
-  border-color: #b0103c;
+  border-color: var(--rba-bad);
 }
 .pbd .pb-placeholder {
   color: var(--v2-ink-3);
@@ -949,7 +949,7 @@
   font-family: var(--v2-mono);
   font-size: 9.5px;
   font-weight: 700;
-  color: #fff;
+  color: var(--rba-ink-inverse);
   padding: 1px 5px;
   margin-right: 7px;
   letter-spacing: 0.03em;
@@ -1028,7 +1028,7 @@
   font-size: 10px;
   font-weight: 700;
   background: var(--pb-blue);
-  color: #fff;
+  color: var(--rba-ink-inverse);
   padding: 1px 5px;
   min-width: 16px;
   text-align: center;

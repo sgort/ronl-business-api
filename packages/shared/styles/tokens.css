@@ -1,0 +1,45 @@
+/*
+ * RBA design tokens (#374 item 3). The one place the palette's hex values
+ * live; each surface's own variables (--v2-*, --pac-*, --pb-*, --w-*, the
+ * landing pages' --blue/--text/…) point here. See docs/css-files.md.
+ *
+ * Loaded by both hosts: packages/frontend/src/App.tsx imports it, and
+ * @ronl/pa-cockpit's styles.css @imports it, which is how pa-demo gets it.
+ * css-tokens.test.ts (packages/frontend) checks both, and that every
+ * var(--rba-*) in a stylesheet is defined below.
+ *
+ * Not used by the Keycloak theme (served by Keycloak, outside the build) or
+ * public-site (its own Rijkshuisstijl tokens).
+ */
+:root {
+  /* Flevoland's fixed brand colours, for places that must not follow the
+     tenant theme. */
+  --rba-flevoland-blue:   #0046ad;
+  --rba-flevoland-blue-d: #033b8e;
+  --rba-flevoland-pink:   #e70077;
+
+  /* Brand, themed: services/tenant.ts sets --color-primary/-primary-dark/
+     -secondary on :root per tenant; Flevoland is the fallback. */
+  --rba-brand:   var(--color-primary, var(--rba-flevoland-blue));
+  --rba-brand-d: var(--color-primary-dark, var(--rba-flevoland-blue-d));
+  --rba-accent:  var(--color-secondary, var(--rba-flevoland-pink));
+
+  /* Neutrals: text from darkest to lightest, rules (lines), backgrounds.
+     --rba-ink-inverse is text on the brand colour or a status fill;
+     --rba-paper is the white of a page, card or border. */
+  --rba-ink:         #1f2937;
+  --rba-ink-2:       #4b5563;
+  --rba-ink-3:       #6b7280;
+  --rba-ink-4:       #9ca3af;
+  --rba-ink-inverse: #ffffff;
+  --rba-rule:   #d1d5db;
+  --rba-rule-2: #e5e7eb;
+  --rba-bg:     #f4f5f7;
+  --rba-paper:  #ffffff;
+
+  /* Status: done / on track, attention, overdue or rejected, not started. */
+  --rba-ok:   #3fa535;
+  --rba-warn: #e5b700;
+  --rba-bad:  #b0103c;
+  --rba-idle: #c2c7d0;
+}

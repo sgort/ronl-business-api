@@ -11,6 +11,7 @@ import {
   useOpenTasks,
   usePhaseSwimlane,
   useRipActiveAcrossPhases,
+  useRipCompletedAcrossPhases,
   useRipPhaseReadiness,
   useRipPhaseCompleted,
 } from './infra.api';
@@ -25,6 +26,7 @@ const mockBusinessApi = vi.hoisted(() => ({
     deploymentStatus: vi.fn(),
     phasesCounts: vi.fn(),
     phasesActive: vi.fn(),
+    phasesCompleted: vi.fn().mockResolvedValue({ success: true, data: [] }),
   },
   process: { activityHistory: vi.fn() },
 }));
@@ -330,6 +332,8 @@ describe('RipActiveAcrossPhasesProvider refresh', () => {
     mockBusinessApi.rip.phasesActive.mockReset();
     mockBusinessApi.rip.phaseActive.mockReset();
     mockBusinessApi.rip.phasesActive.mockResolvedValue({ success: true, data: [] });
+    mockBusinessApi.rip.phasesCompleted.mockReset();
+    mockBusinessApi.rip.phasesCompleted.mockResolvedValue({ success: true, data: [] });
   });
 
   afterEach(() => {
@@ -365,6 +369,41 @@ describe('RipActiveAcrossPhasesProvider refresh', () => {
     await waitFor(() => expect(result.current.data).toBe(started));
     expect(mockBusinessApi.rip.phasesActive).toHaveBeenCalledTimes(2);
     expect(mockBusinessApi.rip.phaseActive).not.toHaveBeenCalled();
+  });
+
+  it('shares the finished instances of every phase, refreshed with the running ones', async () => {
+    const finished = [
+      {
+        id: 'c-1',
+        businessKey: 'k1',
+        startTime: '2026-09-01T10:00:00Z',
+        endTime: '2026-10-01T10:00:00Z',
+        projectNumber: '1',
+        projectName: 'Klaar',
+        edocsWorkspaceId: 'w1',
+        leadRole: '',
+        phaseCode: 'R2.1',
+      },
+    ];
+    mockBusinessApi.rip.phasesCompleted.mockResolvedValue({ success: true, data: finished });
+    const { result } = renderHook(() => useRipCompletedAcrossPhases(), {
+      wrapper: RipActiveAcrossPhasesProvider,
+    });
+    await waitFor(() => expect(result.current.data).toBe(finished));
+    expect(mockBusinessApi.rip.phasesCompleted).toHaveBeenCalledTimes(1);
+
+    setVisibility('hidden');
+    setVisibility('visible');
+    await waitFor(() => expect(mockBusinessApi.rip.phasesCompleted).toHaveBeenCalledTimes(2));
+    expect(mockBusinessApi.rip.phasesActive).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws when the finished instances are read outside the provider', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => renderHook(() => useRipCompletedAcrossPhases())).toThrow(
+      /RipActiveAcrossPhasesProvider/
+    );
+    consoleError.mockRestore();
   });
 
   it('does not refetch when the tab is hidden', async () => {

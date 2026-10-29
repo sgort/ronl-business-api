@@ -2,6 +2,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+const kc = vi.hoisted(() => ({
+  tokenParsed: { sub: 'sub-me', realm_access: { roles: ['rip-projectleider'] } } as Record<
+    string,
+    unknown
+  >,
+}));
+vi.mock('../../services/keycloak', () => ({ default: kc }));
+
 import ProjectDetail from './ProjectDetail';
 import { getMockPortfolio } from '../../pages/infra-board/infra-board.data';
 import { RIP_PHASES } from '../../pages/infra-board/rip-phases.catalog';
@@ -10,6 +18,7 @@ const mockUseActivityHistory = vi.hoisted(() => vi.fn());
 const mockUseInstanceDocuments = vi.hoisted(() => vi.fn());
 const mockUseOpenTasks = vi.hoisted(() => vi.fn());
 const mockUseRipActiveAcrossPhases = vi.hoisted(() => vi.fn());
+const mockUseRipCompletedAcrossPhases = vi.hoisted(() => vi.fn());
 const mockUsePhaseSwimlane = vi.hoisted(() => vi.fn());
 const mockUseRipPhaseCompleted = vi.hoisted(() => vi.fn());
 vi.mock('../../services/infra.api', async (importOriginal) => {
@@ -20,6 +29,7 @@ vi.mock('../../services/infra.api', async (importOriginal) => {
     useInstanceDocuments: mockUseInstanceDocuments,
     useOpenTasks: mockUseOpenTasks,
     useRipActiveAcrossPhases: mockUseRipActiveAcrossPhases,
+    useRipCompletedAcrossPhases: mockUseRipCompletedAcrossPhases,
     usePhaseSwimlane: mockUsePhaseSwimlane,
     useRipPhaseCompleted: mockUseRipPhaseCompleted,
   };
@@ -64,6 +74,12 @@ beforeEach(() => {
   });
   mockUseOpenTasks.mockReturnValue({ data: null, loading: false, error: false, reload: vi.fn() });
   mockUseRipActiveAcrossPhases.mockReturnValue({
+    data: null,
+    loading: false,
+    error: false,
+    reload: vi.fn(),
+  });
+  mockUseRipCompletedAcrossPhases.mockReturnValue({
     data: null,
     loading: false,
     error: false,
@@ -427,6 +443,53 @@ describe('ProjectDetail — live instance with open tasks', () => {
   });
 });
 
+describe('ProjectDetail — live project waiting between phases', () => {
+  // Finished R2.2, R2.3 not started: no running instance, so the phase can
+  // only come from the finished list.
+  const DONE_R22 = {
+    id: 'pi-22-done',
+    businessKey: 'MANUAL-20261008-113402',
+    startTime: '2026-10-01T10:00:00Z',
+    endTime: '2026-10-08T11:34:02Z',
+    projectNumber: 'MANUAL-20261008-113402',
+    projectName: 'ValidSign handmatige testrun',
+    edocsWorkspaceId: '',
+    leadRole: 'projectleider',
+    phaseCode: 'R2.2',
+  };
+  const ref = { nr: DONE_R22.projectNumber, instanceId: DONE_R22.id };
+
+  beforeEach(() => {
+    mockUseRipCompletedAcrossPhases.mockReturnValue({
+      data: [DONE_R22],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+  });
+
+  it('reports the phase it finished, not R2.1, with what it waits for as the milestone', () => {
+    const { container } = render(<ProjectDetail projectRef={ref} onBack={vi.fn()} />);
+
+    const strip = container.querySelector('.pb-proj-meta-strip') as HTMLElement;
+    expect(within(strip).getByText('R2.2')).toBeInTheDocument();
+    expect(within(strip).getByText('R2.2 afgerond · wacht op start van R2.3')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'ValidSign handmatige testrun'
+    );
+  });
+
+  it('marks the finished rung done rather than active', () => {
+    const { container } = render(<ProjectDetail projectRef={ref} onBack={vi.fn()} />);
+
+    const steps = container.querySelectorAll('.pb-stepper .pb-step');
+    expect(steps[0].className).toContain('done');
+    expect(steps[1].className).toContain('done');
+    expect(steps[1].className).not.toContain('active');
+    expect(steps[2].className).toContain('todo');
+  });
+});
+
 describe('ProjectDetail — live instance past R2.1', () => {
   const R22_ROW = {
     id: 'pi-22',
@@ -691,5 +754,123 @@ describe('ProjectDetail — live instance past R2.1', () => {
 
     const strip = container.querySelector('.pb-proj-meta-strip') as HTMLElement;
     expect(within(strip).getByText('R2.1')).toBeInTheDocument();
+  });
+});
+
+describe('ProjectDetail — shared process view', () => {
+  const MODEL = {
+    phaseCode: 'R2.1',
+    lanes: [{ key: 'pl', label: 'Projectleider', candidateGroups: ['rip-projectleider'] }],
+    nodes: [
+      { id: 'T_A', bpmnId: 'T_A', kind: 'task' as const, col: 0, row: 0, label: 'Taak A' },
+      { id: 'T_B', bpmnId: 'T_B', kind: 'task' as const, col: 1, row: 0, label: 'Taak B' },
+    ],
+    edges: [{ from: 'T_A', to: 'T_B' }],
+  };
+  const openTask = (id: string, key: string, assignee?: string) => ({
+    id,
+    name: key,
+    created: '2026-01-01T00:00:00Z',
+    executionId: 'e-' + id,
+    processDefinitionId: 'RipR21Process:1:def',
+    processDefinitionKey: 'RipR21Process',
+    processInstanceId: 'pi-1',
+    taskDefinitionKey: key,
+    suspended: false,
+    ...(assignee ? { assignee } : {}),
+  });
+
+  it(
+    'tabs the viewer' +
+      "'" +
+      's task "jouw taak" and a colleague' +
+      "'" +
+      's "geclaimd", with a live title',
+    () => {
+      mockUsePhaseSwimlane.mockReturnValue({
+        data: MODEL,
+        loading: false,
+        error: false,
+        reload: vi.fn(),
+      });
+      mockUseOpenTasks.mockReturnValue({
+        data: [openTask('t1', 'T_A', 'sub-me'), openTask('t2', 'T_B', 'sub-colleague')],
+        loading: false,
+        error: false,
+        reload: vi.fn(),
+      });
+      const { container } = render(
+        <ProjectDetail projectRef={{ nr: '99999', instanceId: 'pi-1' }} onBack={vi.fn()} />
+      );
+      const tabs = [...container.querySelectorAll('.pb-swim-inprogress')].map((t) => t.textContent);
+      expect(tabs.sort()).toEqual(['geclaimd', 'jouw taak']);
+      expect(screen.getByText(/procesmodel \(live\)/)).toBeInTheDocument();
+      const keys = [...container.querySelectorAll('[data-legend]')].map((e) =>
+        e.getAttribute('data-legend')
+      );
+      expect(keys).toContain('mine');
+      expect(keys).toContain('claimed');
+      expect(keys).toContain('role');
+    }
+  );
+
+  it('refreshes the open tasks after a claim, so the list and the diagram show it claimed', async () => {
+    const user = userEvent.setup();
+    const reload = vi.fn();
+    mockUsePhaseSwimlane.mockReturnValue({
+      data: MODEL,
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    mockUseOpenTasks.mockReturnValue({
+      data: [openTask('t1', 'T_A')],
+      loading: false,
+      error: false,
+      reload,
+    });
+    render(<ProjectDetail projectRef={{ nr: '99999', instanceId: 'pi-1' }} onBack={vi.fn()} />);
+    await user.click(screen.getByText('T_A', { selector: '.pb-taken-item-name' }));
+    await user.click(await screen.findByRole('button', { name: 'Taak claimen' }));
+    await waitFor(() => expect(mockBusinessApi.task.claim).toHaveBeenCalledWith('t1'));
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+  });
+
+  it('shows Procesgegevens folded in the task panel', async () => {
+    const user = userEvent.setup();
+    mockUsePhaseSwimlane.mockReturnValue({
+      data: MODEL,
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    mockUseOpenTasks.mockReturnValue({
+      data: [openTask('t1', 'T_A', 'sub-me')],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    render(<ProjectDetail projectRef={{ nr: '99999', instanceId: 'pi-1' }} onBack={vi.fn()} />);
+    await user.click(screen.getByText('T_A', { selector: '.pb-taken-item-name' }));
+    const disclosure = await screen.findByRole('button', { name: /Procesgegevens/ });
+    expect(disclosure.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('shows a mock project without "(live)" and without a "Jouw taak" legend entry', () => {
+    mockUsePhaseSwimlane.mockReturnValue({
+      data: MODEL,
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    const { container } = render(
+      <ProjectDetail projectRef={{ nr: getMockPortfolio()[0].nr }} onBack={vi.fn()} />
+    );
+    expect(screen.queryByText(/\(live\)/)).toBeNull();
+    const keys = [...container.querySelectorAll('[data-legend]')].map((e) =>
+      e.getAttribute('data-legend')
+    );
+    expect(keys).not.toContain('mine');
+    expect(container.querySelector('.pb-swim-inprogress')).toBeNull();
   });
 });

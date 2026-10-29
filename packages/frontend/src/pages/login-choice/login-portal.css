@@ -1,17 +1,19 @@
 /* Login portal — Provincie Flevoland board catalogue (unauthenticated /).
    ALL selectors scoped under .lcp — nothing leaks into .cwd-v2 / .pac / .pbd
-   or the citizen Dashboard. */
+   or the citizen Dashboard.
+   --ink, --muted and --line differ from the shared neutrals in tokens.css
+   and stay local until that is settled (#374). */
 
 .lcp {
-  --blue:    #0046ad;
-  --blue-700:#033b8e;
-  --pink:    #e70077;
+  --blue:    var(--rba-flevoland-blue);
+  --blue-700:var(--rba-flevoland-blue-d);
+  --pink:    var(--rba-flevoland-pink);
   --amber:   #d98800;
   --ink:     #0f172a;
-  --text:    #1f2937;
+  --text:    var(--rba-ink);
   --muted:   #5b6472;
   --line:    #e3e8ef;
-  --card:    #ffffff;
+  --card:    var(--rba-paper);
 
   box-sizing: border-box;
   scroll-behavior: smooth;
@@ -28,7 +30,7 @@
 /* ── Top bar ──────────────────────────────────────────────── */
 .lcp .topbar {
   background: var(--blue);
-  color: #fff;
+  color: var(--rba-ink-inverse);
   height: 60px;
   display: flex;
   align-items: center;
@@ -37,7 +39,7 @@
 }
 
 .lcp .brand {
-  background: #fff;
+  background: var(--rba-paper);
   border-radius: 4px;
   padding: 8px 13px 7px;
   line-height: 1;
@@ -81,7 +83,7 @@
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  color: #fff;
+  color: var(--rba-ink-inverse);
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.28);
   padding: 8px 15px;
@@ -106,7 +108,7 @@
   transition: color 0.15s ease;
 }
 
-.lcp .topbar .citizen-link:hover { color: #fff; }
+.lcp .topbar .citizen-link:hover { color: var(--rba-ink-inverse); }
 
 /* ── Page shell ───────────────────────────────────────────── */
 .lcp .wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
@@ -151,7 +153,7 @@
   align-items: center;
   gap: 9px;
   background: var(--blue);
-  color: #fff;
+  color: var(--rba-ink-inverse);
   font-size: 15px;
   font-weight: 600;
   text-decoration: none;
@@ -268,7 +270,7 @@
 }
 
 .lcp .task-row {
-  background: #fff;
+  background: var(--rba-paper);
   border: 1px solid #dde6f2;
   border-left: 3px solid var(--blue);
   border-radius: 5px;
@@ -356,7 +358,7 @@
 }
 
 .lcp .lane .pcard {
-  background: #fff;
+  background: var(--rba-paper);
   border: 1px solid #ecdcc0;
   border-radius: 4px;
   height: 16px;
@@ -388,14 +390,14 @@
 }
 .lcp .woo-kpi {
   display: flex; align-items: center; gap: 6px;
-  background: #fff; padding: 6px 8px;
+  background: var(--rba-paper); padding: 6px 8px;
 }
-.lcp .woo-kpi .wlbl { font-size: 10px; color: #6b7280; flex: 1; }
+.lcp .woo-kpi .wlbl { font-size: 10px; color: var(--rba-ink-3); flex: 1; }
 .lcp .woo-kpi b { font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700; color: #111827; }
 .lcp .wdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.lcp .wdot.groen { background: #3fa535; }
-.lcp .wdot.geel  { background: #e5b700; }
-.lcp .wdot.rood  { background: #b0103c; }
+.lcp .wdot.groen { background: var(--rba-ok); }
+.lcp .wdot.geel  { background: var(--rba-warn); }
+.lcp .wdot.rood  { background: var(--rba-bad); }
 .lcp .wdot.blauw { background: #0046ad; }
 
 /* card body */
@@ -484,7 +486,7 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--blue);
-  background: #fff;
+  background: var(--rba-paper);
   border: 1px solid #ccdafb;
   border-radius: 6px;
   padding: 4px 9px;

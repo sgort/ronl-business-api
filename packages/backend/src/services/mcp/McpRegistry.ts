@@ -53,8 +53,16 @@ export class McpRegistry {
   async getToolDefinitions(providerIds?: string[]): Promise<ToolDefinition[]> {
     const results: ToolDefinition[] = [];
     for (const provider of this.resolveProviders(providerIds)) {
-      if (provider.isConnected()) {
+      if (!provider.isConnected()) continue;
+      // One source that cannot list its tools is left out of this chat; it does
+      // not fail the sources that can.
+      try {
         results.push(...(await provider.getToolDefinitions()));
+      } catch (err) {
+        logger.warn('MCP provider could not list its tools — leaving it out of this chat', {
+          id: provider.meta.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
     return results;

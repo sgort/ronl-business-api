@@ -1,6 +1,6 @@
 {
   "name": "ronl-business-api",
-  "version": "2026.10.2",
+  "version": "2026.10.4",
   "description": "Secure, multi-tenant Business API for Dutch municipality BPMN/DMN services",
   "private": true,
   "workspaces": [
@@ -23,6 +23,9 @@
     "build:pa-demo": "npm run build --workspace=@ronl/pa-demo",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
+    "lint:css": "stylelint \"**/*.css\" --ignore-path .gitignore",
+    "lint:css:summary": "node scripts/stylelint/summary.mjs",
+    "test:stylelint": "node scripts/stylelint/selector-root-class.test.mjs && node scripts/stylelint/summary.test.mjs",
     "check-supply-chain": "node scripts/check-supply-chain.mjs",
     "check-mirror": "bash scripts/check-mirror.sh",
     "check-previews": "bash scripts/check-previews.sh",
@@ -63,6 +66,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "prettier": "3.9.9",
+    "stylelint": "^17.16.0",
     "typescript": "^5.9.3"
   },
   "engines": {

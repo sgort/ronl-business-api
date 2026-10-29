@@ -179,6 +179,9 @@ interface Config {
   openai: {
     apiKey: string;
   };
+  llmStub: {
+    enabled: boolean;
+  };
   gitlab: {
     token: string;
     baseUrl: string;
@@ -417,6 +420,12 @@ export const config: Config = {
     apiKey: process.env.OPENAI_API_KEY ?? '',
   },
 
+  // A deterministic model for the E2E suite: it chats through the real MCP
+  // registry and calls nothing external. Off by default; refused in production.
+  llmStub: {
+    enabled: parseEnvBool(process.env.LLM_STUB_ENABLED, false),
+  },
+
   gitlab: {
     token: process.env.GITLAB_TOKEN || '',
     baseUrl: process.env.GITLAB_BASE_URL || 'https://git.open-regels.nl',
@@ -511,6 +520,12 @@ function validateConfig() {
     errors.push('ANTHROPIC_API_KEY is required');
   } else if (config.nodeEnv === 'production' && isPlaceholder(config.anthropic.apiKey)) {
     errors.push('ANTHROPIC_API_KEY is still a placeholder in production');
+  }
+
+  // The stub model is a test fixture. Production users would see it in the
+  // model list, so a production backend refuses to start with it on.
+  if (config.llmStub.enabled && config.deploymentEnv === 'production') {
+    errors.push('LLM_STUB_ENABLED must not be set in production');
   }
 
   // Only when live signing is switched on. Unconditional requirements here

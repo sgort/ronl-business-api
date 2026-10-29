@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import {
   getMockPortfolio,
-  makeLivePhaseRow,
+  liveProjectRows,
   MIJN_PROJECT_NRS,
   TL,
   type PortfolioProject,
 } from '../../pages/infra-board/infra-board.data';
 import { STATUS, roleByKey, type StatusKey } from '../../pages/infra-board/rip-model';
 import { RIP_PHASES, RIP_STAGES, ripPhaseByCode } from '../../pages/infra-board/rip-phases.catalog';
-import { useRipActiveAcrossPhases } from '../../services/infra.api';
+import { useRipActiveAcrossPhases, useRipCompletedAcrossPhases } from '../../services/infra.api';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 
 interface Props {
@@ -170,7 +170,11 @@ function Kanban({
                       </span>
                     </div>
                     <div className="ms">
-                      {st === 'wachtend' ? `Wacht op start van ${ph.code}` : p.milestone}
+                      {/* A wachtend card sits in the column of the phase it
+                          finished; what it waits for is the next one. */}
+                      {st === 'wachtend' && RIP_PHASES[i + 1]
+                        ? `Wacht op start van ${RIP_PHASES[i + 1].code}`
+                        : p.milestone}
                     </div>
                   </button>
                 );
@@ -190,12 +194,12 @@ export default function Portfolio({ onOpenProject }: Props) {
   const [role, setRole] = useState('alle');
 
   const { data: liveInstances } = useRipActiveAcrossPhases();
+  const { data: finishedInstances } = useRipCompletedAcrossPhases();
 
-  // Convert live instances to portfolio rows and prepend them.
-  // Remove any mock row whose project number matches a live instance (avoid duplicates).
-  const liveRows: PortfolioProject[] = (liveInstances ?? []).map((i) =>
-    makeLivePhaseRow(i, i.phaseCode)
-  );
+  // Live projects first: the running ones, then those waiting between phases
+  // (finished one, next not started -- no running instance, but still a
+  // project). Remove any mock row whose project number matches a live one.
+  const liveRows: PortfolioProject[] = liveProjectRows(liveInstances, finishedInstances);
   const liveNrs = new Set(liveRows.map((r) => r.nr));
   const all = [...liveRows, ...getMockPortfolio().filter((p) => !liveNrs.has(p.nr))];
   const mijn = new Set(MIJN_PROJECT_NRS);

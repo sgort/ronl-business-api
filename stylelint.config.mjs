@@ -1,0 +1,63 @@
+// Stylelint — REPORT-ONLY (#374, item 2). Every rule is a warning, so
+// `npm run lint:css` always exits 0; it measures, it does not gate. Turning a
+// rule into an error, and wiring it into CI, is a later step of #374.
+//
+// Deliberately no shared config (stylelint-config-standard and the like): it
+// would bury these four signals under style complaints and fight the
+// one-rule-per-line style several files use on purpose. See docs/css-files.md.
+const warn = { severity: "warning" };
+
+// The root class(es) each scoped stylesheet must start every selector with.
+// Files not listed are global by design and exempt from this rule only: the
+// two app-shell index.css files, public-site's pub.css (the whole site), the
+// Keycloak login theme, pa-cockpit's styles.css (imports only), and the
+// shared token file (a :root block).
+const ROOTS = {
+  "packages/frontend/src/components/LoginChoice/access-denied.css": [".lcp-denied"],
+  "packages/frontend/src/components/LoginChoice/single-board.css": [".lcp-single"],
+  "packages/frontend/src/components/process/caseworker-process.css": [".cwd-v2", ".pbd"],
+  "packages/frontend/src/components/process/process-disclosure.css": [".cwd-v2"],
+  "packages/frontend/src/components/process/process-view.css": [".pbd"],
+  "packages/frontend/src/components/signing/signing-panel.css": [".pb-sign-panel"],
+  "packages/frontend/src/pages/caseworker-v2/dashboard-v2.css": [".cwd-v2"],
+  "packages/frontend/src/pages/caseworker-v2/regelsimulatie.css": [".cwd-v2"],
+  "packages/frontend/src/pages/infra-board/dashboard-infra.css": [".pbd"],
+  "packages/frontend/src/pages/login-choice/login-portal.css": [".lcp"],
+  "packages/frontend/src/pages/woo/dashboard-woo.css": [".wood"],
+  "packages/pa-cockpit/src/pages/public-affairs-v2/dashboard-pa.css": [".pac"],
+  "packages/pa-cockpit/src/pages/public-affairs-v2/dossierbeheer.css": [".pac"],
+  "packages/pa-demo/src/demo/changelog/changelog.css": [".pac-dchangelog-*"],
+  "packages/pa-demo/src/demo/demo-overrides.css": [".pac"],
+};
+
+// Files allowed hex values (#374 3a), each for its own reason.
+const HEX_ALLOWED = [
+  // The shared tokens: where the palette's hex values live.
+  "packages/shared/styles/tokens.css",
+  // The Keycloak login theme: served by Keycloak, outside the build, so it
+  // cannot load the token file.
+  "keycloak-themes/ronl/login/resources/css/login.css",
+  "deployment/vm/keycloak/themes/ronl/login/resources/css/login.css",
+  // Open Regels: a separate brand on its own Rijkshuisstijl tokens.
+  "packages/public-site/src/styles/pub.css",
+  // The app shells' --color-* values: the tenant-theme fallbacks, not palette.
+  "packages/frontend/src/index.css",
+  "packages/pa-demo/src/index.css",
+];
+
+export default {
+  plugins: ["./scripts/stylelint/selector-root-class.mjs"],
+  rules: {
+    // Hex values belong in the shared token file only (HEX_ALLOWED below).
+    "color-no-hex": [true, warn],
+    "no-duplicate-selectors": [true, warn],
+    "declaration-no-important": [true, warn],
+  },
+  overrides: [
+    ...Object.entries(ROOTS).map(([file, roots]) => ({
+      files: [file],
+      rules: { "rba/selector-root-class": [true, { roots, ...warn }] },
+    })),
+    { files: HEX_ALLOWED, rules: { "color-no-hex": null } },
+  ],
+};

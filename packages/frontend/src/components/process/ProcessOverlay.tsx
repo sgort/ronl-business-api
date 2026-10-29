@@ -1,15 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PhaseSwimlaneModel, Task } from '@ronl/shared';
-import type { StatusKey } from '../../pages/infra-board/rip-model';
+import type { StatusKey } from './status';
 import PhaseStepper from './PhaseStepper';
-import PhaseSwimlane from './PhaseSwimlane';
 import { phaseRef, phaseStepClass, phaseStepTitle, stepperPhases } from './phaseSet';
 import type { ProcessContext } from './processContext';
-import { myLaneKeys } from './laneSteps';
+import ProcessView from './ProcessView';
 import './caseworker-process.css';
 
 const NO_STATUS: Record<string, StatusKey> = {};
-const NOTHING = new Set<string>();
 
 /** The call activity in `model` that runs a loaded subprocess, and that subprocess's key. */
 function subprocessOf(model: PhaseSwimlaneModel | undefined, ctx: ProcessContext) {
@@ -26,7 +24,6 @@ function subprocessOf(model: PhaseSwimlaneModel | undefined, ctx: ProcessContext
 export default function ProcessOverlay({
   task,
   ctx,
-  roles,
   initialPhase,
   dossierRef,
   returnFocus,
@@ -34,7 +31,6 @@ export default function ProcessOverlay({
 }: {
   task: Task;
   ctx: ProcessContext;
-  roles: readonly string[];
   /** Open at this phase instead of the task's own. */
   initialPhase?: string;
   dossierRef?: string;
@@ -129,22 +125,10 @@ export default function ProcessOverlay({
   const model = ctx.models[proc];
   const onOwnProcess = proc === ctx.current.processKey;
   const ownNodeId = ctx.current.nodeId;
-  const claimed = useMemo(
-    () => (onOwnProcess ? new Set([ownNodeId]) : NOTHING),
-    [onOwnProcess, ownNodeId]
-  );
-  const mine = useMemo(() => (model ? myLaneKeys(model, roles) : NOTHING), [model, roles]);
   const scrollTo =
     onOwnProcess && (!sel || sel === ctx.phase)
       ? ctx.current.nodeId
       : (model?.nodes.find((n) => n.phase === sel)?.id ?? null);
-  const myGroups = [
-    ...new Set(
-      (model?.lanes ?? []).flatMap((l) =>
-        (l.candidateGroups ?? []).filter((g) => roles.includes(g))
-      )
-    ),
-  ];
 
   return (
     <div
@@ -177,71 +161,45 @@ export default function ProcessOverlay({
               stepTitle={phaseStepTitle}
             />
           )}
-          <div className="pb-phase-titlebar">
-            <h3 ref={titleRef} tabIndex={-1}>
-              {sub && (
-                <span className="cwp-crumbs">
-                  <button
-                    type="button"
-                    className={proc === top ? 'on' : ''}
-                    aria-current={proc === top ? 'true' : undefined}
-                    onClick={() => setProc(top)}
-                  >
-                    Hoofdproces
-                  </button>
-                  <span aria-hidden="true">›</span>
-                  <button
-                    type="button"
-                    className={proc === sub.key ? 'on' : ''}
-                    aria-current={proc === sub.key ? 'true' : undefined}
-                    onClick={() => {
-                      setProc(sub.key);
-                      if (sub.phase) setSel(sub.phase);
-                    }}
-                  >
-                    Deelproces fase{' '}
-                    {sub.phase && topSet ? phaseRef(topSet, sub.phase) : (sub.phase ?? '')}
-                  </button>
-                </span>
-              )}
-              {model?.processName ?? proc} <span className="rcode">{proc}</span>
-            </h3>
-            <span className="meta">Processtappen &amp; rollen — procesmodel (live)</span>
-          </div>
-          <div className="cwp-legend">
-            <span>
-              <i className="sw done" />
-              Afgerond
-            </span>
-            <span>
-              <i className="sw active" />
-              Loopt
-            </span>
-            <span>
-              <i className="sw claimed" />
-              Jouw taak
-            </span>
-            <span>
-              <i className="sw mine" />
-              Jouw rol{myGroups.length > 0 ? ` (${myGroups.join(', ')})` : ''}
-            </span>
-            <span>
-              <i className="sw auto" />
-              Automatisch (script / DMN)
-            </span>
-            <span>
-              <i className="sw todo" />
-              Nog niet / niet doorlopen
-            </span>
-          </div>
           {model && (
-            <PhaseSwimlane
-              density="roomy"
+            <ProcessView
               model={model}
               statusById={ctx.statusByProcess[proc] ?? NO_STATUS}
-              claimedNodeIds={claimed}
-              claimedLabel="jouw taak"
-              myLaneKeys={mine}
+              tasks={
+                onOwnProcess ? [{ taskDefinitionKey: ownNodeId, assignee: task.assignee }] : []
+              }
+              titleRef={titleRef}
+              title={{
+                name: model.processName ?? proc,
+                code: proc,
+                live: true,
+                crumbs: sub && (
+                  <span className="cwp-crumbs">
+                    <button
+                      type="button"
+                      className={proc === top ? 'on' : ''}
+                      aria-current={proc === top ? 'true' : undefined}
+                      onClick={() => setProc(top)}
+                    >
+                      Hoofdproces
+                    </button>
+                    <span aria-hidden="true">›</span>
+                    <button
+                      type="button"
+                      className={proc === sub.key ? 'on' : ''}
+                      aria-current={proc === sub.key ? 'true' : undefined}
+                      onClick={() => {
+                        setProc(sub.key);
+                        if (sub.phase) setSel(sub.phase);
+                      }}
+                    >
+                      Deelproces fase{' '}
+                      {sub.phase && topSet ? phaseRef(topSet, sub.phase) : (sub.phase ?? '')}
+                    </button>
+                  </span>
+                ),
+              }}
+              focusNodeId={onOwnProcess ? ownNodeId : null}
               scrollToNodeId={scrollTo}
               onOpenCall={(n) => {
                 if (n.calls && ctx.models[n.calls]) {

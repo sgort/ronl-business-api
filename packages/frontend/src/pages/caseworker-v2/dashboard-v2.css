@@ -10,27 +10,28 @@
      --color-secondary  (Flevoland: #e70077, used as accent)
      --color-accent
    We give them V2-namespaced aliases so the rest of the file
-   reads cleanly.
+   reads cleanly. The values come from the shared tokens in
+   @ronl/shared/styles/tokens.css (--rba-*).
    ============================================================ */
 
 .cwd-v2 {
-  --v2-chrome:     var(--color-primary, #0046ad);
-  --v2-chrome-d:   var(--color-primary-dark, #033b8e);
-  --v2-accent:     var(--color-secondary, #e70077);
+  --v2-chrome:     var(--rba-brand);
+  --v2-chrome-d:   var(--rba-brand-d);
+  --v2-accent:     var(--rba-accent);
   --v2-accent-50:  color-mix(in srgb, var(--v2-accent) 12%, white);
   --v2-accent-d:   color-mix(in srgb, var(--v2-accent) 80%, black);
 
-  --v2-ink:        #1f2937;
-  --v2-ink-2:      #4b5563;
-  --v2-ink-3:      #6b7280;
-  --v2-rule:       #d1d5db;
-  --v2-rule-2:     #e5e7eb;
-  --v2-bg:         #f4f5f7;
-  --v2-paper:      #ffffff;
+  --v2-ink:        var(--rba-ink);
+  --v2-ink-2:      var(--rba-ink-2);
+  --v2-ink-3:      var(--rba-ink-3);
+  --v2-rule:       var(--rba-rule);
+  --v2-rule-2:     var(--rba-rule-2);
+  --v2-bg:         var(--rba-bg);
+  --v2-paper:      var(--rba-paper);
 
-  --v2-green:      #3fa535;
-  --v2-amber:      #e5b700;
-  --v2-overdue:    #b0103c;
+  --v2-green:      var(--rba-ok);
+  --v2-amber:      var(--rba-warn);
+  --v2-overdue:    var(--rba-bad);
 
   --v2-serif: "Source Serif 4", Georgia, serif;
   --v2-sans:  "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -47,7 +48,7 @@
 /* ── Top bar ────────────────────────────────────────────── */
 .cwd-v2 .v2-topbar {
   background: var(--v2-chrome);
-  color: #fff;
+  color: var(--rba-ink-inverse);
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
@@ -61,7 +62,7 @@
   align-items: center;
 }
 .cwd-v2 .v2-logo-box {
-  background: #fff;
+  background: var(--rba-paper);
   padding: 6px 14px;
   display: inline-flex;
   flex-direction: column;
@@ -135,7 +136,7 @@
   width: 30px;
   height: 30px;
   background: var(--v2-accent);
-  color: #fff;
+  color: var(--rba-ink-inverse);
   display: grid;
   place-items: center;
   font-size: 11px;
@@ -146,7 +147,7 @@
 .cwd-v2 .v2-login-btn {
   background: rgba(255, 255, 255, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #fff;
+  color: var(--rba-ink-inverse);
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 600;
@@ -158,7 +159,7 @@
 .cwd-v2 .v2-changelog-btn {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #fff;
+  color: var(--rba-ink-inverse);
   width: 32px;
   height: 32px;
   border-radius: 8px;
@@ -175,7 +176,7 @@
   background: rgba(255, 255, 255, 0.22);
 }
 .cwd-v2 .v2-changelog-btn:focus-visible {
-  outline: 2px solid #fff;
+  outline: 2px solid var(--rba-paper);
   outline-offset: 2px;
 }
 
@@ -268,7 +269,7 @@
 .cwd-v2 .v2-gw-lang button + button { border-left: 1px solid var(--v2-rule); }
 .cwd-v2 .v2-gw-lang button.active {
   background: var(--v2-accent);
-  color: #fff;
+  color: var(--rba-ink-inverse);
 }
 .cwd-v2 .v2-gw-external {
   display: inline-flex;
@@ -299,7 +300,7 @@
 /* ── Mode tabs ──────────────────────────────────────────── */
 .cwd-v2 .v2-tabs {
   background: var(--v2-chrome-d);
-  color: #fff;
+  color: var(--rba-ink-inverse);
   display: flex;
   align-items: stretch;
   height: 40px;
@@ -320,10 +321,10 @@
   font-family: inherit;
 }
 .cwd-v2 .v2-tab:hover {
-  color: #fff;
+  color: var(--rba-ink-inverse);
 }
 .cwd-v2 .v2-tab.active {
-  color: #fff;
+  color: var(--rba-ink-inverse);
   border-bottom-color: var(--v2-accent);
   background: rgba(255, 255, 255, 0.05);
   font-weight: 600;
@@ -331,7 +332,7 @@
 .cwd-v2 .v2-tab .v2-tab-count {
   font-family: var(--v2-mono);
   background: var(--v2-accent);
-  color: #fff;
+  color: var(--rba-ink-inverse);
   font-size: 10px;
   padding: 1px 6px;
   font-weight: 600;
@@ -363,7 +364,7 @@
 }
 .cwd-v2 .v2-rail-card {
   background: var(--v2-accent);
-  color: #fff;
+  color: var(--rba-ink-inverse);
   font-family: var(--v2-serif);
   font-weight: 600;
   font-size: 22px;
@@ -561,7 +562,7 @@
 }
 .cwd-v2 .v2-btn {
   background: var(--v2-accent);
-  color: #fff;
+  color: var(--rba-ink-inverse);
   border: 1px solid var(--v2-accent);
   padding: 8px 14px;
   font-size: 13px;
@@ -574,7 +575,7 @@
   cursor: not-allowed;
 }
 .cwd-v2 .v2-btn.v2-btn-ghost {
-  background: #fff;
+  background: var(--rba-paper);
   color: var(--v2-chrome);
   border-color: var(--v2-chrome);
 }
@@ -591,11 +592,11 @@
 }
 .cwd-v2-palette {
   width: min(640px, 92vw);
-  background: #fff;
-  border: 1px solid #d1d5db;
+  background: var(--rba-paper);
+  border: 1px solid var(--rba-rule);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
   font-family: "Inter", sans-serif;
-  color: #1f2937;
+  color: var(--rba-ink);
 }
 .cwd-v2-palette input {
   width: 100%;
@@ -604,7 +605,7 @@
   padding: 16px 18px;
   font-size: 15px;
   font-family: inherit;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--rba-rule-2);
   background: transparent;
 }
 .cwd-v2-palette ul {
@@ -627,25 +628,25 @@
 .cwd-v2-palette li:hover {
   background: var(--v2-accent-50, #fce7f0);
 }
-.cwd-v2-palette li .label { color: #1f2937; }
+.cwd-v2-palette li .label { color: var(--rba-ink); }
 .cwd-v2-palette li .mode {
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 10.5px;
-  color: #6b7280;
+  color: var(--rba-ink-3);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .cwd-v2-palette .pal-empty {
   padding: 24px;
   text-align: center;
-  color: #6b7280;
+  color: var(--rba-ink-3);
   font-size: 13px;
 }
 .cwd-v2-palette .pal-hint {
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--rba-rule-2);
   padding: 10px 18px;
   font-size: 11px;
-  color: #6b7280;
+  color: var(--rba-ink-3);
   display: flex;
   gap: 16px;
   font-family: "JetBrains Mono", ui-monospace, monospace;
@@ -999,11 +1000,11 @@
   height: 10px;
   border-radius: 50%;
   background: var(--v2-ink-2);
-  border: 2px solid var(--v2-surface, #fff);
+  border: 2px solid var(--v2-surface, var(--rba-paper));
 }
 .cwd-v2 .v2-taken-step.automated::before { background: var(--v2-rule-2); }
 .cwd-v2 .v2-taken-step.running::before { background: var(--v2-accent); }
-.cwd-v2 .v2-taken-step.canceled::before { background: #d1d5db; }
+.cwd-v2 .v2-taken-step.canceled::before { background: var(--rba-rule); }
 .cwd-v2 .v2-taken-step-row {
   display: flex;
   align-items: baseline;
@@ -1027,7 +1028,7 @@
   color: var(--v2-ink-2);
 }
 .cwd-v2 .v2-taken-step-status.running { color: var(--v2-accent); font-weight: 600; }
-.cwd-v2 .v2-taken-step-status.canceled { color: #9ca3af; }
+.cwd-v2 .v2-taken-step-status.canceled { color: var(--rba-ink-4); }
 
 .cwd-v2 .v2-taken-msg {
   padding: 10px 14px;
@@ -1044,7 +1045,7 @@
   bottom: 22px;
   right: 22px;
   background: var(--v2-accent);
-  color: #fff;
+  color: var(--rba-ink-inverse);
   border: none;
   padding: 10px 16px;
   font-size: 13px;

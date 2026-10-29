@@ -13,13 +13,15 @@ jest.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
   StreamableHTTPClientTransport: jest.fn(),
 }));
 jest.mock('@utils/config', () => ({ config: { cprmv: { url: 'http://cprmv' } } }));
+const mockWarn = jest.fn();
 jest.mock('@utils/logger', () => ({
-  createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
+  createLogger: () => ({ info: jest.fn(), warn: mockWarn, error: jest.fn(), debug: jest.fn() }),
 }));
 
 import { CprmvMcpProvider } from './CprmvMcpProvider';
 
-const RULE_TOOL = 'rules_rules__rule_id_path__get';
+// The names fastmcp 4 gives the CPRMV API's routes (cprmv !21).
+const RULE_TOOL = 'rules_rules';
 const inject = (p: object, client: unknown) => {
   (p as { client: unknown }).client = client;
 };
@@ -41,6 +43,51 @@ describe('CprmvMcpProvider — core', () => {
     await expect(p.getToolDefinitions()).resolves.toEqual([
       { name: RULE_TOOL, description: 'Get rule', input_schema: { type: 'object' } },
     ]);
+  });
+
+  it('offers the three legislation tools out of what the CPRMV MCP server lists', async () => {
+    // tools/list from the CPRMV API with fastmcp 4.0.10 (cprmv !21, 29 October 2026).
+    const listed = [
+      'celex_cellar_by_celex',
+      'cprmv_info',
+      'eli_cellar_by_eli',
+      'methods_methods_get',
+      'ref_ref_get',
+      'rules_rules',
+    ];
+    const p = new CprmvMcpProvider();
+    inject(p, {
+      listTools: jest.fn().mockResolvedValue({
+        tools: listed.map((name) => ({ name, description: name, inputSchema: {} })),
+      }),
+    });
+
+    const tools = await p.getToolDefinitions();
+
+    expect(tools.map((t) => t.name).sort()).toEqual([
+      'celex_cellar_by_celex',
+      'ref_ref_get',
+      'rules_rules',
+    ]);
+    expect(mockWarn).not.toHaveBeenCalled();
+  });
+
+  it('warns when an allowed tool is not among those the server lists', async () => {
+    // A fastmcp upgrade renamed every tool once, and the allowlist silently
+    // filtered CPRMV down to nothing. The log should say so.
+    const p = new CprmvMcpProvider();
+    inject(p, {
+      listTools: jest.fn().mockResolvedValue({
+        tools: [{ name: RULE_TOOL, description: 'd', inputSchema: {} }],
+      }),
+    });
+
+    await p.getToolDefinitions();
+
+    expect(mockWarn).toHaveBeenCalledWith(
+      expect.stringContaining('not listed'),
+      expect.objectContaining({ missing: ['celex_cellar_by_celex', 'ref_ref_get'] })
+    );
   });
 
   it('callTool delegates to the client', async () => {
@@ -134,6 +181,33 @@ describe('CprmvMcpProvider — session reconnect', () => {
 
     await expect(p.callTool(RULE_TOOL, {})).resolves.toBe(result);
     expect(client2.callTool).toHaveBeenCalledWith({ name: RULE_TOOL, arguments: {} });
+  });
+});
+
+describe('CprmvMcpProvider — a failed connect', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('stays disconnected, and closes the half-open client', async () => {
+    // What took the assistant down on 29 October 2026: the CPRMV service stopped
+    // serving /mcp, connect failed, but the client stayed set. isConnected() said
+    // true, the source was offered and selected, and listTools on a client without
+    // a transport threw "Not connected" for the whole chat.
+    const p = new CprmvMcpProvider();
+    const client = {
+      connect: jest
+        .fn()
+        .mockRejectedValue(
+          new Error('Streamable HTTP error: Error POSTing to endpoint: {"detail":"Not Found"}')
+        ),
+      close: jest.fn().mockResolvedValue(undefined),
+    };
+    mockClientCtor.mockImplementation(() => client);
+
+    await expect(p.connect()).rejects.toThrow('Not Found');
+
+    expect(p.isConnected()).toBe(false);
+    expect(client.close).toHaveBeenCalled();
   });
 });
 

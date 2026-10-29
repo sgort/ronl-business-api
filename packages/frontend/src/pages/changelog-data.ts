@@ -112,6 +112,195 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.10.4',
+      status: 'Released',
+      date: '29 okt 2026',
+      scope: ['frontend', 'backend', 'ci'],
+      commits: [
+        {
+          sha: 'f3f7e64',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            "The CPRMV source follows fastmcp 4's tool names, and the log says when one goes missing",
+          details: [
+            'CprmvMcpProvider allowed three tools by the names an earlier fastmcp gave the CPRMV API: `rules_rules__rule_id_path__get` and two like it. fastmcp 4.0.10, which cprmv now pins, names them `rules_rules`, `ref_ref_get` and `celex_cellar_by_celex` (checked with `tools/list` against cprmv !21). Once CPRMV serves `/mcp` again, the old allowlist would have filtered every tool out: the source connected, with nothing to offer.',
+            'The allowlist and system prompt use the new names. One `allowedTools()` filter serves the normal and the session-reconnect path, and logs a warning naming the missing and the listed tools when an allowed one is absent, so the next rename shows in the startup log instead of quietly emptying the source (#397).',
+          ],
+        },
+        {
+          sha: 'd98ebaf',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The assistant E2E reports an offline source, and checks it cannot be selected',
+          details: [
+            'A source that is down must show "(offline)" and be impossible to select; offered as connected, it failed every chat. `assistant.spec.ts` asserts that every offline source is disabled and lists each in the Playwright report as an `offline source` annotation. Which sources are down depends on the tier at the time, so they are reported, not required (#396).',
+          ],
+        },
+        {
+          sha: 'ea94fb2',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The assistant in E2E: a stub model chats through every connected source',
+          details: [
+            'The assistant was outside the E2E suite, which is how a broken chat passed two acceptance runs. `StubLlmProvider` is a deterministic model that calls nothing external and answers "Stub model: received N tools."; the chat still runs through the real MCP registry, so N proves the sources listed their tools. It is listed only with `LLM_STUB_ENABLED=true`, registered last so it is never the default, and config refuses to start with it on when `DEPLOYMENT_ENV=production`.',
+            '`e2e/assistant.spec.ts` opens the dock as a caseworker, picks the stub model, keeps the preselected sources and asks a question: it expects the stub reply with more than zero tools and no error badge, and skips where the stub is not offered. The flag is on in `.env.example` and on ACC (#396).',
+          ],
+        },
+        {
+          sha: 'af75888',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A source that fails to connect is no longer offered as connected',
+          details: [
+            'Every assistant chat failed with "Not connected". CPRMV had stopped serving `/mcp`, so its connect failed at startup, but `connect()` had already set `this.client` and did not clear it. `isConnected()` reads only `client`: `/v1/mcp/sources` reported CPRMV connected, the dock preselected it, and `listTools()` on an SDK client without a transport threw "Not connected" for the whole chat.',
+            'All five providers now close the half-open client and clear `client` and `transport` when connect fails, then rethrow so the registry logs it; the source shows "(offline)". `McpRegistry.getToolDefinitions` leaves out a connected source whose listing throws, with a warning, so a subprocess dying mid-session cannot take the chat down either (#396).',
+          ],
+        },
+        {
+          sha: '219ceb4',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Lockfile refresh: production advisories down from 30 to 2',
+          details: [
+            'Runtime: body-parser 1.20.9 and 2.4.0, dompurify 3.4.17 (one critical), follow-redirects 1.16.1, multer 2.5.0, undici 7.30.1, zod 4.6.7, qs 6.16.1, hono 4.13.13, @hono/node-server 2.1.5, ip-address 10.7.4 and fast-uri 3.1.9. Development: handlebars 4.7.10 (the two criticals in the Semgrep export of main), shell-quote 1.12.0 via concurrently 10.0.6, source-map-js 1.2.2 and vite 6.4.5 in all four workspaces. Every fix is inside the declared ranges.',
+            'Several fixes were younger than the 14-day cooldown, so the update ran as the urgent-security exception `.npmrc` describes: `--min-release-age=6` on the command line only, under npm 11.19.1 on a copy of the manifests, because Node 22 bundles npm 10.9.9, which ignores the flag. react-router (needs 7.x) and four dev-only packages remain; see #395 (#394).',
+          ],
+        },
+        {
+          sha: '93c061f',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Node 22.23.4, and the tooling pins at 24.22.1',
+          details: [
+            '`.nvmrc` moves from 22.23.3 to 22.23.4 and the literals in the dependency-audit, dependency-review, sbom and zizmor workflows from 24.21.0 to 24.22.1: the releases that fix CVE-2026-111497, a Brotli decoder out-of-bounds write. Both App Services already ran v22.23.4, so this closes no live exposure; it brings CI and development onto the version that ships (#394).',
+          ],
+        },
+        {
+          sha: 'de20e29',
+          author: 'renovate[bot]',
+          type: 'fix',
+          subject: 'MCP SDK 1.32.1 (security)',
+          details: [
+            '@modelcontextprotocol/sdk from ^1.31.0 to ^1.32.1 in the backend: four advisories, among them unbounded memory use while validating one request, tasks not tied to their session, and bearer tokens accepted for another service (#391).',
+          ],
+        },
+        {
+          sha: 'e52f7fb',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'stylelint 17.16.0',
+          details: ['Development only (#386).'],
+        },
+        {
+          sha: '4df6c1b',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'bump-release generates the release SBOM with the npm CI uses',
+          details: [
+            "The SBOM records the npm that wrote it, and the strict check compares that field too, so a file written by a different npm fails `release-sbom` with identical components; v2026.10.3 needed a second commit for it. The step now looks up the Node that `sbom.yml` pins and runs the generator and the check under that Node's npm (#385).",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.10.3',
+      status: 'Released',
+      date: '13 okt 2026',
+      scope: ['frontend', 'backend', 'pa-demo'],
+      commits: [
+        {
+          sha: '94084db',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The portfolio shows live projects waiting between phases',
+          details: [
+            'The portfolio was fed only by running RIP instances, so a project that finished a phase while the next had not been started dropped out, although Beheer\'s "Starten" list showed it. `GET /v1/rip/phases/completed` returns the finished instances of every phase, tagged with `phaseCode`, under the same aggregate rules as `/phases/active`; the finished list now carries `leadRole` for the role filter.',
+            'The shared provider fetches running and finished instances together. Per `businessKey` the furthest finished phase becomes a portfolio row drawn as wachtend, dropped while the project runs anywhere; an instance without a key is kept, as the Beheer list keeps it. Finishing R6.1 shows as "RIP afgerond". The rail\'s "Wacht op start" counts them, the project page shows the finished phase and what it waits for instead of falling back to R2.1, and a wachtend card on the Per fase board names the next phase (#383).',
+          ],
+        },
+        {
+          sha: '76a7ba5',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'The Infra-board draws its processes through ProcessView, with distinct gateways',
+          details: [
+            'The project detail renders its BPMN through the shared ProcessView, so it has the Caseworker look: legend, the viewer\'s lanes marked "jouw rol", "jouw taak" on the viewer\'s own task, "geclaimd" on a colleague\'s, a dashed outline on every task that is not the viewer\'s own, slim rows for empty lanes. The old opt-in path of PhaseSwimlane and `.cwp-swim` are gone; `process-view-guard.test.ts` fails when anything outside `components/process` imports PhaseSwimlane.',
+            'A decision is a diamond with "?" and its question above it, a parallel split or join a bar captioned "tegelijk" / "alles klaar", an exclusive merge a small dot. The Caseworker step list names gateways by kind instead of element id, Procesgegevens is folded by default in both task panels, and claiming a task on the Infra-board refreshes the open tasks at once. e2e checks the mine / claimed / open marks on a controlled R2.4 instance (#381, closes #277).',
+          ],
+        },
+        {
+          sha: 'bda1e2a',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'e2e checks clamped process labels by their box',
+          details: [
+            'A label clamped on purpose keeps its full text, so its scrollHeight always exceeds what it shows and the rule failed on ACC for a correct node. The remaining rule checks that every label ends inside its node and shows whole lines (#380).',
+          ],
+        },
+        {
+          sha: '708fa70',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'ProcessView: one BPMN rendering for every dashboard, first used by the Caseworker overlay',
+          details: [
+            "ProcessView (`components/process`) is a stepper slot, title bar, legend and swimlane. A dashboard passes data; the viewer comes from the Keycloak token (`useViewer`), and task marks, the viewer's lanes and the legend are derived in `processMarks.ts`. The legend lists only what the diagram shows; lanes without nodes get slim rows and no label is a bare element id. The status vocabulary moves to `components/process/status.ts` (re-exported).",
+            '`e2e/process-view.spec.ts` checks rules that hold whatever the engine state: legend matches the diagram, labels fit, no overlaps, no raw ids, slim empty lanes (#379).',
+          ],
+        },
+        {
+          sha: '75f93b8',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Stylesheets: white and exact-match hex values replaced with tokens',
+          details: [
+            '192 hex values in 12 stylesheets become shared tokens with no visual change: 129 whites by property (`--rba-ink-inverse` on color, `--rba-paper` elsewhere) and 63 exact matches. Stylelint exempts the token file, the Keycloak login themes, the public site and the two tenant-theme fallbacks, each with its reason. Hex warnings drop from 754 to 369 (#374 3a).',
+          ],
+        },
+        {
+          sha: 'd2b6a93',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Shared design tokens',
+          details: [
+            "`packages/shared/styles/tokens.css` holds one `:root` block of `--rba-*` tokens: Flevoland's fixed brand colours, the themed brand chained to the tenant's `--color-primary`, neutrals and status colours. The caseworker app and pa-cockpit (and so pa-demo) load it, and the surface variables of seven stylesheets point at it with every value unchanged.",
+            '`css-tokens.test.ts` fails when a stylesheet uses an undefined `--rba-*` token or a host stops loading the file. `docs/css-files.md` documents the tokens, the values that still diverge and the plan for the remaining hex values (#374).',
+          ],
+        },
+        {
+          sha: '84b6da6',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Stylelint, report-only',
+          details: [
+            'Four rules, all warnings: no hex colours, no duplicate selectors, no `!important`, and a custom `rba/selector-root-class` rule that every selector in a scoped stylesheet starts with its root class. `npm run lint:css` lists the warnings and `lint:css:summary` counts them; nothing runs in CI or a hook yet. Baseline 889 warnings (#374).',
+          ],
+        },
+        {
+          sha: '34cd5d0',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Semgrep: a false positive on the eDOCS author merge suppressed',
+          details: [
+            'Semgrep Code flagged the merge of `edocsAuthorVariables(req.user)` into the process variables. The object comes from the verified token, carries only `edocsAuthor` and `edocsAuthorName`, and goes to Operaton, not into the response; suppressed inline with the reason and the full rule id.',
+          ],
+        },
+        {
+          sha: '883936d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Decision document fallback splits a documentRef list',
+          details: [
+            'When no completed user task carried a reference, `getDecisionDocument` took the first `ronl:documentRef` as written, so a list such as `doc-a,doc-b` resolved a template that does not exist and answered DOCUMENT_NOT_FOUND. Both branches now share `firstDocumentRef` (#371).',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.10.2',
       status: 'Released',
       date: '10 okt 2026',
