@@ -40,6 +40,18 @@ test('the assistant answers through every connected source', async ({ page }) =>
   const enabledSources = sources.and(page.locator(':enabled'));
   expect(await enabledSources.count()).toBeGreaterThan(0);
 
+  // A source that is down must be shown as such and be impossible to select:
+  // offered as connected, it failed every chat (29 October 2026). Which ones are
+  // down depends on the tier at the time, so they are reported, not asserted.
+  const offline = sources.filter({ hasText: '(offline)' });
+  const offlineNames = (await offline.allInnerTexts()).map((t) => t.replace(' (offline)', ''));
+  for (const name of offlineNames) {
+    test.info().annotations.push({ type: 'offline source', description: name });
+  }
+  for (let i = 0; i < offlineNames.length; i++) {
+    await expect(offline.nth(i)).toBeDisabled();
+  }
+
   await dock.getByPlaceholder(/Stel een vraag/).fill('Hallo');
   await dock.getByPlaceholder(/Stel een vraag/).press('Enter');
 
