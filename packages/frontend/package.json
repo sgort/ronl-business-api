@@ -1,6 +1,6 @@
 {
   "name": "@ronl/frontend",
-  "version": "2026.10.3",
+  "version": "2026.10.4",
   "description": "Municipality portal (MijnOmgeving) with identity provider selection",
   "type": "module",
   "scripts": {
