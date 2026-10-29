@@ -337,8 +337,8 @@ Three places it does not reach, all measured on 19 September 2026:
 
 - **`npm ci`** ignores it on purpose (npm/cli#9281). CI's test and build jobs
   only run `npm ci`, so they cannot fail on it, and are not protected by it.
-- **npm older than 11.10** ignores it without a warning. Node 22.23.2, which
-  `.nvmrc` names, bundles npm 10.9.8. `scripts/check-deps.sh` warns about this at
+- **npm older than 11.10** ignores it without a warning. Node 22.23.4, which
+  `.nvmrc` names, bundles npm 10.9.9. `scripts/check-deps.sh` warns about this at
   every dev-server start and push, and names `npm install -g npm@11`.
 - **The break-glass deploy scripts** install in `packages/backend/deploy/`,
   which they create at run time with its own `package.json`, so npm treats it as
