@@ -112,6 +112,99 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.10.4',
+      status: 'Released',
+      date: '29 okt 2026',
+      scope: ['frontend', 'backend', 'ci'],
+      commits: [
+        {
+          sha: 'f3f7e64',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            "The CPRMV source follows fastmcp 4's tool names, and the log says when one goes missing",
+          details: [
+            'CprmvMcpProvider allowed three tools by the names an earlier fastmcp gave the CPRMV API: `rules_rules__rule_id_path__get` and two like it. fastmcp 4.0.10, which cprmv now pins, names them `rules_rules`, `ref_ref_get` and `celex_cellar_by_celex` (checked with `tools/list` against cprmv !21). Once CPRMV serves `/mcp` again, the old allowlist would have filtered every tool out: the source connected, with nothing to offer.',
+            'The allowlist and system prompt use the new names. One `allowedTools()` filter serves the normal and the session-reconnect path, and logs a warning naming the missing and the listed tools when an allowed one is absent, so the next rename shows in the startup log instead of quietly emptying the source (#397).',
+          ],
+        },
+        {
+          sha: 'd98ebaf',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The assistant E2E reports an offline source, and checks it cannot be selected',
+          details: [
+            'A source that is down must show "(offline)" and be impossible to select; offered as connected, it failed every chat. `assistant.spec.ts` asserts that every offline source is disabled and lists each in the Playwright report as an `offline source` annotation. Which sources are down depends on the tier at the time, so they are reported, not required (#396).',
+          ],
+        },
+        {
+          sha: 'ea94fb2',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The assistant in E2E: a stub model chats through every connected source',
+          details: [
+            'The assistant was outside the E2E suite, which is how a broken chat passed two acceptance runs. `StubLlmProvider` is a deterministic model that calls nothing external and answers "Stub model: received N tools."; the chat still runs through the real MCP registry, so N proves the sources listed their tools. It is listed only with `LLM_STUB_ENABLED=true`, registered last so it is never the default, and config refuses to start with it on when `DEPLOYMENT_ENV=production`.',
+            '`e2e/assistant.spec.ts` opens the dock as a caseworker, picks the stub model, keeps the preselected sources and asks a question: it expects the stub reply with more than zero tools and no error badge, and skips where the stub is not offered. The flag is on in `.env.example` and on ACC (#396).',
+          ],
+        },
+        {
+          sha: 'af75888',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A source that fails to connect is no longer offered as connected',
+          details: [
+            'Every assistant chat failed with "Not connected". CPRMV had stopped serving `/mcp`, so its connect failed at startup, but `connect()` had already set `this.client` and did not clear it. `isConnected()` reads only `client`: `/v1/mcp/sources` reported CPRMV connected, the dock preselected it, and `listTools()` on an SDK client without a transport threw "Not connected" for the whole chat.',
+            'All five providers now close the half-open client and clear `client` and `transport` when connect fails, then rethrow so the registry logs it; the source shows "(offline)". `McpRegistry.getToolDefinitions` leaves out a connected source whose listing throws, with a warning, so a subprocess dying mid-session cannot take the chat down either (#396).',
+          ],
+        },
+        {
+          sha: '219ceb4',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Lockfile refresh: production advisories down from 30 to 2',
+          details: [
+            'Runtime: body-parser 1.20.9 and 2.4.0, dompurify 3.4.17 (one critical), follow-redirects 1.16.1, multer 2.5.0, undici 7.30.1, zod 4.6.7, qs 6.16.1, hono 4.13.13, @hono/node-server 2.1.5, ip-address 10.7.4 and fast-uri 3.1.9. Development: handlebars 4.7.10 (the two criticals in the Semgrep export of main), shell-quote 1.12.0 via concurrently 10.0.6, source-map-js 1.2.2 and vite 6.4.5 in all four workspaces. Every fix is inside the declared ranges.',
+            'Several fixes were younger than the 14-day cooldown, so the update ran as the urgent-security exception `.npmrc` describes: `--min-release-age=6` on the command line only, under npm 11.19.1 on a copy of the manifests, because Node 22 bundles npm 10.9.9, which ignores the flag. react-router (needs 7.x) and four dev-only packages remain; see #395 (#394).',
+          ],
+        },
+        {
+          sha: '93c061f',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Node 22.23.4, and the tooling pins at 24.22.1',
+          details: [
+            '`.nvmrc` moves from 22.23.3 to 22.23.4 and the literals in the dependency-audit, dependency-review, sbom and zizmor workflows from 24.21.0 to 24.22.1: the releases that fix CVE-2026-111497, a Brotli decoder out-of-bounds write. Both App Services already ran v22.23.4, so this closes no live exposure; it brings CI and development onto the version that ships (#394).',
+          ],
+        },
+        {
+          sha: 'de20e29',
+          author: 'renovate[bot]',
+          type: 'fix',
+          subject: 'MCP SDK 1.32.1 (security)',
+          details: [
+            '@modelcontextprotocol/sdk from ^1.31.0 to ^1.32.1 in the backend: four advisories, among them unbounded memory use while validating one request, tasks not tied to their session, and bearer tokens accepted for another service (#391).',
+          ],
+        },
+        {
+          sha: 'e52f7fb',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'stylelint 17.16.0',
+          details: ['Development only (#386).'],
+        },
+        {
+          sha: '4df6c1b',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'bump-release generates the release SBOM with the npm CI uses',
+          details: [
+            "The SBOM records the npm that wrote it, and the strict check compares that field too, so a file written by a different npm fails `release-sbom` with identical components; v2026.10.3 needed a second commit for it. The step now looks up the Node that `sbom.yml` pins and runs the generator and the check under that Node's npm (#385).",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.10.3',
       status: 'Released',
       date: '13 okt 2026',
