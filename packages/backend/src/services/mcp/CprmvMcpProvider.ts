@@ -29,12 +29,21 @@ export class CprmvMcpProvider implements McpProvider {
 
     this.client = new Client({ name: 'ronl-business-api', version: '1.0.0' }, { capabilities: {} });
 
-    await Promise.race([
-      this.client.connect(transport),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('CPRMV MCP connect timed out after 30s')), 30_000)
-      ),
-    ]);
+    try {
+      await Promise.race([
+        this.client.connect(transport),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('CPRMV MCP connect timed out after 30s')), 30_000)
+        ),
+      ]);
+    } catch (err) {
+      // isConnected() reads `client`, so a failed connect must clear it. Left set,
+      // the source was offered as connected and every chat that selected it failed
+      // with the SDK's "Not connected" (29 October 2026, CPRMV).
+      await this.client.close().catch(() => undefined);
+      this.client = null;
+      throw err;
+    }
 
     logger.info('CPRMV MCP provider connected', { url: config.cprmv.url });
   }
