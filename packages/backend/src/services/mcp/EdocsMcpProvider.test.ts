@@ -71,6 +71,23 @@ describe('EdocsMcpProvider — connect', () => {
     await p.connect();
     expect(mockClientCtor).not.toHaveBeenCalled();
   });
+
+  it('stays disconnected, and closes the half-open client, when connect fails', async () => {
+    // A failed connect used to leave the client set: isConnected() said true, so
+    // the source was offered and every chat that selected it failed "Not connected".
+    const p = new EdocsMcpProvider();
+    const client = {
+      connect: jest.fn().mockRejectedValue(new Error('spawn failed')),
+      close: jest.fn().mockResolvedValue(undefined),
+    };
+    mockTransportCtor.mockImplementation(() => ({ stderr: { on: jest.fn() } }));
+    mockClientCtor.mockImplementation(() => client);
+
+    await expect(p.connect()).rejects.toThrow('spawn failed');
+
+    expect(p.isConnected()).toBe(false);
+    expect(client.close).toHaveBeenCalled();
+  });
 });
 
 describe('EdocsMcpProvider', () => {

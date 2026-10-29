@@ -122,6 +122,19 @@ describe('getToolDefinitions', () => {
 
     expect(tools.map((t) => t.name)).toEqual(['b1']);
   });
+
+  it('leaves out a connected provider whose tool listing fails, instead of failing them all', async () => {
+    // One selected source that cannot list its tools -- a subprocess that died,
+    // a remote that went away -- must not take the whole chat down with it.
+    const broken = makeProvider('b', { tools: [tool('b1')] });
+    (broken.getToolDefinitions as jest.Mock).mockRejectedValue(new Error('Not connected'));
+    registry.register(makeProvider('a', { tools: [tool('a1')] }));
+    registry.register(broken);
+
+    const tools = await registry.getToolDefinitions(['a', 'b']);
+
+    expect(tools.map((t) => t.name)).toEqual(['a1']);
+  });
 });
 
 describe('buildSystemPrompt', () => {

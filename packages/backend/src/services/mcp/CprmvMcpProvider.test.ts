@@ -137,6 +137,33 @@ describe('CprmvMcpProvider — session reconnect', () => {
   });
 });
 
+describe('CprmvMcpProvider — a failed connect', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('stays disconnected, and closes the half-open client', async () => {
+    // What took the assistant down on 29 October 2026: the CPRMV service stopped
+    // serving /mcp, connect failed, but the client stayed set. isConnected() said
+    // true, the source was offered and selected, and listTools on a client without
+    // a transport threw "Not connected" for the whole chat.
+    const p = new CprmvMcpProvider();
+    const client = {
+      connect: jest
+        .fn()
+        .mockRejectedValue(
+          new Error('Streamable HTTP error: Error POSTing to endpoint: {"detail":"Not Found"}')
+        ),
+      close: jest.fn().mockResolvedValue(undefined),
+    };
+    mockClientCtor.mockImplementation(() => client);
+
+    await expect(p.connect()).rejects.toThrow('Not Found');
+
+    expect(p.isConnected()).toBe(false);
+    expect(client.close).toHaveBeenCalled();
+  });
+});
+
 describe('CprmvMcpProvider — edge cases', () => {
   it('connect is a no-op once a client already exists', async () => {
     const p = new CprmvMcpProvider();
