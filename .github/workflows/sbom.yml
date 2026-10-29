@@ -62,7 +62,7 @@ jobs:
           # An exact literal rather than .nvmrc, for the same reason the daily
           # audit pins one: this reads a lockfile and should not change with
           # the tree it reads. Renovate maintains it.
-          node-version: '24.21.0'
+          node-version: '24.22.1'
 
       # The production filter that replaced npm sbom --omit=dev, which dropped
       # production packages such as react from every repository's SBOM.
