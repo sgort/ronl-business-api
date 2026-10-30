@@ -6,9 +6,9 @@
    One-line rules, as in the source: never run prettier on this file.
    ============================================================ */
 .cwd-v2 .cwp-eyebrow{margin:0;font-family:var(--v2-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--v2-ink-3)}
-.cwd-v2 .cwp-link{background:none;border:0;padding:0;font:inherit;font-size:12.5px;font-weight:600;color:var(--v2-chrome,#0046ad);cursor:pointer}
+.cwd-v2 .cwp-link{background:none;border:0;padding:0;font:inherit;font-size:12.5px;font-weight:600;color:var(--v2-chrome,var(--rba-flevoland-blue));cursor:pointer}
 .cwd-v2 .cwp-link:hover{text-decoration:underline}
-.cwd-v2 .cwp-jij{display:inline-block;margin-left:8px;padding:1px 6px;font-family:var(--v2-mono);font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--rba-ink-inverse);background:var(--v2-chrome,#0046ad);vertical-align:1px}
+.cwd-v2 .cwp-jij{display:inline-block;margin-left:8px;padding:1px 6px;font-family:var(--v2-mono);font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--rba-ink-inverse);background:var(--v2-chrome,var(--rba-flevoland-blue));vertical-align:1px}
 
 /* (2) Waar sta ik — compact stepper */
 .cwd-v2 .cwp-where{margin:0 0 4px;padding:12px 16px 10px;border:1px solid var(--v2-rule);background:var(--v2-bg)}
@@ -31,7 +31,7 @@
 .cwd-v2 .cwp-lanesteps{display:flex;flex-direction:column}
 .cwd-v2 .cwp-more{align-self:flex-start;margin-bottom:8px;background:none;border:1px dashed var(--v2-rule);padding:5px 10px;font:inherit;font-size:12px;color:var(--v2-ink-2);cursor:pointer}
 .cwd-v2 .cwp-lg{border:1px solid var(--v2-rule-2);border-left:3px solid var(--lane);background:var(--v2-paper)}
-.cwd-v2 .cwp-lg.mine{background:#f5f8fd}
+.cwd-v2 .cwp-lg.mine{background:color-mix(in srgb, var(--rba-flevoland-blue) 4%, white)}
 .cwd-v2 .cwp-lg.current{border-color:var(--v2-rule);border-left-color:var(--lane);box-shadow:0 1px 0 var(--v2-rule)}
 .cwd-v2 .cwp-lg.future{background:transparent;border-style:dashed;border-left-style:solid;opacity:.8}
 .cwd-v2 .cwp-lg-head{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--v2-rule-2)}
@@ -53,7 +53,7 @@
 .cwd-v2 .cwp-st.gateway .cwp-st-name{font-size:12px;color:var(--v2-ink-2)}
 .cwd-v2 .cwp-st-meta{display:flex;flex-wrap:wrap;gap:4px 8px;font-family:var(--v2-mono);font-size:10.5px;color:var(--v2-ink-3)}
 .cwd-v2 .cwp-st.running .cwp-st-meta b{color:var(--v2-accent)}
-.cwd-v2 .cwp-doc{color:var(--v2-chrome,#0046ad);font-weight:600}
+.cwd-v2 .cwp-doc{color:var(--v2-chrome,var(--rba-flevoland-blue));font-weight:600}
 .cwd-v2 .cwp-rework{margin-left:8px;padding:0 5px;font-family:var(--v2-mono);font-size:9.5px;font-weight:700;color:var(--rba-bad);border:1px solid var(--rba-bad);vertical-align:1px}
 .cwd-v2 .cwp-st-type{font-family:var(--v2-mono);font-size:9.5px;letter-spacing:.06em;color:var(--v2-ink-3);padding-top:3px}
 .cwd-v2 .cwp-handover{padding:5px 0 5px 14px;font-family:var(--v2-mono);font-size:10.5px;color:var(--v2-ink-3)}
@@ -61,9 +61,9 @@
 .cwd-v2 .cwp-lg.sub{margin-left:14px}
 .cwd-v2 .cwp-lg-proc{font-family:var(--v2-mono);font-size:9.5px;color:var(--v2-ink-3);border:1px solid var(--v2-rule);padding:0 5px}
 .cwd-v2 .cwp-handover.proc{color:var(--v2-ink-2);font-weight:600}
-.cwd-v2 .cwp-st.me{background:#eef4fd}
+.cwd-v2 .cwp-st.me{background:color-mix(in srgb, var(--rba-flevoland-blue) 8%, white)}
 .pbd .cwp-crumbs{display:flex;gap:6px;align-items:center;margin-bottom:4px;font-family:var(--v2-mono);font-size:11px;font-weight:500;color:var(--v2-ink-3)}
-.pbd .cwp-crumbs button{background:none;border:0;padding:0;font:inherit;color:var(--v2-chrome,#0046ad);cursor:pointer}
+.pbd .cwp-crumbs button{background:none;border:0;padding:0;font:inherit;color:var(--v2-chrome,var(--rba-flevoland-blue));cursor:pointer}
 .pbd .cwp-crumbs button.on{color:var(--v2-ink);font-weight:700;cursor:default}
 .pbd .cwp-ov-body .pb-swim-scroll{overflow-y:hidden;padding-bottom:12px}
 
@@ -84,8 +84,8 @@
    short; these lift them to ink-2 (6.8+) and chrome (7.7). */
 .cwd-v2 .cwp-where .cwp-eyebrow{color:var(--v2-ink-2)}
 .cwd-v2 .cwp-st.me .cwp-st-meta{color:var(--v2-ink-2)}
-.cwd-v2 .cwp-st.me.running .cwp-st-meta b{color:var(--v2-chrome,#0046ad)}
+.cwd-v2 .cwp-st.me.running .cwp-st-meta b{color:var(--v2-chrome,var(--rba-flevoland-blue))}
 .cwd-v2 .cwp-lg.future{opacity:1}
-.cwd-v2 .cwp-lg.mine .cwp-st.running .cwp-st-meta b{color:var(--v2-chrome,#0046ad)}
+.cwd-v2 .cwp-lg.mine .cwp-st.running .cwp-st-meta b{color:var(--v2-chrome,var(--rba-flevoland-blue))}
 
 .cwd-v2 .cwp-st.split .cwp-st-dot,.cwd-v2 .cwp-st.join .cwp-st-dot{width:3px;height:12px;margin-top:3px;border:0;border-radius:0;transform:none;background:var(--v2-ink-2)}

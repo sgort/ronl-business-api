@@ -54,10 +54,41 @@
   --rba-ok:   #3fa535;
   --rba-warn: #e5b700;
   /* Warning as a filled area (bar, badge); --rba-warn is for text and small
-     markers. Text on it uses --rba-on-accent-fill. */
+     markers. Text on it: --rba-on-warn-fill. */
   --rba-warn-fill: var(--rba-warn);
+  --rba-on-warn-fill: #5a4a00;
   --rba-bad:  #b0103c;
   --rba-idle: #c2c7d0;
+
+  /* Status tints and shades, and the darkest neutral (#374 step 1, PR 3):
+     the hard-coded tints merged by role. -bg backgrounds, -line light
+     borders, -ink text, dark borders and dark fills. A text group takes its
+     darkest value and a background group its lightest, so a merge never
+     lowers contrast. */
+  --rba-ink-strong:  #0f172a;
+  --rba-bad-bg:      #fef2f2;
+  --rba-bad-ink:     #7a0c26;
+  --rba-bad-ink-2:   #991b1b;
+  --rba-bad-ink-3:   #c93258;
+  --rba-bad-ink-4:   #dc2626;
+  --rba-bad-line:    #fecaca;
+  --rba-ok-bg:       #f0fdf4;
+  --rba-ok-ink:      #2f5d3a;
+  --rba-ok-ink-2:    #1a7a1a;
+  --rba-ok-ink-3:    #2f8f4e;
+  --rba-ok-line:     #c3e6cd;
+  --rba-warn-bg:     #fffbeb;
+  --rba-warn-bg-2:   #fef3c7;
+  --rba-warn-bg-3:   #fde68a;
+  --rba-warn-ink:    #92400e;
+  --rba-warn-ink-2:  #7a5a06;
+  --rba-warn-ink-3:  #b45309;
+  --rba-warn-ink-4:  #92700f;
+  --rba-warn-ink-5:  #b88407;
+  --rba-warn-ink-6:  #d97706;
+  --rba-warn-ink-7:  #f0a93b;
+  --rba-warn-line:   #f3dca0;
+  --rba-warn-line-2: #ecdcc0;
 }
 
 /* Flevoland's colours for the Flevoland tenant (#374, step 1; design:
@@ -84,8 +115,34 @@
   --rba-bad:       var(--flevoland-color-status-error-text);
   --rba-warn:      var(--flevoland-color-status-warning-text);
   --rba-warn-fill: var(--flevoland-color-brand-accent);
+  --rba-on-warn-fill: var(--flevoland-color-text-on-accent);
   --rba-idle:      var(--flevoland-color-neutral-400);
 
   --rba-accent-fill:    var(--flevoland-color-brand-accent);
   --rba-on-accent-fill: var(--flevoland-color-text-on-accent);
+
+  --rba-ink-strong:  var(--flevoland-color-text-default);
+  --rba-bad-bg:      var(--flevoland-color-status-error-background);
+  --rba-bad-ink:     var(--flevoland-color-status-error-text-on-background);
+  --rba-bad-ink-2:   var(--flevoland-color-status-error-text-on-background);
+  --rba-bad-ink-3:   var(--flevoland-color-status-error-text-on-background);
+  --rba-bad-ink-4:   var(--flevoland-color-status-error-text-on-background);
+  --rba-bad-line:    var(--flevoland-color-status-error-border);
+  --rba-ok-bg:       var(--flevoland-color-status-success-background);
+  --rba-ok-ink:      var(--flevoland-color-status-success-text);
+  --rba-ok-ink-2:    var(--flevoland-color-status-success-text);
+  --rba-ok-ink-3:    var(--flevoland-color-status-success-text);
+  --rba-ok-line:     var(--flevoland-color-status-success-border);
+  --rba-warn-bg:     var(--flevoland-color-status-warning-background);
+  --rba-warn-bg-2:   var(--flevoland-color-status-warning-background);
+  --rba-warn-bg-3:   var(--flevoland-color-status-warning-background);
+  --rba-warn-ink:    var(--flevoland-color-status-warning-text);
+  --rba-warn-ink-2:  var(--flevoland-color-status-warning-text);
+  --rba-warn-ink-3:  var(--flevoland-color-status-warning-text);
+  --rba-warn-ink-4:  var(--flevoland-color-status-warning-text);
+  --rba-warn-ink-5:  var(--flevoland-color-status-warning-text);
+  --rba-warn-ink-6:  var(--flevoland-color-status-warning-text);
+  --rba-warn-ink-7:  var(--flevoland-color-status-warning-text);
+  --rba-warn-line:   var(--flevoland-color-status-warning-border);
+  --rba-warn-line-2: var(--flevoland-color-status-warning-border);
 }

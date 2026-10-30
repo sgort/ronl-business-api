@@ -11,7 +11,7 @@
   --pb-green:  var(--rba-ok);
   --pb-amber:  var(--rba-warn);
   --pb-red:    var(--rba-bad);
-  --pb-blue:   var(--v2-chrome, #0046ad);
+  --pb-blue:   var(--v2-chrome, var(--rba-flevoland-blue));
   --pb-grey:   var(--rba-idle);
 }
 
@@ -104,9 +104,9 @@
   border: 1px solid var(--v2-rule); border-top: 3px solid var(--v2-rule);
   padding: 12px 10px 14px; display: flex; flex-direction: column; justify-content: center; gap: 2px;
 }
-.pbd .pb-swim-node.done { background: #f3faf2; }
-.pbd .pb-swim-node.active { background: #eef4fd; box-shadow: 0 0 0 2px var(--v2-accent-50); }
-.pbd .pb-swim-node.overdue, .pbd .pb-swim-node.action, .pbd .pb-swim-node.risk { background: #fdf2f5; }
+.pbd .pb-swim-node.done { background: var(--rba-ok-bg); }
+.pbd .pb-swim-node.active { background: color-mix(in srgb, var(--rba-flevoland-blue) 8%, white); box-shadow: 0 0 0 2px var(--v2-accent-50); }
+.pbd .pb-swim-node.overdue, .pbd .pb-swim-node.action, .pbd .pb-swim-node.risk { background: color-mix(in srgb, var(--rba-flevoland-pink) 4%, white); }
 /* Three label lines, two beside a document footer: the label keeps its
    height and clamps with an ellipsis instead of being cut mid-line; the full
    label is the node's tooltip. */
@@ -132,7 +132,7 @@
 }
 .pbd .pb-swim-event { position: absolute; width: 68px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .pbd .pb-swim-event .ev-dot { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--v2-ink-3); background: var(--v2-paper); }
-.pbd .pb-swim-event.done .ev-dot { background: #f3faf2; }
+.pbd .pb-swim-event.done .ev-dot { background: var(--rba-ok-bg); }
 .pbd .pb-swim-event .ev-label { font-size: 9.5px; color: var(--v2-ink-2); text-align: center; line-height: 1.2; font-weight: 600; }
 
 /* Shared swimlane look (ProcessView). Formerly scoped under .cwp-swim, which
@@ -141,8 +141,8 @@
 .pbd .pb-swim-inprogress.other{color:var(--v2-ink-2);background:var(--v2-paper);border:1px solid var(--v2-ink-3)}
 .pbd .pb-swim-node.pb-swim-node-claimed{outline:2px solid var(--v2-accent);outline-offset:2px}
 .pbd .pb-swim-node.pv-focus{outline:2px dashed var(--v2-accent);outline-offset:2px}
-.pbd .pb-swim-lane-label .cwp-jij{display:block;margin:4px 0 0;width:max-content;padding:1px 6px;font-family:var(--v2-mono);font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--rba-ink-inverse);background:var(--v2-chrome,#0046ad)}
-.pbd .pb-swim-lane-label.cwp-mine{background:#eaf1fb;color:var(--v2-ink)}
+.pbd .pb-swim-lane-label .cwp-jij{display:block;margin:4px 0 0;width:max-content;padding:1px 6px;font-family:var(--v2-mono);font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--rba-ink-inverse);background:var(--v2-chrome,var(--rba-flevoland-blue))}
+.pbd .pb-swim-lane-label.cwp-mine{background:color-mix(in srgb, var(--rba-flevoland-blue) 9%, white);color:var(--v2-ink)}
 .pbd .pb-swim-lane-label.slim{flex-direction:row;align-items:center;justify-content:flex-start;gap:8px}
 .pbd .pb-swim-lane-label.slim .cwp-jij{margin:0}
 .pbd .pb-swim-band.cwp-mine{background:rgba(0,70,173,.045)}
@@ -151,7 +151,7 @@
 .pbd .pb-swim-node .nfoot .ndoc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pbd .pb-swim-node .cwp-kind{position:absolute;bottom:-8px;left:8px;padding:0 4px;font-family:var(--v2-mono);font-size:8.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--v2-ink-3);background:var(--v2-paper);border:1px solid var(--v2-rule)}
 .pbd .pb-swim-node.call{border-width:1px 1px 1px 1px;border-top-width:3px;box-shadow:inset 0 0 0 3px var(--v2-paper),inset 0 0 0 4px var(--v2-rule)}
-.pbd .cwp-callbtn{position:absolute;bottom:-9px;right:8px;padding:0 6px;font:inherit;font-family:var(--v2-mono);font-size:9.5px;font-weight:700;color:var(--rba-ink-inverse);background:var(--v2-chrome,#0046ad);border:0;cursor:pointer}
+.pbd .cwp-callbtn{position:absolute;bottom:-9px;right:8px;padding:0 6px;font:inherit;font-family:var(--v2-mono);font-size:9.5px;font-weight:700;color:var(--rba-ink-inverse);background:var(--v2-chrome,var(--rba-flevoland-blue));border:0;cursor:pointer}
 .pbd .cwp-callbtn:focus-visible{outline:2px solid var(--v2-accent);outline-offset:2px}
 
 /* Gateway shapes: decision diamond with "?", parallel bar, merge dot. */
@@ -166,12 +166,12 @@
 .pbd .pv-legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 0 12px;padding:0;list-style:none;font-size:11.5px;color:var(--v2-ink-2)}
 .pbd .pv-legend li{display:flex;align-items:center;gap:6px}
 .pbd .pv-legend .sw{display:inline-block;box-sizing:border-box;width:14px;height:10px;border:1px solid var(--v2-rule);border-top-width:3px;background:var(--v2-paper)}
-.pbd .pv-legend .sw.done{background:#f3faf2;border-top-color:var(--rba-ok)}
-.pbd .pv-legend .sw.active{background:#eef4fd;border-top-color:#0046ad}
-.pbd .pv-legend .sw.mine{background:#eef4fd;border:2px solid var(--v2-accent)}
+.pbd .pv-legend .sw.done{background:var(--rba-ok-bg);border-top-color:var(--rba-ok)}
+.pbd .pv-legend .sw.active{background:color-mix(in srgb, var(--rba-flevoland-blue) 8%, white);border-top-color:var(--rba-flevoland-blue)}
+.pbd .pv-legend .sw.mine{background:color-mix(in srgb, var(--rba-flevoland-blue) 8%, white);border:2px solid var(--v2-accent)}
 .pbd .pv-legend .sw.claimed{background:var(--v2-paper);border:2px dashed var(--v2-accent)}
 .pbd .pv-legend .sw.open{background:var(--v2-paper);border:2px dashed var(--v2-accent)}
-.pbd .pv-legend .sw.role{background:#eaf1fb;border-color:#cbd9ee}
+.pbd .pv-legend .sw.role{background:color-mix(in srgb, var(--rba-flevoland-blue) 9%, white);border-color:color-mix(in srgb, var(--rba-flevoland-blue) 20%, white)}
 .pbd .pv-legend .sw.auto{border-style:dashed}
 .pbd .pv-legend .sw.decision{width:10px;height:10px;border:2px solid var(--rba-warn);transform:rotate(45deg);margin:0 2px}
 .pbd .pv-legend .sw.parallel{width:4px;height:14px;border:0;background:var(--v2-ink-2);margin:0 5px}

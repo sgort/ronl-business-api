@@ -32,7 +32,7 @@ PatternFly again _after_ the custom styles and override them.
 
 | File                          | Lines | Root class | Function                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ----------------------------- | ----: | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `styles/tokens.css`           |    91 | `:root`    | The shared design tokens (`--rba-*`): Flevoland's fixed brand colours, the themed brand (chained to the tenant's `--color-primary`/`-dark`/`--color-secondary`), the accent and warning fills with the text on them (`--rba-accent-fill`, `--rba-on-accent-fill`, `--rba-warn-fill`), the neutrals (with `--rba-ink-inverse` for text on a coloured fill) and the status colours. Ends with `:root[data-tenant="flevoland"]`, which points them at Flevoland IT's semantic tokens for the Flevoland tenant. The palette's only home for hex values. |
+| `styles/tokens.css`           |   148 | `:root`    | The shared design tokens (`--rba-*`): Flevoland's fixed brand colours, the themed brand (chained to the tenant's `--color-primary`/`-dark`/`--color-secondary`), the accent and warning fills with the text on them (`--rba-accent-fill`, `--rba-on-accent-fill`, `--rba-warn-fill`), the neutrals (with `--rba-ink-inverse` for text on a coloured fill) and the status colours. Ends with `:root[data-tenant="flevoland"]`, which points them at Flevoland IT's semantic tokens for the Flevoland tenant. The palette's only home for hex values. |
 | `styles/flevoland/tokens.css` |   352 | `:root`    | Flevoland IT's design tokens (`--flevoland-*`), copied verbatim from their `flevoland-base.css` v0.2.0 (12-10-2026): the file header and section 1. `styles/tokens.css` imports it, so both hosts load it. Do not edit by hand; diff a new delivery against it.                                                                                                                                                                                                                                                                                     |
 | `styles/flevoland/base.css`   |   636 | global     | The rest of that delivery, verbatim: `@font-face` for Fira Sans, element base styles (`:where()`), the NL Design System Button mapping, reduced-motion and forced-colours rules. **Not loaded**: step 2 of #374 switches apps over to it one at a time.                                                                                                                                                                                                                                                                                             |
 
@@ -47,20 +47,22 @@ The caseworker app imports it in `App.tsx`; `@ronl/pa-cockpit`'s `styles.css`
 
 **Other tenants must not change when colours move into tokens.** `npm run check:css-equivalence` compares each changed stylesheet with the same file on `acc` (`--base <ref>` for another), resolving every `var()` and `color-mix()` as each tenant other than Flevoland sees it, and fails when a colour moves by more than ΔE2000 1.0 (not visible) or anything else in a declaration changes. Script: `scripts/css-colour/check-equivalence.mjs`; its tests are in `packages/frontend/src/css-colour.test.ts`.
 
-Not every surface variable points at a token yet. Where a surface uses a
-different value, it keeps its own until a design decision unifies them,
-because unifying changes how the page looks:
+**Hard-coded colours (#374 step 1, PR 3).** The stylesheets and inline styles
+use the tokens for every neutral, brand and status colour. Pale status tints
+were merged by role into `--rba-ok-*`, `--rba-warn-*` and `--rba-bad-*`
+(`-bg` backgrounds, `-line` borders, `-ink` text, `-strong` marks), each
+defaulting to its most-used value; near-duplicates moved to that value (up to
+ΔE2000 6.9), a decision taken with the user for one consistent tint per role.
+Brand blue and pink tints are `color-mix()` of the fixed Flevoland tokens.
+Surface variables that kept their own values (`--pac-green`, `--pac-amber`,
+the landing pages' `--ink`, `--muted`, `--line`, the login portal's
+`--amber`) now point at tokens too.
 
-| Surface       | Variable                     | Value                           | Shared token                                                             |
-| ------------- | ---------------------------- | ------------------------------- | ------------------------------------------------------------------------ |
-| PA-Cockpit    | `--pac-green`, `--pac-amber` | `#2f8f4e`, `#b88407`            | `--rba-ok` `#3fa535`, `--rba-warn` `#e5b700`                             |
-| Landing pages | `--ink`, `--muted`, `--line` | `#0f172a`, `#5b6472`, `#e3e8ef` | `--rba-ink` `#1f2937`, `--rba-ink-3` `#6b7280`, `--rba-rule-2` `#e5e7eb` |
-| Login portal  | `--amber`                    | `#d98800`                       | `--rba-warn` `#e5b700`                                                   |
-
-Hex values written directly into rules are not replaced in bulk. Swapping a
-fixed `#0046ad` for the themed `--rba-brand` would recolour the page for every
-other tenant, so each one needs a decision: replace them when already editing
-that section.
+Left as hex on purpose, as data or category colours: the purple "AI", media
+and OB tags and the EU indigo in `dashboard-pa.css`, the Woo teal, the light
+green on the dark toast, `--sim-hold` in `regelsimulatie.css`, and in TS/TSX
+the chart series, lane colours and `wachtend` (`inline-colours.test.ts`
+lists them per file).
 
 ## `packages/frontend` — caseworker and board app
 
@@ -158,6 +160,8 @@ exemptions (A–C) and the replacements (F, G) below took the hex count from
 
 ### The remaining hex values
 
+_Status 30 October 2026: categories D, E, H and I are done (#374 step 1, PR 3). 22 `color-no-hex` warnings remain, all data or category colours; see [`packages/shared`](#packagesshared--design-tokens). The table below is the October 12 plan, kept for the record._
+
 The 754 `color-no-hex` warnings, measured 12 October 2026 after item 3. Zero
 is not the goal. The plan: exempt what cannot or should not use the tokens,
 replace what maps to a token with no visual change, settle the brand
@@ -208,8 +212,8 @@ Measured 12 October 2026; tracked in
   stylesheets. Flevoland blue `#0046ad` is written out 51 times in 11 files,
   and every file redefines its own `--ink`, `--text`, `--muted` and `--line`.
   _Since item 3: the shared token file exists and the surface variables
-  point at it; since 3a, rules use it for white and exact matches too. 369
-  hex values remain (see [The remaining hex values](#the-remaining-hex-values))._
+  point at it; since 3a, rules use it for white and exact matches too. Since step 1 of
+  the Flevoland colours (PR 3), 22 hex values remain, all data colours._
 - **Rules enforced only by comments.** The scoping rule, "no new colours",
   "no prettier" and "no `@import` in `login.css`" exist only as comments.
   _Since item 2: stylelint reports the first two, but does not enforce them

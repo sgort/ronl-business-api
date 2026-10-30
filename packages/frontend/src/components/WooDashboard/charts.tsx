@@ -121,7 +121,7 @@ export function WTrend({
           x2={w - pad}
           y1={py(maxY * f)}
           y2={py(maxY * f)}
-          stroke="#e5e7eb"
+          stroke="var(--rba-rule-2)"
           strokeWidth="1"
         />
       ))}
@@ -140,7 +140,7 @@ export function WTrend({
             cx={px(i)}
             cy={py(p.y)}
             r="3.5"
-            fill="#fff"
+            fill="var(--rba-paper)"
             stroke="var(--w-blue)"
             strokeWidth="2"
           />
@@ -150,7 +150,7 @@ export function WTrend({
             textAnchor="middle"
             fontFamily="var(--v2-mono)"
             fontSize="10"
-            fill="#6b7280"
+            fill="var(--rba-ink-3)"
           >
             {p.label}
           </text>
@@ -247,7 +247,7 @@ export function WDonut({ segments, size = 140 }: { segments: DonutSegment[]; siz
         textAnchor="middle"
         fontFamily="var(--v2-mono)"
         fontSize="9"
-        fill="#6b7280"
+        fill="var(--rba-ink-3)"
         letterSpacing="0.06em"
       >
         TOTAAL

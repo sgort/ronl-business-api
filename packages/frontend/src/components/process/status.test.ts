@@ -63,7 +63,7 @@ describe('STATUS colours', () => {
     ];
     for (const file of consumers) {
       const text = readFileSync(join(SRC, file), 'utf8');
-      // `s` is the STATUS entry in these files; `p.color` (a phase) is a data colour.
+      // `s` is the STATUS entry in these files (`p.color` in PhaseSwimlane is the edge colour, also a token).
       expect(text, file).not.toMatch(/\b(fill|stroke)=\{(s|STATUS\[[^\]]+\])\.color\}/);
       expect(text, file).not.toMatch(/\.color\s*\+|`[^`]*\$\{[^}]*\.color\}[0-9a-f]/i);
     }

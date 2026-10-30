@@ -329,7 +329,22 @@ describe('Flevoland contrast', () => {
       .map((k) => Math.round(token(name)[k]).toString(16).padStart(2, '0'))
       .join('');
 
-  const TEXT = ['--rba-ink', '--rba-ink-2', '--rba-ink-3', '--rba-ok', '--rba-bad', '--rba-warn'];
+  const TEXT = [
+    '--rba-ink-strong',
+    '--rba-ink',
+    '--rba-ink-2',
+    '--rba-ink-3',
+    '--rba-ok',
+    '--rba-bad',
+    '--rba-warn',
+  ];
+  /** Status text on its own tint (and on cards, via TEXT_ON_CARDS below). */
+  const STATUS_TEXT: Record<string, string[]> = {
+    '--rba-ok-bg': ['--rba-ok-ink', '--rba-ok-ink-2', '--rba-ok-ink-3'],
+    '--rba-warn-bg': ['--rba-warn-ink', '--rba-warn-ink-2', '--rba-warn-ink-3', '--rba-warn-ink-4'],
+    '--rba-warn-bg-2': ['--rba-warn-ink'],
+    '--rba-bad-bg': ['--rba-bad-ink', '--rba-bad-ink-2', '--rba-bad-ink-3', '--rba-bad-ink-4'],
+  };
   const MARKERS = [
     '--rba-accent',
     '--rba-brand',
@@ -337,6 +352,9 @@ describe('Flevoland contrast', () => {
     '--rba-ok',
     '--rba-bad',
     '--rba-warn',
+    '--rba-warn-ink-5',
+    '--rba-warn-ink-6',
+    '--rba-warn-ink-7',
   ];
   const FILLS = ['--rba-accent-fill', '--rba-warn-fill'];
   const BACKGROUNDS = ['--rba-paper', '--rba-bg'];
@@ -352,6 +370,11 @@ describe('Flevoland contrast', () => {
     '--rba-flevoland-blue': 'equals --rba-brand for Flevoland',
     '--rba-flevoland-blue-d': 'equals --rba-brand-d for Flevoland',
     '--rba-flevoland-pink': 'equals --rba-accent for Flevoland',
+    '--rba-ok-line': 'border of a status tint; decorative, the text inside carries the meaning',
+    '--rba-warn-line': 'border of a status tint, as --rba-ok-line',
+    '--rba-bad-line': 'border of a status tint, as --rba-ok-line',
+    '--rba-warn-line-2': 'border of a status tint, as --rba-ok-line',
+    '--rba-warn-bg-3': 'highlight behind --pac-ink text (a neutral ink, checked as text)',
   };
 
   it('text tokens reach 4.5:1 on the page and on cards', () => {
@@ -374,6 +397,18 @@ describe('Flevoland contrast', () => {
         4.5
       );
     }
+    expect(
+      contrastRatio(token('--rba-on-warn-fill'), token('--rba-warn-fill'))
+    ).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('status text reaches 4.5:1 on its tint and on cards', () => {
+    for (const [bg, inks] of Object.entries(STATUS_TEXT)) {
+      for (const fg of inks) {
+        expect(contrastRatio(token(fg), token(bg)), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(token(fg), token('--rba-paper')), fg).toBeGreaterThanOrEqual(4.5);
+      }
+    }
   });
 
   it('disabled text reaches 4.5:1 on cards', () => {
@@ -386,7 +421,10 @@ describe('Flevoland contrast', () => {
       ...MARKERS,
       ...FILLS,
       ...BACKGROUNDS,
+      ...Object.keys(STATUS_TEXT),
+      ...Object.values(STATUS_TEXT).flat(),
       '--rba-on-accent-fill',
+      '--rba-on-warn-fill',
     ]);
     const names = [...TOKENS_CSS.matchAll(/^\s*(--rba-[\w-]+)\s*:/gm)].map((m) => m[1]);
     expect(names.length).toBeGreaterThan(20);

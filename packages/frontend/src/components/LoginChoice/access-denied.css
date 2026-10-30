@@ -20,7 +20,7 @@
   width: 100%;
   max-width: 440px;
   background: var(--rba-paper);
-  border-top: 4px solid var(--color-primary, #0046ad);
+  border-top: 4px solid var(--rba-brand);
   border-radius: 14px;
   box-shadow: 0 24px 60px -16px rgba(15, 23, 42, 0.5);
   padding: 24px 26px 22px;
@@ -30,19 +30,19 @@
   font-family: "Source Serif 4", Georgia, serif;
   font-size: 21px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--rba-ink-strong);
   margin: 0 36px 12px 0;
   line-height: 1.25;
 }
 
-.lcp-denied p { font-size: 14px; line-height: 1.55; color: #5b6472; margin: 0 0 10px; }
+.lcp-denied p { font-size: 14px; line-height: 1.55; color: var(--rba-ink-3); margin: 0 0 10px; }
 .lcp-denied p b { color: var(--rba-ink); font-weight: 600; }
 
 .lcp-denied code {
   font-family: "JetBrains Mono", monospace;
   font-size: 12.5px;
-  background: #f1f4f8;
-  color: #0f172a;
+  background: var(--rba-bg);
+  color: var(--rba-ink-strong);
   padding: 1px 6px;
   border-radius: 4px;
 }
@@ -59,17 +59,17 @@
 }
 
 .lcp-denied .primary {
-  background: var(--color-primary, #0046ad);
+  background: var(--rba-brand);
   color: var(--rba-ink-inverse);
   border: 0;
 }
 
-.lcp-denied .primary:hover { background: var(--color-primary-dark, #033b8e); }
+.lcp-denied .primary:hover { background: var(--color-primary-dark, var(--rba-flevoland-blue-d)); }
 
 .lcp-denied .secondary {
   background: var(--rba-paper);
-  color: var(--color-primary, #0046ad);
-  border: 1.5px solid var(--color-primary, #0046ad);
+  color: var(--rba-brand);
+  border: 1.5px solid var(--rba-brand);
 }
 
 .lcp-denied .close {
@@ -79,18 +79,18 @@
   width: 30px;
   height: 30px;
   border-radius: 7px;
-  background: #f1f4f8;
+  background: var(--rba-bg);
   border: 0;
   cursor: pointer;
-  color: #0f172a;
+  color: var(--rba-ink-strong);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.lcp-denied .close:hover { background: #e4e9f0; }
+.lcp-denied .close:hover { background: var(--rba-rule-2); }
 
 .lcp-denied button:focus-visible {
-  outline: 2px solid var(--color-primary, #0046ad);
+  outline: 2px solid var(--rba-brand);
   outline-offset: 2px;
 }

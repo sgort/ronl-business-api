@@ -40,7 +40,7 @@ export function mijnDagRailStats(
     allProjects.filter((p) => p.health === 'rood').length;
   return [
     { label: 'Taken vandaag', value: takenVandaag },
-    { label: 'Urgent / te laat', value: urgent, dotColor: '#b0103c' },
+    { label: 'Urgent / te laat', value: urgent, dotColor: 'var(--rba-bad)' },
     { label: 'Mijn projecten', value: MIJN_PROJECT_NRS.length },
   ];
 }

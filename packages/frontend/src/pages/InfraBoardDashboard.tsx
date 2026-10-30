@@ -108,7 +108,7 @@ function InfraBoardDashboardContent() {
   });
 
   // Tweaks
-  const [accent, _setAccent] = useState('#e70077');
+  const [accent, _setAccent] = useState('var(--rba-flevoland-pink)');
   const [density, _setDensity] = useState<'comfortable' | 'compact'>('comfortable');
 
   useEffect(() => {
@@ -501,7 +501,7 @@ function InfraBoardDashboardContent() {
             <div className="v2-main-pad">
               <div className="v2-crumb">INFRA-BOARD</div>
               <h1 className="v2-page-title">Inloggen vereist</h1>
-              <p style={{ color: '#4b5563', maxWidth: '52ch', margin: '14px 0 22px' }}>
+              <p style={{ color: 'var(--rba-ink-2)', maxWidth: '52ch', margin: '14px 0 22px' }}>
                 Log in als medewerker van het infra-projectteam om je dag, portfolio en
                 RIP-projecten te bekijken.
               </p>

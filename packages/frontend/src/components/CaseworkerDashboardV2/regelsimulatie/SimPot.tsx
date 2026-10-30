@@ -1,5 +1,6 @@
 // hatched amber for provisional (reserved) money — distinct from solid = paid
-const RESERVED_FILL = 'repeating-linear-gradient(135deg, var(--v2-amber) 0 6px, #f0d34d 6px 12px)';
+const RESERVED_FILL =
+  'repeating-linear-gradient(135deg, var(--rba-warn-fill) 0 6px, color-mix(in srgb, var(--rba-warn-fill) 67%, white) 6px 12px)';
 
 import { simEur, simEurK } from './simFormat';
 
@@ -70,7 +71,11 @@ export default function SimPot({
         {reserved > 0 && (
           <div
             className="sim-seg"
-            style={{ width: pReserved + '%', background: RESERVED_FILL, color: '#5a4a00' }}
+            style={{
+              width: pReserved + '%',
+              background: RESERVED_FILL,
+              color: 'var(--rba-on-warn-fill)',
+            }}
           >
             {pReserved > 12 ? simEurK(reserved) : ''}
           </div>
