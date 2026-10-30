@@ -269,6 +269,17 @@ describe('compareStylesheets', () => {
     ).toEqual(['packages/shared/styles/tokens.css']);
   });
 
+  it('two fully transparent colours are equal, whatever their rgb', () => {
+    expect(
+      compareStylesheets({
+        before: '.x { --g: rgb(37 99 235 / 0); }',
+        after: '.x { --g: rgb(255 255 255 / 0); }',
+        envsBefore: env({}),
+        envsAfter: env({}),
+      })
+    ).toEqual([]);
+  });
+
   it('a non-colour change is reported as changed', () => {
     const f = compareStylesheets({
       before: '.x { border: 1px solid #fff; }',

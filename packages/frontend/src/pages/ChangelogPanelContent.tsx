@@ -74,7 +74,7 @@ export default function ChangelogPanelContent({ isOpen, onClose }: ChangelogPane
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity duration-300"
+        className="fixed inset-0 bg-black/50 z-50 transition-opacity duration-300"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -111,7 +111,7 @@ export default function ChangelogPanelContent({ isOpen, onClose }: ChangelogPane
             </div>
             <button
               onClick={onClose}
-              className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-colors"
+              className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
               aria-label="Close changelog"
             >
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
