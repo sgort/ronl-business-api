@@ -435,6 +435,7 @@ describe('Flevoland contrast', () => {
     expect({
       ink: hex('--rba-ink'),
       bg: hex('--rba-bg'),
+      brandD: hex('--rba-brand-d'),
       accent: hex('--rba-accent'),
       accentFill: hex('--rba-accent-fill'),
       onAccentFill: hex('--rba-on-accent-fill'),
@@ -444,7 +445,7 @@ describe('Flevoland contrast', () => {
     }).toEqual({
       ink: '#0c1c47',
       bg: '#f8f8f8',
-      // brandD #003a8e follows with tenants.json's primaryDark in PR 4 (plan Task 9).
+      brandD: '#003a8e',
       accent: '#e70077',
       accentFill: '#fec612',
       onAccentFill: '#212121',

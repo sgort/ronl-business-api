@@ -164,11 +164,12 @@ export function resolveLandingTenant(pathname: string, search: string): LandingR
 /**
  * Whether applyTenantTheme marks the active tenant with data-tenant on <html>,
  * which the stylesheets use to switch colours for one tenant (#374, step 1:
- * :root[data-tenant="flevoland"]). Off until the last PR of step 1, so no
- * release shows a half-converted palette. pa-demo's tenant shim has its own
- * copy, which its tests keep equal to this one.
+ * :root[data-tenant="flevoland"]). Switched on in the last PR of step 1, once
+ * the tokens, Tailwind and the hard-coded colours were all converted.
+ * pa-demo's tenant shim has its own copy, which its tests keep equal to this
+ * one.
  */
-export const TENANT_MARKER_ENABLED = false;
+export const TENANT_MARKER_ENABLED = true;
 
 export function applyTenantTheme(
   theme: TenantTheme,

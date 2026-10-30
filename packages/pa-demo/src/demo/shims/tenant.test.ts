@@ -27,10 +27,10 @@ describe('demo tenant shim', () => {
     await initializeTenantTheme();
     const style = document.documentElement.style;
     expect(style.getPropertyValue('--color-primary')).toBe('#0046ad');
-    expect(style.getPropertyValue('--color-primary-dark')).toBe('#134F7D');
+    expect(style.getPropertyValue('--color-primary-dark')).toBe('#003a8e');
     expect(style.getPropertyValue('--color-primary-light')).toBe('#4A8FC0');
     expect(style.getPropertyValue('--color-secondary')).toBe('#e70077');
-    expect(style.getPropertyValue('--color-accent')).toBe('#F5A623');
+    expect(style.getPropertyValue('--color-accent')).toBe('#fec612');
   });
 
   it("resolves to true so the cockpit shell's .then() chain runs", async () => {
