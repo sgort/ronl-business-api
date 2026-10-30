@@ -53,16 +53,16 @@ const FLEVOLAND: TenantConfig = {
 // tracked as a follow-up.
 const FLEVOLAND_THEME = {
   primary: '#0046ad',
-  primaryDark: '#134F7D',
+  primaryDark: '#003a8e',
   primaryLight: '#4A8FC0',
   secondary: '#e70077',
-  accent: '#F5A623',
+  accent: '#fec612',
 } as const;
 
 // Mirrors TENANT_MARKER_ENABLED in packages/frontend/src/services/tenant.ts
 // (#374, step 1): when on, the theme also marks the tenant with data-tenant on
 // <html> so the Flevoland colours apply. tenant.test.ts keeps the two equal.
-export const TENANT_MARKER_ENABLED = false;
+export const TENANT_MARKER_ENABLED = true;
 
 export function getTenantConfig(_id?: string): TenantConfig {
   return FLEVOLAND;

@@ -281,11 +281,14 @@ describe('tenant service', () => {
       expect(document.documentElement.dataset.tenant).toBeUndefined();
     });
 
-    it('sets no data-tenant while the marker is off', () => {
-      document.documentElement.dataset.tenant = 'stale';
-      applyTenantTheme(utrechtConfig.theme, 'utrecht');
+    it('the marker is on', () => {
+      expect(TENANT_MARKER_ENABLED).toBe(true);
+    });
 
-      expect(TENANT_MARKER_ENABLED).toBe(false);
+    it('sets no data-tenant with the marker off', () => {
+      document.documentElement.dataset.tenant = 'stale';
+      applyTenantTheme(utrechtConfig.theme, 'utrecht', false);
+
       expect(document.documentElement.dataset.tenant).toBeUndefined();
     });
   });
@@ -319,13 +322,29 @@ describe('tenant service', () => {
   });
 
   describe('initializeTenantTheme', () => {
-    it('sets no data-tenant while the marker is off', async () => {
+    it('marks the tenant it applies', async () => {
       mockFetchOnce({ tenants: { utrecht: utrechtConfig }, default: 'utrecht' });
       await loadTenantConfigs();
 
       await initializeTenantTheme('utrecht');
 
-      expect(document.documentElement.dataset.tenant).toBeUndefined();
+      expect(document.documentElement.dataset.tenant).toBe('utrecht');
+    });
+
+    // An unknown or disabled tenant changes nothing: the previous theme stays,
+    // and so does its marker, so the page never shows one tenant's --color-*
+    // with another's (or no) data-tenant colours.
+    it('keeps the previous theme and its marker together for an unknown tenant', async () => {
+      mockFetchOnce({ tenants: { utrecht: utrechtConfig }, default: 'utrecht' });
+      await loadTenantConfigs();
+      await initializeTenantTheme('utrecht');
+
+      expect(await initializeTenantTheme('nowhere')).toBe(false);
+
+      expect(document.documentElement.dataset.tenant).toBe('utrecht');
+      expect(document.documentElement.style.getPropertyValue('--color-primary')).toBe(
+        utrechtConfig.theme.primary
+      );
     });
 
     it('applies the theme and returns true for an enabled tenant already in cache', async () => {

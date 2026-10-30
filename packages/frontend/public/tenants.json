@@ -456,10 +456,10 @@
       "boards": ["caseworker", "public-affairs", "infra-board", "woo"],
       "theme": {
         "primary": "#0046ad",
-        "primaryDark": "#134F7D",
+        "primaryDark": "#003a8e",
         "primaryLight": "#4A8FC0",
         "secondary": "#e70077",
-        "accent": "#F5A623"
+        "accent": "#fec612"
       },
       "contact": {
         "phone": "0320 265 265",
