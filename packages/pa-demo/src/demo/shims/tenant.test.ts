@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initializeTenantTheme } from './tenant';
+import { initializeTenantTheme, TENANT_MARKER_ENABLED } from './tenant';
 
 // packages/frontend/public/tenants.json, not this package's copy: pa-demo
 // no longer keeps a copy of tenants.json (it was 18 KB of internal multi-tenant
@@ -53,5 +53,30 @@ describe('demo tenant shim', () => {
     expect(style.getPropertyValue('--color-primary-light')).toBe(theme.primaryLight);
     expect(style.getPropertyValue('--color-secondary')).toBe(theme.secondary);
     expect(style.getPropertyValue('--color-accent')).toBe(theme.accent);
+  });
+
+  it("follows the frontend's tenant marker switch (#374)", () => {
+    const service = readFileSync(
+      path.resolve(frontendPublicDir, '../src/services/tenant.ts'),
+      'utf8'
+    );
+    const frontend = /export const TENANT_MARKER_ENABLED = (true|false);/.exec(service);
+    expect(frontend).not.toBeNull();
+    expect(TENANT_MARKER_ENABLED).toBe(frontend?.[1] === 'true');
+  });
+
+  it('marks the tenant on <html> only when the marker is on', async () => {
+    delete document.documentElement.dataset.tenant;
+    await initializeTenantTheme();
+    expect(document.documentElement.dataset.tenant).toBe(
+      TENANT_MARKER_ENABLED ? 'flevoland' : undefined
+    );
+  });
+
+  it('sets data-tenant="flevoland" with the marker on, and removes it with the marker off', async () => {
+    await initializeTenantTheme(undefined, true);
+    expect(document.documentElement.dataset.tenant).toBe('flevoland');
+    await initializeTenantTheme(undefined, false);
+    expect(document.documentElement.dataset.tenant).toBeUndefined();
   });
 });

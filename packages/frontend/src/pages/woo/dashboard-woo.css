@@ -7,6 +7,7 @@
 .wood {
   --w-green: var(--rba-ok);
   --w-amber: var(--rba-warn);
+  --w-amber-fill: var(--rba-warn-fill);
   --w-red:   var(--rba-bad);
   --w-blue:  var(--v2-chrome, #0046ad);
   --w-teal:  #1f7a8c;
@@ -132,7 +133,7 @@
 .wood .w-bucket .track { height: 22px; background: var(--v2-bg); position: relative; }
 .wood .w-bucket .fill { position: absolute; inset: 0 auto 0 0; }
 .wood .w-bucket .fill.groen { background: var(--w-green); }
-.wood .w-bucket .fill.geel  { background: var(--w-amber); }
+.wood .w-bucket .fill.geel  { background: var(--w-amber-fill); color: var(--rba-on-accent-fill); }
 .wood .w-bucket .fill.rood  { background: var(--w-red); }
 .wood .w-bucket .fill.blauw { background: var(--w-blue); }
 .wood .w-bucket .fill.bar   { background: var(--w-blue); }

@@ -8,9 +8,15 @@
  * css-tokens.test.ts (packages/frontend) checks both, and that every
  * var(--rba-*) in a stylesheet is defined below.
  *
+ * It starts by importing Flevoland IT's tokens (./flevoland/tokens.css,
+ * --flevoland-*), so both hosts get them through this one file. Their base
+ * styles (./flevoland/base.css) are not loaded until step 2 of #374.
+ *
  * Not used by the Keycloak theme (served by Keycloak, outside the build) or
  * public-site (its own Rijkshuisstijl tokens).
  */
+@import './flevoland/tokens.css';
+
 :root {
   /* Flevoland's fixed brand colours, for places that must not follow the
      tenant theme. */
@@ -23,6 +29,13 @@
   --rba-brand:   var(--color-primary, var(--rba-flevoland-blue));
   --rba-brand-d: var(--color-primary-dark, var(--rba-flevoland-blue-d));
   --rba-accent:  var(--color-secondary, var(--rba-flevoland-pink));
+
+  /* The accent as a filled area (tag, badge, chip, label) and the text on it.
+     Same as the accent for every tenant but Flevoland, whose accent fill is
+     yellow with dark text (see the block at the end). Small markers and text
+     keep --rba-accent. */
+  --rba-accent-fill:    var(--rba-accent);
+  --rba-on-accent-fill: var(--rba-ink-inverse);
 
   /* Neutrals: text from darkest to lightest, rules (lines), backgrounds.
      --rba-ink-inverse is text on the brand colour or a status fill;
@@ -40,6 +53,39 @@
   /* Status: done / on track, attention, overdue or rejected, not started. */
   --rba-ok:   #3fa535;
   --rba-warn: #e5b700;
+  /* Warning as a filled area (bar, badge); --rba-warn is for text and small
+     markers. Text on it uses --rba-on-accent-fill. */
+  --rba-warn-fill: var(--rba-warn);
   --rba-bad:  #b0103c;
   --rba-idle: #c2c7d0;
+}
+
+/* Flevoland's colours for the Flevoland tenant (#374, step 1; design:
+   docs/superpowers/specs/2026-10-30-flevoland-colours-step1-design.md).
+   services/tenant.ts sets data-tenant on <html>. Every value is one of
+   Flevoland IT's semantic tokens (./flevoland/tokens.css), never their palette,
+   with one exception: --rba-idle, for which their file has no semantic token.
+   Pink stays for accent text and lines (--rba-accent, from tenants.json);
+   yellow is only a fill, always with dark text. Warning text and markers are
+   brown; yellow would fail 3:1 there. */
+:root[data-tenant="flevoland"] {
+  --rba-flevoland-blue-d: var(--flevoland-color-brand-primary-active);
+
+  --rba-ink:    var(--flevoland-color-text-default);
+  --rba-ink-2:  var(--flevoland-color-text-heading);
+  --rba-ink-3:  var(--flevoland-color-text-subtle);
+  --rba-ink-4:  var(--flevoland-color-text-disabled);
+  --rba-rule:   var(--flevoland-color-border-subtle);
+  --rba-rule-2: var(--flevoland-color-background-muted);
+  --rba-bg:     var(--flevoland-color-background-document);
+  --rba-paper:  var(--flevoland-color-background-surface);
+
+  --rba-ok:        var(--flevoland-color-status-success-text);
+  --rba-bad:       var(--flevoland-color-status-error-text);
+  --rba-warn:      var(--flevoland-color-status-warning-text);
+  --rba-warn-fill: var(--flevoland-color-brand-accent);
+  --rba-idle:      var(--flevoland-color-neutral-400);
+
+  --rba-accent-fill:    var(--flevoland-color-brand-accent);
+  --rba-on-accent-fill: var(--flevoland-color-text-on-accent);
 }

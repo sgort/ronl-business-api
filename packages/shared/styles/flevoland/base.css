@@ -1,0 +1,636 @@
+/*
+ * Copied verbatim from Flevoland IT's flevoland-base.css, v0.2.0 (12-10-2026):
+ * the file header, the @font-face rules (0c) and sections 2-4 (base styles,
+ * NL Design System Button mapping, user preferences). NOT LOADED: step 2 of
+ * #374 switches the apps over to it one at a time. Its tokens (section 1) are
+ * in ./tokens.css. Do not edit by hand: diff a new delivery against this file.
+ */
+
+/* ==========================================================================
+   Provincie Flevoland, basis-stylesheet
+   Opgebouwd volgens de architectuur en naamgevingsconventies van
+   NL Design System (https://nldesignsystem.nl)
+
+   Versie:   0.2.0 (concept)
+   Datum:    12-10-2026
+   Wijziging 0.2.0: kleuren en fonts overgenomen uit de intranet-CSS
+                    (embrace) van Provincie Flevoland.
+
+   OPBOUW VAN DIT BESTAND
+   --------------------------------------------------------------------------
+   0. Gebruik en uitgangspunten
+      0a. Bron van kleuren en fonts
+      0b. Bewuste afwijkingen van het intranet (toegankelijkheid)
+      0c. Webfonts laden
+   1. Design tokens (:root)
+      1a. Brand tokens (ruwe kleurwaarden, paletten)
+      1b. Systeemkleuren (semantische tokens, verwijzen naar 1a)
+      1c. Typografie
+      1d. Spacing
+      1e. Overige tokens (randen, schaduw, focus, maten, beweging)
+   2. Base styles (reset en standaarden voor HTML-elementen)
+   3. NL Design System component mapping (voorbeeld: Button)
+   4. Gebruikersvoorkeuren (reduced motion, forced colors)
+
+   0. GEBRUIK EN UITGANGSPUNTEN
+   --------------------------------------------------------------------------
+   - Laad dit bestand NA eventuele NL Design System component-CSS, of laad
+     het ervoor: de base styles (sectie 2) gebruiken :where() en hebben dus
+     specificiteit 0. Component-classes zoals .nl-button winnen altijd.
+   - Tokens volgen het NL Design System patroon:
+       --{prefix}-{categorie}-{concept}-{variant}-{eigenschap}
+     bijvoorbeeld --flevoland-color-text-default of
+     --flevoland-typography-font-size-md.
+   - Componenten verwijzen nooit rechtstreeks naar brand tokens (1a), maar
+     altijd naar systeemtokens (1b t/m 1e). Zo kan een palet wijzigen zonder
+     dat componenten aangepast hoeven te worden.
+   - Doelniveau toegankelijkheid: WCAG 2.2 niveau AA.
+     Tekst minimaal 4,5:1 contrast, UI-elementen en focus minimaal 3:1,
+     klikdoelen minimaal 44 x 44 px, regelhoogte minimaal 1,5.
+
+   0a. BRON VAN KLEUREN EN FONTS
+   --------------------------------------------------------------------------
+   Kleuren en fonts komen uit de intranet-stylesheet. Belangrijkste waarden:
+     #0046ad  primair blauw (links, knoppen, actieve menu-items)
+     #0052cc  blauw bij hover van knoppen
+     #003a8e  donkerblauw (link-hover, focusrand, skiplink)
+     #0c1c47  donker navy (tekstkleur body)
+     #fec612  geel accent (notificatiebalk, knoppen in zijkolommen)
+     #424242  koppen
+     #f8f8f8  achtergrond van de pagina
+     Grijzen  Material-reeks #fafafa t/m #212121
+     Status   fout #c62100, succes #207815, waarschuwing #85531a,
+              info #236791, met bijbehorende lichte achtergronden
+     Fonts    "Fira Sans" voor tekst en koppen, "Roboto" voor oudere widgets
+   In het intranet komt geen groene merkkleur voor. Groen wordt hier daarom
+   alleen als statuskleur (succes) gebruikt; geel is de accentkleur.
+   Alleen waar dat in het commentaar staat, is een waarde afgeleid in plaats
+   van overgenomen.
+
+   0b. BEWUSTE AFWIJKINGEN VAN HET INTRANET
+   --------------------------------------------------------------------------
+   - Randen van invoervelden: intranet #dddddd (1,4:1) haalt WCAG 1.4.11
+     niet. Hier #757575 (4,6:1).
+   - Links in lopende tekst: intranet onderstreept pas bij hover. Blauw en
+     navy verschillen te weinig (2,0:1) om alleen op kleur te leunen
+     (WCAG 1.4.1). Hier zijn links daarom altijd onderstreept.
+   - Lettergrootte: intranet zet html op 10px en body op 14px. Een vaste
+     px-waarde op html negeert de lettergrootte die de gebruiker in de
+     browser instelt (WCAG 1.4.4). Hier blijft de root op de
+     browserinstelling en is lopende tekst 18px (1,125rem).
+   - Focus: intranet declareert drie focuskleuren na elkaar (#003a8e,
+     #0052cc, #1473ff). Hier is #003a8e gekozen, de kleur met het hoogste
+     contrast (10,5:1 op wit), ook gebruikt voor de skiplink.
+
+   0c. WEBFONTS LADEN
+   --------------------------------------------------------------------------
+   Fira Sans (SIL Open Font License) mag vrij worden gebruikt en zelf
+   gehost. In de intranet-CSS staat geen @font-face voor Fira Sans, alleen
+   voor Roboto (/Content/Fonts/). Host de woff2-bestanden zelf, bijvoorbeeld
+   onder /fonts/fira-sans/, en zet het pad hieronder goed. Laad alleen de
+   gewichten die de tokens gebruiken: 400, 500, 600 en 700.
+   Zelf hosten heeft de voorkeur boven Google Fonts (privacy, AVG).
+   Bestanden ophalen:
+     https://fonts.google.com/specimen/Fira+Sans (download, daarna zelf hosten)
+     https://fontsource.org/fonts/fira-sans (npm: @fontsource/fira-sans)
+   Ter info: www.flevoland.nl laadt Fira Sans 400 en 500 nu rechtstreeks
+   via fonts.googleapis.com.
+   ========================================================================== */
+
+@font-face {
+  font-family: "Fira Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/fira-sans/fira-sans-v17-latin-regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Fira Sans";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/fira-sans/fira-sans-v17-latin-italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Fira Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/fira-sans/fira-sans-v17-latin-500.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Fira Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/fira-sans/fira-sans-v17-latin-600.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Fira Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/fira-sans/fira-sans-v17-latin-700.woff2") format("woff2");
+}
+
+
+/* ==========================================================================
+   2. BASE STYLES
+   Koppelt de tokens aan standaard HTML-elementen.
+   Alle selectors staan in :where() en hebben daardoor specificiteit 0.
+   Daardoor overschrijft elke component-class (zoals .nl-button,
+   .nl-paragraph of .nl-link) deze standaarden zonder !important.
+   ========================================================================== */
+
+/* --- Box model en reset ------------------------------------------------- */
+
+:where(*, *::before, *::after) {
+  box-sizing: border-box;
+}
+
+:where(html) {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-block-start: var(--flevoland-space-lg);
+}
+
+:where(body) {
+  margin: 0;
+  background-color: var(--flevoland-color-background-document);
+  color: var(--flevoland-color-text-default);
+  font-family: var(--flevoland-typography-font-family-base);
+  font-size: var(--flevoland-typography-font-size-md);
+  font-weight: var(--flevoland-typography-font-weight-regular);
+  line-height: var(--flevoland-typography-line-height-base);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:where(::selection) {
+  background-color: var(--flevoland-color-selection-background);
+  color: var(--flevoland-color-selection-text);
+}
+
+/* --- Koppen (h1 t/m h6) -------------------------------------------------- */
+
+:where(h1, h2, h3, h4, h5, h6) {
+  margin-block: var(--flevoland-space-block-heading) var(--flevoland-space-xs);
+  color: var(--flevoland-color-text-heading);
+  font-family: var(--flevoland-typography-font-family-heading);
+  font-weight: var(--flevoland-typography-font-weight-heading);
+  line-height: var(--flevoland-typography-line-height-heading);
+  overflow-wrap: break-word;
+  text-wrap: balance;
+}
+
+:where(h1) {
+  font-size: var(--flevoland-heading-1-font-size);
+  line-height: var(--flevoland-typography-line-height-tight);
+  margin-block-start: 0;
+}
+:where(h2) { font-size: var(--flevoland-heading-2-font-size); }
+:where(h3) { font-size: var(--flevoland-heading-3-font-size); }
+:where(h4) { font-size: var(--flevoland-heading-4-font-size); }
+:where(h5) { font-size: var(--flevoland-heading-5-font-size); }
+:where(h6) { font-size: var(--flevoland-heading-6-font-size); }
+
+/* Geen extra ruimte boven een kop die direct bovenaan een blok staat */
+:where(h1, h2, h3, h4, h5, h6):where(:first-child) {
+  margin-block-start: 0;
+}
+
+/* --- Lopende tekst ------------------------------------------------------- */
+
+:where(p) {
+  margin-block: 0 var(--flevoland-space-block-paragraph);
+  max-inline-size: var(--flevoland-typography-measure);
+  text-wrap: pretty;
+}
+
+:where(p:last-child) {
+  margin-block-end: 0;
+}
+
+:where(strong, b) {
+  font-weight: var(--flevoland-typography-font-weight-bold);
+}
+
+:where(small) {
+  font-size: var(--flevoland-typography-font-size-xs);
+}
+
+:where(code, kbd, pre, samp) {
+  font-family: var(--flevoland-typography-font-family-monospace);
+  font-size: 0.9em;
+}
+
+:where(ul, ol) {
+  margin-block: 0 var(--flevoland-space-block-paragraph);
+  padding-inline-start: var(--flevoland-space-lg);
+}
+
+:where(hr) {
+  margin-block: var(--flevoland-space-xl);
+  border: 0;
+  border-block-start: var(--flevoland-border-width-thin) solid var(--flevoland-color-border-subtle);
+}
+
+:where(img, svg, video) {
+  display: block;
+  max-inline-size: 100%;
+  block-size: auto;
+}
+
+/* --- Links ---------------------------------------------------------------
+   Links zijn altijd onderstreept, zodat ze niet alleen aan kleur
+   herkenbaar zijn (WCAG 1.4.1). Bij hover wordt de lijn dikker.
+   ------------------------------------------------------------------------ */
+
+:where(a) {
+  color: var(--flevoland-color-link-default);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  transition: color var(--flevoland-motion-duration-fast) var(--flevoland-motion-easing-standard),
+              text-decoration-thickness var(--flevoland-motion-duration-fast) var(--flevoland-motion-easing-standard);
+}
+
+:where(a:visited) {
+  color: var(--flevoland-color-link-visited);
+}
+
+:where(a:hover) {
+  color: var(--flevoland-color-link-hover);
+  text-decoration-thickness: 3px;
+}
+
+:where(a:active) {
+  color: var(--flevoland-color-link-active);
+}
+
+/* --- Focus (geldt voor alle interactieve elementen) ----------------------
+   :focus-visible toont de focusring alleen bij toetsenbordbediening.
+   De ring is 3px, heeft 3:1 contrast met de achtergrond en staat los van
+   het element (offset), zodat hij niet wegvalt tegen randen.
+   ------------------------------------------------------------------------ */
+
+:where(:focus-visible) {
+  outline: var(--flevoland-focus-outline-width)
+           var(--flevoland-focus-outline-style)
+           var(--flevoland-color-focus-outline);
+  outline-offset: var(--flevoland-focus-outline-offset);
+}
+
+/* Op donkere achtergronden: gebruik een lichte focusring */
+:where(.flevoland-inverse :focus-visible) {
+  outline-color: var(--flevoland-color-focus-outline-inverse);
+}
+
+/* --- Knoppen (native <button>) -------------------------------------------
+   Standaardknop in de primaire merkkleur. Gebruik voor varianten bij
+   voorkeur de NL Design System Button (sectie 3).
+   ------------------------------------------------------------------------ */
+
+:where(button, [type="button"], [type="submit"], [type="reset"]) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--flevoland-space-xs);
+  min-block-size: var(--flevoland-size-target-min);
+  min-inline-size: var(--flevoland-size-target-min);
+  margin: 0;
+  padding-block: var(--flevoland-space-control-block);
+  padding-inline: var(--flevoland-space-control-inline);
+  border: var(--flevoland-border-width-medium) solid var(--flevoland-color-brand-primary);
+  border-radius: var(--flevoland-border-radius-control);
+  background-color: var(--flevoland-color-brand-primary);
+  color: var(--flevoland-color-text-on-brand);
+  font-family: inherit;
+  font-size: var(--flevoland-typography-font-size-md);
+  font-weight: var(--flevoland-typography-font-weight-control);
+  line-height: var(--flevoland-typography-line-height-tight);
+  text-align: center;
+  cursor: pointer;
+  transition: background-color var(--flevoland-motion-duration-fast) var(--flevoland-motion-easing-standard),
+              border-color var(--flevoland-motion-duration-fast) var(--flevoland-motion-easing-standard);
+}
+
+:where(button, [type="button"], [type="submit"], [type="reset"]):where(:hover) {
+  background-color: var(--flevoland-color-brand-primary-hover);
+  border-color: var(--flevoland-color-brand-primary-hover);
+}
+
+:where(button, [type="button"], [type="submit"], [type="reset"]):where(:active) {
+  background-color: var(--flevoland-color-brand-primary-active);
+  border-color: var(--flevoland-color-brand-primary-active);
+}
+
+/* Disabled: duidelijk anders, maar nog leesbaar. Zowel het attribuut
+   disabled als aria-disabled="true" (blijft focusbaar) worden ondersteund. */
+:where(button, [type="button"], [type="submit"], [type="reset"]):where(:disabled, [aria-disabled="true"]) {
+  background-color: var(--flevoland-color-background-disabled);
+  border-color: var(--flevoland-color-border-disabled);
+  color: var(--flevoland-color-text-disabled);
+  cursor: not-allowed;
+}
+
+/* --- Formuliervelden ------------------------------------------------------ */
+
+:where(label) {
+  display: inline-block;
+  margin-block-end: var(--flevoland-space-2xs);
+  font-weight: var(--flevoland-typography-font-weight-semibold);
+}
+
+:where(
+  input:not([type="button"], [type="submit"], [type="reset"], [type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="image"], [type="hidden"]),
+  select,
+  textarea
+) {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 30rem;
+  min-block-size: var(--flevoland-size-target-min);
+  margin: 0;
+  padding-block: var(--flevoland-space-xs);
+  padding-inline: var(--flevoland-space-sm);
+  border: var(--flevoland-border-width-medium) solid var(--flevoland-color-border-default);
+  border-radius: var(--flevoland-border-radius-control);
+  background-color: var(--flevoland-color-background-surface);
+  color: var(--flevoland-color-text-default);
+  font-family: inherit;
+  font-size: var(--flevoland-typography-font-size-md);
+  line-height: var(--flevoland-typography-line-height-base);
+  transition: border-color var(--flevoland-motion-duration-fast) var(--flevoland-motion-easing-standard);
+}
+
+:where(textarea) {
+  min-block-size: 8rem;
+  resize: vertical;
+}
+
+:where(input, select, textarea):where(:hover) {
+  border-color: var(--flevoland-color-border-hover);
+}
+
+:where(input, select, textarea)::placeholder {
+  color: var(--flevoland-color-text-subtle);
+  opacity: 1;
+}
+
+/* Foutstatus: altijd ook met een tekstuele foutmelding combineren
+   (aria-describedby), kleur alleen is niet genoeg (WCAG 1.4.1, 3.3.1). */
+:where(input, select, textarea):where([aria-invalid="true"]) {
+  border-color: var(--flevoland-color-status-error-border);
+  border-inline-start-width: var(--flevoland-border-width-thick);
+}
+
+:where(input, select, textarea):where(:disabled, [aria-disabled="true"]) {
+  background-color: var(--flevoland-color-background-disabled);
+  border-color: var(--flevoland-color-border-disabled);
+  color: var(--flevoland-color-text-disabled);
+  cursor: not-allowed;
+}
+
+:where(input, select, textarea):where([readonly]) {
+  background-color: var(--flevoland-color-background-subtle);
+}
+
+/* Checkbox en radio in merkkleur, met voldoende klikoppervlak */
+:where([type="checkbox"], [type="radio"]) {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin: 0;
+  accent-color: var(--flevoland-color-brand-primary);
+  cursor: pointer;
+}
+
+:where(fieldset) {
+  margin: 0 0 var(--flevoland-space-lg);
+  padding: 0;
+  border: 0;
+}
+
+:where(legend) {
+  margin-block-end: var(--flevoland-space-xs);
+  padding: 0;
+  font-weight: var(--flevoland-typography-font-weight-bold);
+}
+
+
+/* ==========================================================================
+   3. NL DESIGN SYSTEM COMPONENT MAPPING (voorbeeld: Button)
+
+   Component: @nl-design-system-candidate/button-css (v2.0.0)
+   Tokens:    @nl-design-system-candidate/button-tokens
+   Docs:      https://nldesignsystem.nl/button
+
+   Hoe het werkt
+   --------------------------------------------------------------------------
+   De NL DS component-CSS is "white label": hij bevat geen kleuren, alleen
+   verwijzingen naar CSS-variabelen zoals --nl-button-primary-background-color.
+   Hieronder vullen we die variabelen met Flevoland-tokens. De component-CSS
+   zelf passen we nooit aan.
+
+   Volgens NL DS-conventie staat het thema op een theme-class, zodat
+   meerdere thema's naast elkaar kunnen bestaan. Zet de class op <body> of
+   op een container:
+
+     <link rel="stylesheet" href="https://unpkg.com/@nl-design-system-candidate/button-css/dist/button.css">
+     <link rel="stylesheet" href="flevoland-base.css">
+
+     <body class="flevoland-theme">
+       <button class="nl-button nl-button--primary" type="button">
+         <span class="nl-button__label">Aanvraag versturen</span>
+       </button>
+       <button class="nl-button nl-button--secondary" type="button">
+         <span class="nl-button__label">Annuleren</span>
+       </button>
+       <button class="nl-button nl-button--primary nl-button--negative" type="button">
+         <span class="nl-button__label">Bestand verwijderen</span>
+       </button>
+     </body>
+
+   Dezelfde aanpak werkt voor elk ander NL DS component: zoek in het
+   bijbehorende tokens-pakket welke --nl-* variabelen er zijn en koppel ze
+   aan --flevoland-* tokens.
+   ========================================================================== */
+
+.flevoland-theme {
+
+  /* --- Algemeen (alle varianten) ----------------------------------------- */
+  --nl-button-font-family:          var(--flevoland-typography-font-family-base);
+  --nl-button-border-radius:        var(--flevoland-border-radius-control);
+  --nl-button-column-gap:           var(--flevoland-space-xs);
+  --nl-button-padding-block-start:  var(--flevoland-space-control-block);
+  --nl-button-padding-block-end:    var(--flevoland-space-control-block);
+  --nl-button-padding-inline-start: var(--flevoland-space-control-inline);
+  --nl-button-padding-inline-end:   var(--flevoland-space-control-inline);
+  --nl-button-min-block-size:       var(--flevoland-size-target-min);
+  --nl-button-min-inline-size:      var(--flevoland-size-target-min);
+  --nl-button-icon-size:            1.25rem;
+
+  /* --- Default (knop zonder purpose) ------------------------------------- */
+  --nl-button-default-background-color:        var(--flevoland-color-background-surface);
+  --nl-button-default-border-color:            var(--flevoland-color-border-default);
+  --nl-button-default-border-width:            var(--flevoland-border-width-medium);
+  --nl-button-default-color:                   var(--flevoland-color-text-default);
+  --nl-button-default-font-size:               var(--flevoland-typography-font-size-md);
+  --nl-button-default-font-weight:             var(--flevoland-typography-font-weight-control);
+  --nl-button-default-line-height:             var(--flevoland-typography-line-height-tight);
+  --nl-button-default-hover-background-color:  var(--flevoland-color-background-subtle);
+  --nl-button-default-hover-border-color:      var(--flevoland-color-border-hover);
+  --nl-button-default-hover-color:             var(--flevoland-color-text-default);
+  --nl-button-default-active-background-color: var(--flevoland-color-background-muted);
+  --nl-button-default-active-border-color:     var(--flevoland-color-border-strong);
+  --nl-button-default-active-color:            var(--flevoland-color-text-default);
+  --nl-button-default-disabled-background-color: var(--flevoland-color-background-disabled);
+  --nl-button-default-disabled-border-color:     var(--flevoland-color-border-disabled);
+  --nl-button-default-disabled-color:            var(--flevoland-color-text-disabled);
+
+  /* --- Primary (hoofdactie, gebruik spaarzaam) --------------------------- */
+  --nl-button-primary-background-color:        var(--flevoland-color-brand-primary);
+  --nl-button-primary-border-color:            var(--flevoland-color-brand-primary);
+  --nl-button-primary-border-width:            var(--flevoland-border-width-medium);
+  --nl-button-primary-color:                   var(--flevoland-color-text-on-brand);
+  --nl-button-primary-font-size:               var(--flevoland-typography-font-size-md);
+  --nl-button-primary-font-weight:             var(--flevoland-typography-font-weight-control);
+  --nl-button-primary-line-height:             var(--flevoland-typography-line-height-tight);
+  --nl-button-primary-hover-background-color:  var(--flevoland-color-brand-primary-hover);
+  --nl-button-primary-hover-border-color:      var(--flevoland-color-brand-primary-hover);
+  --nl-button-primary-hover-color:             var(--flevoland-color-text-on-brand);
+  --nl-button-primary-active-background-color: var(--flevoland-color-brand-primary-active);
+  --nl-button-primary-active-border-color:     var(--flevoland-color-brand-primary-active);
+  --nl-button-primary-active-color:            var(--flevoland-color-text-on-brand);
+  --nl-button-primary-pressed-background-color: var(--flevoland-color-brand-primary-active);
+  --nl-button-primary-pressed-border-color:     var(--flevoland-color-brand-primary-active);
+  --nl-button-primary-pressed-color:            var(--flevoland-color-text-on-brand);
+  --nl-button-primary-disabled-background-color: var(--flevoland-color-background-disabled);
+  --nl-button-primary-disabled-border-color:     var(--flevoland-color-border-disabled);
+  --nl-button-primary-disabled-color:            var(--flevoland-color-text-disabled);
+
+  /* Primary met hint="positive" (bijvoorbeeld "Formulier versturen"),
+     in het groen van de succesmelding op het intranet */
+  --nl-button-primary-positive-background-color:        var(--flevoland-color-status-success-text);
+  --nl-button-primary-positive-border-color:            var(--flevoland-color-status-success-text);
+  --nl-button-primary-positive-color:                   var(--flevoland-color-text-on-brand);
+  --nl-button-primary-positive-hover-background-color:  var(--flevoland-color-status-success-hover);
+  --nl-button-primary-positive-hover-border-color:      var(--flevoland-color-status-success-hover);
+  --nl-button-primary-positive-hover-color:             var(--flevoland-color-text-on-brand);
+  --nl-button-primary-positive-active-background-color: var(--flevoland-color-status-success-hover);
+  --nl-button-primary-positive-active-border-color:     var(--flevoland-color-status-success-hover);
+  --nl-button-primary-positive-active-color:            var(--flevoland-color-text-on-brand);
+
+  /* Primary met hint="negative" (bijvoorbeeld "Verwijderen") */
+  --nl-button-primary-negative-background-color:        var(--flevoland-color-status-error-text);
+  --nl-button-primary-negative-border-color:            var(--flevoland-color-status-error-border);
+  --nl-button-primary-negative-color:                   var(--flevoland-color-text-on-brand);
+  --nl-button-primary-negative-hover-background-color:  var(--flevoland-color-status-error-hover);
+  --nl-button-primary-negative-hover-border-color:      var(--flevoland-color-status-error-hover);
+  --nl-button-primary-negative-hover-color:             var(--flevoland-color-text-on-brand);
+  --nl-button-primary-negative-active-background-color: var(--flevoland-color-status-error-hover);
+  --nl-button-primary-negative-active-border-color:     var(--flevoland-color-status-error-hover);
+  --nl-button-primary-negative-active-color:            var(--flevoland-color-text-on-brand);
+
+  /* --- Secondary (alternatief voor de hoofdactie) ------------------------ */
+  --nl-button-secondary-background-color:        var(--flevoland-color-background-surface);
+  --nl-button-secondary-border-color:            var(--flevoland-color-brand-primary);
+  --nl-button-secondary-border-width:            var(--flevoland-border-width-medium);
+  --nl-button-secondary-color:                   var(--flevoland-color-brand-primary);
+  --nl-button-secondary-font-size:               var(--flevoland-typography-font-size-md);
+  --nl-button-secondary-font-weight:             var(--flevoland-typography-font-weight-control);
+  --nl-button-secondary-line-height:             var(--flevoland-typography-line-height-tight);
+  --nl-button-secondary-hover-background-color:  var(--flevoland-color-brand-primary-subtle);
+  --nl-button-secondary-hover-border-color:      var(--flevoland-color-brand-primary-hover);
+  --nl-button-secondary-hover-color:             var(--flevoland-color-brand-primary-hover);
+  --nl-button-secondary-active-background-color: var(--flevoland-color-blue-200);
+  --nl-button-secondary-active-border-color:     var(--flevoland-color-brand-primary-active);
+  --nl-button-secondary-active-color:            var(--flevoland-color-brand-primary-active);
+  --nl-button-secondary-disabled-background-color: var(--flevoland-color-background-surface);
+  --nl-button-secondary-disabled-border-color:     var(--flevoland-color-border-disabled);
+  --nl-button-secondary-disabled-color:            var(--flevoland-color-text-disabled);
+
+  /* Secondary met hint="negative" */
+  --nl-button-secondary-negative-background-color:       var(--flevoland-color-background-surface);
+  --nl-button-secondary-negative-border-color:           var(--flevoland-color-status-error-border);
+  --nl-button-secondary-negative-color:                  var(--flevoland-color-status-error-text);
+  --nl-button-secondary-negative-hover-background-color: var(--flevoland-color-status-error-background);
+  --nl-button-secondary-negative-hover-border-color:     var(--flevoland-color-status-error-hover);
+  --nl-button-secondary-negative-hover-color:            var(--flevoland-color-status-error-hover);
+
+  /* --- Subtle (minder prominente actie, oogt als link) ------------------- */
+  --nl-button-subtle-background-color:        transparent;
+  --nl-button-subtle-border-color:            transparent;
+  --nl-button-subtle-border-width:            var(--flevoland-border-width-medium);
+  --nl-button-subtle-color:                   var(--flevoland-color-link-default);
+  --nl-button-subtle-font-size:               var(--flevoland-typography-font-size-md);
+  --nl-button-subtle-font-weight:             var(--flevoland-typography-font-weight-control);
+  --nl-button-subtle-line-height:             var(--flevoland-typography-line-height-tight);
+  --nl-button-subtle-hover-background-color:  var(--flevoland-color-brand-primary-subtle);
+  --nl-button-subtle-hover-border-color:      transparent;
+  --nl-button-subtle-hover-color:             var(--flevoland-color-link-hover);
+  --nl-button-subtle-active-background-color: var(--flevoland-color-blue-200);
+  --nl-button-subtle-active-border-color:     transparent;
+  --nl-button-subtle-active-color:            var(--flevoland-color-link-active);
+  --nl-button-subtle-disabled-background-color: transparent;
+  --nl-button-subtle-disabled-border-color:     transparent;
+  --nl-button-subtle-disabled-color:            var(--flevoland-color-text-disabled);
+
+  /* --- Focus (toetsenbord) ------------------------------------------------
+     Kleuren tijdens :focus-visible. De focusring zelf komt uit sectie 2.
+     -------------------------------------------------------------------- */
+  --nl-button-focus-background-color: var(--flevoland-color-brand-primary-active);
+  --nl-button-focus-border-color:     var(--flevoland-color-brand-primary-active);
+  --nl-button-focus-color:            var(--flevoland-color-text-on-brand);
+
+  /* Overige tokens (zoals *-pressed-hover, *-pressed-active en de
+     positive/negative-varianten van subtle) volgen hetzelfde patroon.
+     Zie @nl-design-system-candidate/button-tokens voor de volledige lijst
+     en vul ze aan zodra je die staten gebruikt. */
+}
+
+/* De component-CSS bevat geen focusring; we zorgen dat de Flevoland-ring
+   ook op .nl-button verschijnt, met een hogere specificiteit dan :where(). */
+.flevoland-theme .nl-button:focus-visible {
+  outline: var(--flevoland-focus-outline-width)
+           var(--flevoland-focus-outline-style)
+           var(--flevoland-color-focus-outline);
+  outline-offset: var(--flevoland-focus-outline-offset);
+}
+
+
+/* ==========================================================================
+   4. GEBRUIKERSVOORKEUREN
+   ========================================================================== */
+
+/* Minder beweging voor gebruikers die dat in hun systeem hebben ingesteld
+   (WCAG 2.3.3) */
+@media (prefers-reduced-motion: reduce) {
+  :where(*, *::before, *::after) {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Hoog-contrastmodus (Windows): laat systeemkleuren hun werk doen en
+   zorg dat focus en randen zichtbaar blijven */
+@media (forced-colors: active) {
+  :where(:focus-visible) {
+    outline-color: Highlight;
+  }
+
+  :where(button, [type="button"], [type="submit"], [type="reset"]) {
+    border-color: ButtonText;
+  }
+
+  :where(input, select, textarea):where([aria-invalid="true"]) {
+    border-color: Mark;
+  }
+}

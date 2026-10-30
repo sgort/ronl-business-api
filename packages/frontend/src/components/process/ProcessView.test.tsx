@@ -103,6 +103,6 @@ describe('ProcessView — status swatches', () => {
       <ProcessView model={MODEL} statusById={{ a: 'action' }} title={{ name: 'X', code: 'R2.4' }} />
     );
     const sw = container.querySelector('[data-legend="action"] .sw') as HTMLElement;
-    expect(sw.style.borderTopColor).toBe('rgb(231, 0, 119)');
+    expect(sw.style.borderTopColor).toBe('var(--rba-flevoland-pink)');
   });
 });

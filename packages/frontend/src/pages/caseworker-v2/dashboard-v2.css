@@ -20,6 +20,7 @@
   --v2-accent:     var(--rba-accent);
   --v2-accent-50:  color-mix(in srgb, var(--v2-accent) 12%, white);
   --v2-accent-d:   color-mix(in srgb, var(--v2-accent) 80%, black);
+  --v2-accent-fill: var(--rba-accent-fill);
 
   --v2-ink:        var(--rba-ink);
   --v2-ink-2:      var(--rba-ink-2);
@@ -135,8 +136,8 @@
 .cwd-v2 .v2-avatar {
   width: 30px;
   height: 30px;
-  background: var(--v2-accent);
-  color: var(--rba-ink-inverse);
+  background: var(--v2-accent-fill);
+  color: var(--rba-on-accent-fill);
   display: grid;
   place-items: center;
   font-size: 11px;
@@ -268,8 +269,8 @@
 }
 .cwd-v2 .v2-gw-lang button + button { border-left: 1px solid var(--v2-rule); }
 .cwd-v2 .v2-gw-lang button.active {
-  background: var(--v2-accent);
-  color: var(--rba-ink-inverse);
+  background: var(--v2-accent-fill);
+  color: var(--rba-on-accent-fill);
 }
 .cwd-v2 .v2-gw-external {
   display: inline-flex;
@@ -331,8 +332,8 @@
 }
 .cwd-v2 .v2-tab .v2-tab-count {
   font-family: var(--v2-mono);
-  background: var(--v2-accent);
-  color: var(--rba-ink-inverse);
+  background: var(--v2-accent-fill);
+  color: var(--rba-on-accent-fill);
   font-size: 10px;
   padding: 1px 6px;
   font-weight: 600;
@@ -363,8 +364,8 @@
   overflow-y: auto;
 }
 .cwd-v2 .v2-rail-card {
-  background: var(--v2-accent);
-  color: var(--rba-ink-inverse);
+  background: var(--v2-accent-fill);
+  color: var(--rba-on-accent-fill);
   font-family: var(--v2-serif);
   font-weight: 600;
   font-size: 22px;
@@ -561,9 +562,9 @@
   margin: 0 0 18px;
 }
 .cwd-v2 .v2-btn {
-  background: var(--v2-accent);
-  color: var(--rba-ink-inverse);
-  border: 1px solid var(--v2-accent);
+  background: var(--v2-accent-fill);
+  color: var(--rba-on-accent-fill);
+  border: 1px solid var(--v2-accent-fill);
   padding: 8px 14px;
   font-size: 13px;
   font-weight: 600;
@@ -1044,8 +1045,8 @@
   position: fixed;
   bottom: 22px;
   right: 22px;
-  background: var(--v2-accent);
-  color: var(--rba-ink-inverse);
+  background: var(--v2-accent-fill);
+  color: var(--rba-on-accent-fill);
   border: none;
   padding: 10px 16px;
   font-size: 13px;
