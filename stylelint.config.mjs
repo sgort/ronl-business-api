@@ -10,8 +10,9 @@ const warn = { severity: "warning" };
 // The root class(es) each scoped stylesheet must start every selector with.
 // Files not listed are global by design and exempt from this rule only: the
 // two app-shell index.css files, public-site's pub.css (the whole site), the
-// Keycloak login theme, pa-cockpit's styles.css (imports only), and the
-// shared token file (a :root block).
+// Keycloak login theme, pa-cockpit's styles.css (imports only), the
+// shared token file (a :root block) and Flevoland IT's delivery under
+// packages/shared/styles/flevoland/ (their tokens and their element styles).
 const ROOTS = {
   "packages/frontend/src/components/LoginChoice/access-denied.css": [".lcp-denied"],
   "packages/frontend/src/components/LoginChoice/single-board.css": [".lcp-single"],
@@ -34,6 +35,10 @@ const ROOTS = {
 const HEX_ALLOWED = [
   // The shared tokens: where the palette's hex values live.
   "packages/shared/styles/tokens.css",
+  // Flevoland IT's delivery (#374), kept verbatim: their palette and their
+  // element styles.
+  "packages/shared/styles/flevoland/tokens.css",
+  "packages/shared/styles/flevoland/base.css",
   // The Keycloak login theme: served by Keycloak, outside the build, so it
   // cannot load the token file.
   "keycloak-themes/ronl/login/resources/css/login.css",
@@ -59,5 +64,11 @@ export default {
       rules: { "rba/selector-root-class": [true, { roots, ...warn }] },
     })),
     { files: HEX_ALLOWED, rules: { "color-no-hex": null } },
+    // Flevoland IT's reduced-motion block needs !important to beat component
+    // transitions; kept verbatim.
+    {
+      files: ["packages/shared/styles/flevoland/base.css"],
+      rules: { "declaration-no-important": null },
+    },
   ],
 };

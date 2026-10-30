@@ -569,7 +569,7 @@
 .pbd .pb-gantt-row:hover { background: var(--v2-accent-50); }
 .pbd .pb-gantt-namecol .nm { font-size: 12.5px; font-weight: 600; color: var(--v2-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pbd .pb-gantt-namecol .meta { font-family: var(--v2-mono); font-size: 10px; color: var(--v2-ink-3); margin-top: 1px; }
-.pbd .pb-live-badge { display: inline-block; margin-left: 5px; padding: 0 4px; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: var(--v2-accent); color: var(--rba-ink-inverse); border-radius: 3px; vertical-align: middle; }
+.pbd .pb-live-badge { display: inline-block; margin-left: 5px; padding: 0 4px; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: var(--v2-accent-fill); color: var(--rba-on-accent-fill); border-radius: 3px; vertical-align: middle; }
 .pbd .pb-gantt-namecol .pb-health { position: absolute; }
 .pbd .pb-gantt-row .pb-gantt-namecol { position: relative; padding-left: 26px; }
 .pbd .pb-gantt-row .pb-gantt-namecol .pb-health { left: 14px; top: 50%; transform: translateY(-50%); }

@@ -162,7 +162,7 @@ Branch: `feat/flevoland-colours` (exists; holds the uncommitted spec and this pl
   | `--rba-accent-fill`      | `var(--flevoland-color-brand-accent)`                                         |
   | `--rba-on-accent-fill`   | `var(--flevoland-color-text-on-accent)`                                       |
 
-- tenants.json flevoland: `primaryDark` `#134F7D` → `#003a8e`, `accent` `#F5A623` → `#fec612`; the shim literal follows (its existing cross-check test enforces it). `primaryLight` (`#4A8FC0`) stays; `grep -rn "primary-light" packages/*/src` and list in the PR any use as text (which would need 4.5:1) — report, do not change.
+- tenants.json flevoland: **moved to Task 9** (PR 1 review: the theme applies without the marker, so changing it here was visible to Flevoland users in PR 1). `primaryLight` (`#4A8FC0`) stays; `grep -rn "primary-light" packages/*/src` and list in the PR any use as text (which would need 4.5:1) — report, do not change.
 
 - [ ] **Step 1: Write the failing tests** in `css-tokens.test.ts`:
   - Add `--rba-accent-fill`, `--rba-on-accent-fill`, `--rba-warn-fill` to `EXPECTED_TOKENS`.
@@ -320,12 +320,12 @@ Branch: `feat/flevoland-switch-on` from `acc` after PR 3 merges.
 
 **Files:**
 
-- Modify: `packages/frontend/src/services/tenant.ts` (`TENANT_MARKER_ENABLED = true`, comment updated), `packages/pa-demo/src/demo/shims/tenant.ts` (same), `docs/css-files.md`
+- Modify: `packages/frontend/src/services/tenant.ts` (`TENANT_MARKER_ENABLED = true`, comment updated), `packages/pa-demo/src/demo/shims/tenant.ts` (same, and `FLEVOLAND_THEME`), `packages/frontend/public/tenants.json` (flevoland `primaryDark` `#134F7D` → `#003a8e`, `accent` `#F5A623` → `#fec612`; moved here from Task 4), `packages/pa-demo/src/demo/shims/tenant.test.ts` (its literal values), `packages/frontend/src/css-colour.test.ts` (add `brandD: '#003a8e'` back to `resolves to the agreed Flevoland values`), `docs/css-files.md`
 - Test: `packages/frontend/src/services/tenant.test.ts`
 
 - [ ] **Step 1: Write the failing tests**: `the marker is on` (`TENANT_MARKER_ENABLED === true`); `initializeTenantTheme marks the tenant` → after `initializeTenantTheme('utrecht')` with the mocked tenants, `document.documentElement.dataset.tenant === 'utrecht'`; update `sets no data-tenant while the marker is off` to pass `false` explicitly.
 - [ ] **Step 2: Run** `npm test --workspace=@ronl/frontend -- tenant` — Expected: FAIL.
-- [ ] **Step 3: Flip both constants.** The pa-demo cross-check test from Task 3 must pass unchanged.
+- [ ] **Step 3: Flip both constants and change the Flevoland theme values.** The pa-demo cross-check tests must pass. `npm run check:css-equivalence` now reports `[flevoland]` findings for the dark blue: expected in this PR only.
 - [ ] **Step 4: Run** frontend and pa-demo tests — Expected: PASS.
 - [ ] **Step 5: Stage** and **ask** before committing `feat(css): switch on Flevoland's colours for the Flevoland tenant (#374)`.
 

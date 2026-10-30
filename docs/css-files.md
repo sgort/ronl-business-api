@@ -1,7 +1,7 @@
 # CSS files — what each stylesheet is for
 
-The repository tracks 22 `.css` files across the Keycloak theme, the shared
-token file and four frontend packages. Nearly all of them scope every selector under a single
+The repository tracks 24 `.css` files across the Keycloak theme, the shared
+token files and four frontend packages. Nearly all of them scope every selector under a single
 root class per surface (`.cwd-v2`, `.pbd`, `.wood`, `.pac`, `.lcp`, …), so a
 stylesheet cannot leak into another app or dashboard. Tailwind is used for
 utility classes; these files hold the hand-written, surface-specific styling.
@@ -30,9 +30,11 @@ PatternFly again _after_ the custom styles and override them.
 
 ## `packages/shared` — design tokens
 
-| File                | Lines | Root class | Function                                                                                                                                                                                                                                                                                             |
-| ------------------- | ----: | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `styles/tokens.css` |    45 | `:root`    | The shared design tokens (`--rba-*`): Flevoland's fixed brand colours, the themed brand (chained to the tenant's `--color-primary`/`-dark`/`--color-secondary`), the neutrals (with `--rba-ink-inverse` for text on a coloured fill) and the status colours. The palette's only home for hex values. |
+| File                          | Lines | Root class | Function                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------------- | ----: | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `styles/tokens.css`           |    91 | `:root`    | The shared design tokens (`--rba-*`): Flevoland's fixed brand colours, the themed brand (chained to the tenant's `--color-primary`/`-dark`/`--color-secondary`), the accent and warning fills with the text on them (`--rba-accent-fill`, `--rba-on-accent-fill`, `--rba-warn-fill`), the neutrals (with `--rba-ink-inverse` for text on a coloured fill) and the status colours. Ends with `:root[data-tenant="flevoland"]`, which points them at Flevoland IT's semantic tokens for the Flevoland tenant. The palette's only home for hex values. |
+| `styles/flevoland/tokens.css` |   352 | `:root`    | Flevoland IT's design tokens (`--flevoland-*`), copied verbatim from their `flevoland-base.css` v0.2.0 (12-10-2026): the file header and section 1. `styles/tokens.css` imports it, so both hosts load it. Do not edit by hand; diff a new delivery against it.                                                                                                                                                                                                                                                                                     |
+| `styles/flevoland/base.css`   |   636 | global     | The rest of that delivery, verbatim: `@font-face` for Fira Sans, element base styles (`:where()`), the NL Design System Button mapping, reduced-motion and forced-colours rules. **Not loaded**: step 2 of #374 switches apps over to it one at a time.                                                                                                                                                                                                                                                                                             |
 
 The caseworker app imports it in `App.tsx`; `@ronl/pa-cockpit`'s `styles.css`
 `@import`s it, which is how `pa-demo` gets it. Each surface's own variables
@@ -40,6 +42,10 @@ The caseworker app imports it in `App.tsx`; `@ronl/pa-cockpit`'s `styles.css`
 `--text`, …) point at a token rather than repeating the value.
 `packages/frontend/src/css-tokens.test.ts` fails when a stylesheet uses a
 `var(--rba-*)` the file does not define, or when a host stops loading it.
+
+**Flevoland's colours (#374, step 1).** `services/tenant.ts` marks the active tenant with `data-tenant` on `<html>` (switched off by `TENANT_MARKER_ENABLED` until the last PR of step 1; pa-demo's shim mirrors it). For `flevoland`, the block at the end of `tokens.css` gives navy text, Material greys, the `#f8f8f8` page, dark blue `#003a8e`, Flevoland's status colours, brown warning text and markers, and yellow fills with dark text. Pink stays for accent text and lines. `css-tokens.test.ts` keeps the block on Flevoland's semantic tokens; `css-colour.test.ts` checks its contrast.
+
+**Other tenants must not change when colours move into tokens.** `npm run check:css-equivalence` compares each changed stylesheet with the same file on `acc` (`--base <ref>` for another), resolving every `var()` and `color-mix()` as each tenant other than Flevoland sees it, and fails when a colour moves by more than ΔE2000 1.0 (not visible) or anything else in a declaration changes. Script: `scripts/css-colour/check-equivalence.mjs`; its tests are in `packages/frontend/src/css-colour.test.ts`.
 
 Not every surface variable points at a token yet. Where a surface uses a
 different value, it keeps its own until a design decision unifies them,

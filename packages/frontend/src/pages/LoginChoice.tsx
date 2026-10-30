@@ -67,15 +67,17 @@ export default function LoginChoice() {
   const resolution = useLandingResolution();
 
   const redirectTo = resolution?.kind === 'redirect' ? resolution.to : null;
-  const theme = resolution && resolution.kind !== 'redirect' ? resolution.tenant?.theme : null;
+  const tenant = resolution && resolution.kind !== 'redirect' ? resolution.tenant : null;
+  const theme = tenant?.theme ?? null;
+  const tenantId = tenant?.id;
 
   useEffect(() => {
     if (redirectTo) navigate(redirectTo, { replace: true });
   }, [redirectTo, navigate]);
 
   useEffect(() => {
-    if (theme) applyTenantTheme(theme);
-  }, [theme]);
+    if (theme) applyTenantTheme(theme, tenantId);
+  }, [theme, tenantId]);
 
   const denied = readAccessDenied(state);
   // The no-access dialog, over whichever layout this URL shows. Closing it

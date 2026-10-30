@@ -59,6 +59,11 @@ const FLEVOLAND_THEME = {
   accent: '#F5A623',
 } as const;
 
+// Mirrors TENANT_MARKER_ENABLED in packages/frontend/src/services/tenant.ts
+// (#374, step 1): when on, the theme also marks the tenant with data-tenant on
+// <html> so the Flevoland colours apply. tenant.test.ts keeps the two equal.
+export const TENANT_MARKER_ENABLED = false;
+
 export function getTenantConfig(_id?: string): TenantConfig {
   return FLEVOLAND;
 }
@@ -71,7 +76,10 @@ export function loadTenantConfigs(): Promise<TenantConfig[]> {
   return Promise.resolve([FLEVOLAND]);
 }
 
-export function initializeTenantTheme(_municipality?: string): Promise<boolean> {
+export function initializeTenantTheme(
+  _municipality?: string,
+  markerEnabled = TENANT_MARKER_ENABLED
+): Promise<boolean> {
   // Same setProperty sequence as the real applyTenantTheme() — see the file
   // header for why a CSS-only fallback isn't enough and why this is a
   // literal rather than a fetch of tenants.json.
@@ -81,5 +89,7 @@ export function initializeTenantTheme(_municipality?: string): Promise<boolean> 
   root.style.setProperty('--color-primary-light', FLEVOLAND_THEME.primaryLight);
   root.style.setProperty('--color-secondary', FLEVOLAND_THEME.secondary);
   root.style.setProperty('--color-accent', FLEVOLAND_THEME.accent);
+  if (markerEnabled) root.dataset.tenant = FLEVOLAND.id;
+  else delete root.dataset.tenant;
   return Promise.resolve(true);
 }
