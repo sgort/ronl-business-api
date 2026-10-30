@@ -45,6 +45,9 @@ const HEX_ALLOWED = [
   "deployment/vm/keycloak/themes/ronl/login/resources/css/login.css",
   // Open Regels: a separate brand on its own Rijkshuisstijl tokens.
   "packages/public-site/src/styles/pub.css",
+  // Tailwind's own palette as the defaults of the tenant-following scales
+  // (#374): copied from tailwindcss/colors, checked by tailwind-palette.test.ts.
+  "packages/frontend/src/styles/tailwind-palette.css",
   // The app shells' --color-* values: the tenant-theme fallbacks, not palette.
   "packages/frontend/src/index.css",
   "packages/pa-demo/src/index.css",

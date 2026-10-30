@@ -99,6 +99,8 @@ function sameValue(before, after, envBefore, envAfter) {
     return { equal: false, kind: 'changed' };
   }
   for (let i = 0; i < b.colours.length; i++) {
+    // Fully transparent is invisible whatever its rgb (Tailwind's gradient stops).
+    if (b.colours[i].a === 0 && a.colours[i].a === 0) continue;
     const dE = deltaE2000(b.colours[i], a.colours[i]);
     const dA = Math.abs(b.colours[i].a - a.colours[i].a);
     if (dE > MAX_DELTA_E || dA > MAX_DELTA_ALPHA) {
