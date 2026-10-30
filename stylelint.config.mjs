@@ -1,6 +1,8 @@
 // Stylelint — REPORT-ONLY (#374, item 2). Every rule is a warning, so
-// `npm run lint:css` always exits 0; it measures, it does not gate. Turning a
-// rule into an error, and wiring it into CI, is a later step of #374.
+// `npm run lint:css` always exits 0; it measures, it does not gate. The one
+// gate is color-no-hex (#374 3d): packages/frontend/src/css-hex.test.ts runs
+// this rule with this config in the frontend suite and fails on any hex
+// outside the data colours it lists, so a new hex fails CI.
 //
 // Deliberately no shared config (stylelint-config-standard and the like): it
 // would bury these four signals under style complaints and fight the

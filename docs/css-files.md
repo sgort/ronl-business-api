@@ -187,10 +187,7 @@ Proposed order, one PR each:
 2. **E and H**, with a list for Flevoland to choose fixed or themed per place.
 3. **A tint scale** for the 30 repeated values. Tints built with `color-mix`
    shift slightly, so this one changes pixels and needs a visual check.
-4. **A ratchet in CI**, the "make it an error" step of item 2. A stored
-   per-file count that may only go down; files already at zero become hard
-   errors. New hex values cannot creep in, without first clearing the long
-   tail.
+4. **A ratchet in CI**, the "make it an error" step of item 2. _Done (#374 3d): with only data colours left, the gate lists them instead of counting. `packages/frontend/src/css-hex.test.ts` runs stylelint's `color-no-hex` with the repository config in the frontend suite (so in CI on every frontend, shared or pa-cockpit pull request) and fails on any hex outside its per-file list of data colours, each with its reason, and on a listed colour that is no longer used. The other stylelint rules stay report-only._
 
 ## Default for new work
 
