@@ -38,6 +38,12 @@ const EXPECTED_TOKENS = [
   '--rba-accent',
   '--rba-accent-fill',
   '--rba-bad',
+  '--rba-bad-bg',
+  '--rba-bad-ink',
+  '--rba-bad-ink-2',
+  '--rba-bad-ink-3',
+  '--rba-bad-ink-4',
+  '--rba-bad-line',
   '--rba-bg',
   '--rba-brand',
   '--rba-brand-d',
@@ -50,13 +56,32 @@ const EXPECTED_TOKENS = [
   '--rba-ink-3',
   '--rba-ink-4',
   '--rba-ink-inverse',
+  '--rba-ink-strong',
   '--rba-ok',
+  '--rba-ok-bg',
+  '--rba-ok-ink',
+  '--rba-ok-ink-2',
+  '--rba-ok-ink-3',
+  '--rba-ok-line',
   '--rba-on-accent-fill',
+  '--rba-on-warn-fill',
   '--rba-paper',
   '--rba-rule',
   '--rba-rule-2',
   '--rba-warn',
+  '--rba-warn-bg',
+  '--rba-warn-bg-2',
+  '--rba-warn-bg-3',
   '--rba-warn-fill',
+  '--rba-warn-ink',
+  '--rba-warn-ink-2',
+  '--rba-warn-ink-3',
+  '--rba-warn-ink-4',
+  '--rba-warn-ink-5',
+  '--rba-warn-ink-6',
+  '--rba-warn-ink-7',
+  '--rba-warn-line',
+  '--rba-warn-line-2',
 ];
 
 /** The rule for Flevoland's colours (#374, step 1); the only tenant rule allowed. */
@@ -230,6 +255,43 @@ describe('Flevoland tokens', () => {
     });
     expect(selectors.length).toBeGreaterThan(0);
     expect(selectors.filter((sel) => sel !== FLEVOLAND_SELECTOR)).toEqual([]);
+  });
+});
+
+/**
+ * Status tint roles (#374, step 1, PR 3). For Flevoland the -line tokens are
+ * Flevoland's saturated border colours and the -bg tokens its pale status
+ * backgrounds, so a -line used as a background (or a -bg as a border) turns
+ * into the wrong colour once the marker is on.
+ */
+describe('status tint roles', () => {
+  const decls = CSS_ROOTS.flatMap(cssFiles).flatMap((file) => {
+    const found: { where: string; prop: string; value: string }[] = [];
+    postcss.parse(readFileSync(file, 'utf8')).walkDecls((d) => {
+      const rule = d.parent as postcss.Rule;
+      found.push({
+        where: `${relative(REPO_ROOT, file).split('\\').join('/')} ${rule.selector ?? ''}`,
+        prop: d.prop,
+        value: d.value,
+      });
+    });
+    return found;
+  });
+
+  it('-line tokens appear only in borders, outlines and shadows', () => {
+    const wrong = decls.filter(
+      (d) =>
+        /var\(--rba-(ok|warn|bad)-line\b/.test(d.value) &&
+        !/^(border|outline|box-shadow)/.test(d.prop)
+    );
+    expect(wrong.map((d) => `${d.where} { ${d.prop} }`)).toEqual([]);
+  });
+
+  it('-bg tokens appear only in backgrounds', () => {
+    const wrong = decls.filter(
+      (d) => /var\(--rba-(ok|warn|bad)-bg\b/.test(d.value) && !/^background/.test(d.prop)
+    );
+    expect(wrong.map((d) => `${d.where} { ${d.prop} }`)).toEqual([]);
   });
 });
 

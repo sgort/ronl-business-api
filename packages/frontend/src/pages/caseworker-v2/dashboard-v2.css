@@ -486,7 +486,7 @@
 .cwd-v2 .v2-no-access-meta code {
   font-family: var(--v2-mono, ui-monospace, "SF Mono", Menlo, monospace);
   font-size: 12px;
-  background: var(--v2-rail-bg, #f5f3ee);
+  background: var(--v2-rail-bg, var(--rba-paper));
   padding: 1px 6px;
   border: 1px solid var(--v2-rule);
 }
@@ -522,7 +522,7 @@
 .cwd-v2 .v2-section-error-body code {
   font-family: var(--v2-mono, ui-monospace, "SF Mono", Menlo, monospace);
   font-size: 12.5px;
-  background: var(--v2-rail-bg, #f5f3ee);
+  background: var(--v2-rail-bg, var(--rba-paper));
   padding: 1px 6px;
   border: 1px solid var(--v2-rule);
 }
@@ -531,7 +531,7 @@
   font-size: 12px;
   line-height: 1.5;
   color: var(--v2-ink-2);
-  background: var(--v2-rail-bg, #f5f3ee);
+  background: var(--v2-rail-bg, var(--rba-paper));
   border: 1px solid var(--v2-rule);
   padding: 10px 12px;
   margin: 0 0 18px;
@@ -627,7 +627,7 @@
 }
 .cwd-v2-palette li.active,
 .cwd-v2-palette li:hover {
-  background: var(--v2-accent-50, #fce7f0);
+  background: var(--v2-accent-50, color-mix(in srgb, var(--rba-flevoland-pink) 9%, white));
 }
 .cwd-v2-palette li .label { color: var(--rba-ink); }
 .cwd-v2-palette li .mode {
@@ -831,7 +831,7 @@
 }
 .cwd-v2 .v2-taken-item:hover { background: rgba(0, 0, 0, 0.02); }
 .cwd-v2 .v2-taken-item.active {
-  background: var(--v2-accent-50, #fce7f0);
+  background: var(--v2-accent-50, color-mix(in srgb, var(--rba-flevoland-pink) 9%, white));
   box-shadow: inset 3px 0 0 var(--v2-accent);
 }
 .cwd-v2 .v2-taken-item-row {
@@ -856,8 +856,8 @@
   text-transform: uppercase;
   flex-shrink: 0;
 }
-.cwd-v2 .v2-taken-pill.open    { background: #fef3c7; color: #92400e; }
-.cwd-v2 .v2-taken-pill.claimed { background: #dbeafe; color: #1e40af; }
+.cwd-v2 .v2-taken-pill.open    { background: var(--rba-warn-bg-2); color: var(--rba-warn-ink); }
+.cwd-v2 .v2-taken-pill.claimed { background: color-mix(in srgb, var(--rba-flevoland-blue) 16%, white); color: color-mix(in srgb, var(--rba-flevoland-blue) 97%, black); }
 .cwd-v2 .v2-taken-item-meta {
   display: flex;
   justify-content: space-between;
@@ -883,9 +883,9 @@
   color: var(--v2-ink-3);
 }
 .cwd-v2 .v2-taken-state-error {
-  background: #fef2f2;
+  background: var(--rba-bad-bg);
   color: var(--v2-overdue);
-  border: 1px solid #fecaca;
+  border: 1px solid var(--rba-bad-line);
   margin: 12px 18px;
   padding: 12px;
 }
@@ -1037,8 +1037,8 @@
   margin: 14px 0;
   border: 1px solid;
 }
-.cwd-v2 .v2-taken-msg-success { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
-.cwd-v2 .v2-taken-msg-error   { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+.cwd-v2 .v2-taken-msg-success { background: var(--rba-ok-bg); color: var(--rba-ok-ink); border-color: var(--rba-ok-line); }
+.cwd-v2 .v2-taken-msg-error   { background: var(--rba-bad-bg); color: var(--rba-bad-ink-2); border-color: var(--rba-bad-line); }
 
 /* ── Floating dock toggle ───────────────────────────────── */
 .cwd-v2 .v2-dock-toggle {

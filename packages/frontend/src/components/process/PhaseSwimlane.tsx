@@ -128,7 +128,7 @@ export default function PhaseSwimlane({
     // cx and nodeById derive from model, which is in the deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollTarget, model]);
-  const edgeColor = (from: string) => (st(from) === 'done' ? '#3fa535' : '#c2c7d0');
+  const edgeColor = (from: string) => (st(from) === 'done' ? 'var(--rba-ok)' : 'var(--rba-idle)');
 
   let backCount = 0;
   const paths = edges
@@ -210,7 +210,7 @@ export default function PhaseSwimlane({
                 refY="3"
                 orient="auto"
               >
-                <path d="M0,0 L6,3 L0,6 Z" fill="#9aa1ad" />
+                <path d="M0,0 L6,3 L0,6 Z" fill="var(--rba-ink-4)" />
               </marker>
             </defs>
             {paths.map((p) => (

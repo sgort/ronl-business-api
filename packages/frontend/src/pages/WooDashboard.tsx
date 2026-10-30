@@ -52,7 +52,7 @@ export default function WooDashboard() {
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [filters, setFilters] = useState<WooFilters>(wooDefaultFilters);
 
-  const accent = '#e70077';
+  const accent = 'var(--rba-flevoland-pink)';
 
   // Changing any filter lands the user on the (filtered) register — no modal.
   const setFilter = (id: string, val: string) => {
@@ -267,7 +267,7 @@ export default function WooDashboard() {
             <div className="v2-main-pad">
               <div className="v2-crumb">WOO-DASHBOARD</div>
               <h1 className="v2-page-title">Inloggen vereist</h1>
-              <p style={{ color: '#4b5563', maxWidth: '52ch', margin: '14px 0 22px' }}>
+              <p style={{ color: 'var(--rba-ink-2)', maxWidth: '52ch', margin: '14px 0 22px' }}>
                 Log in als Woo-coördinator om verzoeken, tijdigheid en publicaties te bekijken.
               </p>
               <button type="button" className="v2-btn" onClick={handleLogin}>
