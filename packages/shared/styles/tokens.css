@@ -37,6 +37,12 @@
   --rba-accent-fill:    var(--rba-accent);
   --rba-on-accent-fill: var(--rba-ink-inverse);
 
+  /* Type families of the v2 chrome (#374 item 4); step 2 (#405) swaps in
+     Flevoland's Fira Sans here. */
+  --rba-font-serif: "Source Serif 4", Georgia, serif;
+  --rba-font-sans:  "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --rba-font-mono:  "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+
   /* Neutrals: text from darkest to lightest, rules (lines), backgrounds.
      --rba-ink-inverse is text on the brand colour or a status fill;
      --rba-paper is the white of a page, card or border. */

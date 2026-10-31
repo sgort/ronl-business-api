@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
+// The shared v2 chrome first (#374 item 4): the page modules below bring
+// dashboard-v2.css and the Infra-board and Woo layers when they run, and those
+// build on it, so it must load before them. Its only other import is in
+// pa-demo's App.tsx; css-tokens.test.ts checks both.
+import '@ronl/shared/styles/v2-chrome.css';
 import AuthCallback from './pages/AuthCallback';
 import CaseworkerDashboardV2 from './pages/CaseworkerDashboardV2';
 import PaCockpitRoute from './pages/PaCockpitRoute';

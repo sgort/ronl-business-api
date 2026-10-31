@@ -40,7 +40,7 @@ const THEME_PROPS = {
   background: '--color-background',
 };
 
-function isTenantRule(node) {
+export function isTenantRule(node) {
   for (let n = node.parent; n; n = n.parent) {
     if (n.type === 'rule' && n.selector.includes('[data-tenant')) return true;
   }
@@ -88,7 +88,7 @@ function declarations(css) {
   return out;
 }
 
-function sameValue(before, after, envBefore, envAfter) {
+export function sameValue(before, after, envBefore, envAfter) {
   if (before === after && envBefore === envAfter) return { equal: true };
   const b = resolveValue(before, envBefore);
   const a = resolveValue(after, envAfter);
@@ -155,14 +155,14 @@ function pick(decl) {
 
 // ---------------------------------------------------------------- CLI
 
-const REPO_ROOT = join(fileURLToPath(import.meta.url), '..', '..', '..');
-const SCAN_ROOTS = [
+export const REPO_ROOT = join(fileURLToPath(import.meta.url), '..', '..', '..');
+export const SCAN_ROOTS = [
   'packages/shared/styles',
   'packages/frontend/src',
   'packages/pa-cockpit/src',
   'packages/pa-demo/src',
 ];
-const TOKEN_FILES = ['packages/shared/styles/flevoland/tokens.css', 'packages/shared/styles/tokens.css'];
+export const TOKEN_FILES = ['packages/shared/styles/flevoland/tokens.css', 'packages/shared/styles/tokens.css'];
 /** Stylesheets no host loads (Flevoland IT's base styles wait for step 2 of #374). */
 const NOT_LOADED = ['packages/shared/styles/flevoland/base.css'];
 
@@ -189,7 +189,7 @@ function git(args) {
   });
 }
 
-function atBase(base, path) {
+export function atBase(base, path) {
   try {
     return git(['show', `${base}:${path}`]);
   } catch {
@@ -197,7 +197,7 @@ function atBase(base, path) {
   }
 }
 
-function cssUnder(dir) {
+export function cssUnder(dir) {
   const abs = join(REPO_ROOT, dir);
   if (!existsSync(abs)) return [];
   return readdirSync(abs).flatMap((name) => {

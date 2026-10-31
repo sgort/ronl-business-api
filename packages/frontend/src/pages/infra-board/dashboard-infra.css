@@ -1,7 +1,8 @@
 /* ============================================================
    Project-Board — section styles
    Scoped under `.pbd`. Reuses the .cwd-v2 chrome + tokens from
-   dashboard-v2.css (root carries both classes), and adds the
+   packages/shared/styles/v2-chrome.css and dashboard-v2.css (root
+   carries both classes; both load before this file), and adds the
    three project-board views: Mijn dag, Portfolio, Project.
    ============================================================ */
 
@@ -976,7 +977,7 @@
 
 /* Rail phase-item code chip + badges — Beheer's phase nav items, and
    Portfolio's stage-grouped stat rows (rail-stats-panel spec). The base
-   .cwd-v2 .v2-rail-item rule (dashboard-v2.css) is already display:flex;
+   .cwd-v2 .v2-rail-item rule (v2-chrome.css) is already display:flex;
    justify-content:space-between — no extra layout rule needed here, just
    the chip/badge/muted appearance. */
 .pbd .pb-rail-code {
@@ -1029,7 +1030,7 @@
 
 /* Long Beheer phase names (e.g. R5.3's "(Vervroegde) ingebruikname /
    oplevering") can butt up against the count/parked badge — the base
-   .cwd-v2 .v2-rail-item rule (dashboard-v2.css) has no gap between its
+   .cwd-v2 .v2-rail-item rule (v2-chrome.css) has no gap between its
    flex children. */
 .pbd .v2-rail-item {
   gap: 8px;

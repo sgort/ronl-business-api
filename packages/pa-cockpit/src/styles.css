@@ -8,6 +8,11 @@
  *
  * The shared design tokens are one such thing: dashboard-pa.css's --pac-*
  * variables point at them, so pa-demo gets them through this import.
+ *
+ * The shared v2 chrome (#374 item 4) is deliberately NOT imported here,
+ * although dashboard-pa.css builds on it: each app imports it itself, first
+ * of all (the frontend's and pa-demo's App.tsx). Imported here, it would land
+ * after the frontend's dashboard pages and override them.
  */
 @import '@ronl/shared/styles/tokens.css';
 @import './pages/public-affairs-v2/dashboard-pa.css';

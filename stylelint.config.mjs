@@ -31,6 +31,15 @@ const ROOTS = {
   "packages/pa-cockpit/src/pages/public-affairs-v2/dossierbeheer.css": [".pac"],
   "packages/pa-demo/src/demo/changelog/changelog.css": [".pac-dchangelog-*"],
   "packages/pa-demo/src/demo/demo-overrides.css": [".pac"],
+  // The chrome both hosts share (#374 item 4): every rule has a selector for each.
+  "packages/shared/styles/v2-chrome.css": [
+    ".cwd-v2",
+    ".pac",
+    ".cwd-v2-palette",
+    ".cwd-v2-palette-overlay",
+    ".pac-palette",
+    ".pac-palette-overlay",
+  ],
 };
 
 // Files allowed hex values (#374 3a), each for its own reason.

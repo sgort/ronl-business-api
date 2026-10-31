@@ -4,11 +4,16 @@ import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
+import postcss from 'postcss';
 import ts from 'typescript';
 
 /**
  * Every `v2-*` class a package-owned component renders must have a rule in
  * BOTH stylesheets.
+ *
+ * Since #374 item 4, "a rule" for a host means one in its own stylesheet or a
+ * selector for that host in packages/shared/styles/v2-chrome.css, which holds
+ * the rules both hosts share, written once with both hosts' selectors.
  *
  * packages/pa-demo never imports dashboard-v2.css — CaseworkerDashboardV2.tsx
  * is its only importer anywhere — so the cockpit carries its own copy of every
@@ -57,12 +62,18 @@ const FE_CSS = join(
   'caseworker-v2',
   'dashboard-v2.css'
 );
+/** The chrome both hosts share (#374 item 4), reached through @ronl/shared. */
+const SHARED_CHROME_CSS = join(
+  dirname(require_.resolve('@ronl/shared/package.json')),
+  'styles',
+  'v2-chrome.css'
+);
 
 /**
  * Classes exempt from coverage, each with the ruling that exempted it.
  *
  *  - v2-main-pad: inert under `.pac` and kept deliberately. Its only rule
- *    anywhere is `.cwd-v2 .v2-main-pad` (dashboard-v2.css:436); the PA shell's
+ *    anywhere is `.cwd-v2 .v2-main-pad` (dashboard-v2.css); the PA shell's
  *    padding comes from `.pac .pac-main-pad`. It stays because both PA hosts
  *    and the .cwd-v2 family spell their section wrappers the same way, and
  *    removing it from one of three would make the convention inconsistent
@@ -155,6 +166,20 @@ function definesClass(cssPath: string, cls: string): boolean {
   return new RegExp(`\\.${cls}(?![a-zA-Z0-9_-])`).test(withoutComments);
 }
 
+/**
+ * Does the shared chrome (#374 item 4) define `.cls` for this host? It groups
+ * both hosts' selectors in one rule, so a rule counts for a host only through
+ * a selector that starts with the host's root class.
+ */
+function sharedDefinesFor(root: '.pac' | '.cwd-v2', cls: string): boolean {
+  const token = new RegExp(`\\.${cls}(?![a-zA-Z0-9_-])`);
+  let found = false;
+  postcss.parse(readFileSync(SHARED_CHROME_CSS, 'utf-8')).walkRules((rule) => {
+    if (rule.selectors.some((s) => s.trim().startsWith(`${root} `) && token.test(s))) found = true;
+  });
+  return found;
+}
+
 describe('v2-* classes rendered by @ronl/pa-cockpit are styled in both stylesheets', () => {
   it('finds exactly the classes it expects to find', () => {
     // Guards the guard. A parse that silently matched nothing would make the
@@ -163,19 +188,19 @@ describe('v2-* classes rendered by @ronl/pa-cockpit are styled in both styleshee
     expect([...renderedV2Classes().keys()].sort()).toEqual(EXPECTED_CLASSES);
   });
 
-  it('has a rule in dashboard-pa.css and dashboard-v2.css for each', () => {
+  it('has a rule for each host, in its own stylesheet or in the shared chrome', () => {
     const gaps: string[] = [];
     for (const [cls, files] of renderedV2Classes()) {
       if (EXEMPT.has(cls)) continue;
       const where = files.join(', ');
-      if (!definesClass(PA_CSS, cls)) {
+      if (!definesClass(PA_CSS, cls) && !sharedDefinesFor('.pac', cls)) {
         gaps.push(
-          `.${cls} (rendered by ${where}) has no rule in dashboard-pa.css — pa-demo would render it unstyled`
+          `.${cls} (rendered by ${where}) has no .pac rule in dashboard-pa.css or v2-chrome.css — pa-demo would render it unstyled`
         );
       }
-      if (!definesClass(FE_CSS, cls)) {
+      if (!definesClass(FE_CSS, cls) && !sharedDefinesFor('.cwd-v2', cls)) {
         gaps.push(
-          `.${cls} (rendered by ${where}) has no rule in dashboard-v2.css — the caseworker host would render it unstyled`
+          `.${cls} (rendered by ${where}) has no .cwd-v2 rule in dashboard-v2.css or v2-chrome.css — the caseworker host would render it unstyled`
         );
       }
     }
