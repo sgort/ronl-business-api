@@ -374,6 +374,9 @@ describe('Flevoland contrast', () => {
     '--rba-warn-line': 'border of a status tint, as --rba-ok-line',
     '--rba-bad-line': 'border of a status tint, as --rba-ok-line',
     '--rba-warn-line-2': 'border of a status tint, as --rba-ok-line',
+    '--rba-font-serif': 'a type family, not a colour',
+    '--rba-font-sans': 'a type family, not a colour',
+    '--rba-font-mono': 'a type family, not a colour',
     '--rba-warn-bg-3': 'highlight behind --pac-ink text (a neutral ink, checked as text)',
   };
 

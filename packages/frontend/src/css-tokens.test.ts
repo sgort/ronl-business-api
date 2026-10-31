@@ -32,6 +32,8 @@ const REPO_ROOT = join(FRONTEND_SRC, '..', '..', '..');
 
 /** The stylesheets that may use tokens: every package that renders the RBA palette. */
 const CSS_ROOTS = [FRONTEND_SRC, COCKPIT_SRC, join(REPO_ROOT, 'packages', 'pa-demo', 'src')];
+/** The chrome both hosts share (#374 item 4): a stylesheet like the others, kept in @ronl/shared. */
+const V2_CHROME_CSS = join(SHARED_ROOT, 'styles', 'v2-chrome.css');
 
 /** The token names the file must define. Pinned so a broken extractor cannot pass. */
 const EXPECTED_TOKENS = [
@@ -50,6 +52,9 @@ const EXPECTED_TOKENS = [
   '--rba-flevoland-blue',
   '--rba-flevoland-blue-d',
   '--rba-flevoland-pink',
+  '--rba-font-mono',
+  '--rba-font-sans',
+  '--rba-font-serif',
   '--rba-idle',
   '--rba-ink',
   '--rba-ink-2',
@@ -151,7 +156,7 @@ describe('shared design tokens', () => {
   });
 
   it('every var(--rba-*) a stylesheet uses is defined in the token file', () => {
-    const uses = CSS_ROOTS.flatMap(cssFiles).flatMap((file) =>
+    const uses = [...CSS_ROOTS.flatMap(cssFiles), V2_CHROME_CSS].flatMap((file) =>
       usedTokens(readFileSync(file, 'utf8')).map((token) => ({
         file: relative(REPO_ROOT, file).split('\\').join('/'),
         token,
@@ -171,6 +176,60 @@ describe('shared design tokens', () => {
   it("the cockpit's stylesheet entry loads the token file, so pa-demo gets it too", () => {
     const entry = readFileSync(join(COCKPIT_SRC, 'styles.css'), 'utf8');
     expect(stripComments(entry)).toMatch(/^@import '@ronl\/shared\/styles\/tokens\.css';$/m);
+  });
+});
+
+// The shared v2 chrome (#374 item 4) must load once per host, ahead of both
+// host stylesheets: a second copy would come after a host's own rules and
+// could override them on an element with two classes.
+describe('shared v2 chrome', () => {
+  const CHROME_IMPORT = "import '@ronl/shared/styles/v2-chrome.css';";
+  /** The module specifiers an App.tsx imports, in statement order. */
+  const importsOf = (file: string) =>
+    [...readFileSync(file, 'utf8').matchAll(/^import\s+(?:[^;'"]*?\bfrom\s+)?'([^']+)';$/gm)].map(
+      (m) => m[1]
+    );
+
+  it('the caseworker app imports it before any page, so dashboard-v2.css and its layers come after', () => {
+    // A page module brings dashboard-v2.css, dashboard-infra.css and
+    // dashboard-woo.css when it runs; an import above it runs first.
+    const app = join(FRONTEND_SRC, 'App.tsx');
+    expect(readFileSync(app, 'utf8')).toContain(CHROME_IMPORT);
+    const imports = importsOf(app);
+    const chrome = imports.indexOf('@ronl/shared/styles/v2-chrome.css');
+    expect(chrome).toBeLessThan(imports.findIndex((s) => s.startsWith('.')));
+    expect(chrome).toBeLessThan(imports.indexOf('@ronl/pa-cockpit/styles.css'));
+  });
+
+  it('pa-demo imports it before the cockpit stylesheet and its own overrides', () => {
+    const app = join(REPO_ROOT, 'packages', 'pa-demo', 'src', 'App.tsx');
+    const imports = importsOf(app);
+    const chrome = imports.indexOf('@ronl/shared/styles/v2-chrome.css');
+    expect(chrome).toBeGreaterThanOrEqual(0);
+    expect(chrome).toBeLessThan(imports.indexOf('@ronl/pa-cockpit/styles.css'));
+    expect(chrome).toBeLessThan(imports.findIndex((s) => s.startsWith('.')));
+  });
+
+  it('nothing else loads it, the cockpit stylesheet included', () => {
+    // A second copy, inlined later in the cascade, would override a host's own rules.
+    const loaders = [...CSS_ROOTS, join(SHARED_ROOT, 'styles')]
+      .flatMap((dir) => sourceFiles(dir))
+      // Tests name the path without loading it.
+      .filter((file) => !/\.test\.tsx?$/.test(file))
+      .filter((file) => stripComments(readFileSync(file, 'utf8')).includes('v2-chrome.css'))
+      .map((file) => relative(REPO_ROOT, file).split('\\').join('/'));
+    expect(loaders.sort()).toEqual([
+      'packages/frontend/src/App.tsx',
+      'packages/pa-demo/src/App.tsx',
+    ]);
+  });
+
+  it('leaves the accent to the host files', () => {
+    // Infra-board and Woo set --v2-accent inline on their .cwd-v2 root;
+    // --rba-accent is defined on :root and would ignore that.
+    const css = stripComments(readFileSync(V2_CHROME_CSS, 'utf8'));
+    // Also with a fallback or spaces: var( --rba-accent, … ).
+    expect(css.match(/var\(\s*--rba-accent(?!-fill)[\w-]*\s*[,)]/g) ?? []).toEqual([]);
   });
 });
 
@@ -213,7 +272,7 @@ describe('Flevoland tokens', () => {
         ),
       ].map((m) => m[1])
     );
-    const files = [...CSS_ROOTS.flatMap(cssFiles), TOKENS_CSS];
+    const files = [...[...CSS_ROOTS.flatMap(cssFiles), V2_CHROME_CSS], TOKENS_CSS];
     const uses = files.flatMap((file) =>
       [...stripComments(readFileSync(file, 'utf8')).matchAll(/var\(\s*(--flevoland-[\w-]+)/g)].map(
         (m) => ({
@@ -245,7 +304,7 @@ describe('Flevoland tokens', () => {
   });
 
   it('the Flevoland block is the only [data-tenant] rule in our stylesheets', () => {
-    const files = [...CSS_ROOTS.flatMap(cssFiles), TOKENS_CSS];
+    const files = [...[...CSS_ROOTS.flatMap(cssFiles), V2_CHROME_CSS], TOKENS_CSS];
     const selectors = files.flatMap((file) => {
       const found: string[] = [];
       postcss.parse(readFileSync(file, 'utf8')).walkRules((rule) => {
@@ -265,7 +324,7 @@ describe('Flevoland tokens', () => {
  * into the wrong colour once the marker is on.
  */
 describe('status tint roles', () => {
-  const decls = CSS_ROOTS.flatMap(cssFiles).flatMap((file) => {
+  const decls = [...CSS_ROOTS.flatMap(cssFiles), V2_CHROME_CSS].flatMap((file) => {
     const found: { where: string; prop: string; value: string }[] = [];
     postcss.parse(readFileSync(file, 'utf8')).walkDecls((d) => {
       const rule = d.parent as postcss.Rule;
@@ -309,7 +368,8 @@ const ACCENT_MARKERS: Record<string, string> = {
   '.cwd-v2 .v2-taken-step.running::before': 'step marker, no text',
   '.cwd-v2 .bg-amber': 'legend dot in RegelSimulatie, no text',
   '.pbd .pb-prio.action': '12px priority dot',
-  '.pbd .pb-prio.geel, .pbd .pb-prio.risk': '12px priority dot',
+  '.pbd .pb-prio.geel': '12px priority dot',
+  '.pbd .pb-prio.risk': '12px priority dot',
   '.pbd .pb-health.geel': '9px health dot',
   '.lcp .wdot.geel': 'status dot',
   '.wood .w-led.geel': 'status light, no text',
@@ -327,18 +387,21 @@ const ACCENT_OR_WARN =
   /^var\(--(rba-accent|v2-accent|pac-accent|rba-warn|pb-amber|v2-amber|w-amber)\s*[,)]/;
 
 describe('accent and warning backgrounds', () => {
-  const rules = CSS_ROOTS.flatMap(cssFiles).flatMap((file) => {
+  const rules = [...CSS_ROOTS.flatMap(cssFiles), V2_CHROME_CSS].flatMap((file) => {
     const found: { selector: string; background: string; color: string | null }[] = [];
     postcss.parse(readFileSync(file, 'utf8')).walkRules((rule) => {
       const decls = rule.nodes.filter((n) => n.type === 'decl') as postcss.Declaration[];
       const color = decls.find((d) => d.prop === 'color')?.value ?? null;
       for (const d of decls) {
         if (d.prop === 'background' || d.prop === 'background-color') {
-          found.push({
-            selector: rule.selector.replace(/\s+/g, ' '),
-            background: d.value.trim(),
-            color,
-          });
+          // One entry per selector: the shared chrome groups both hosts' selectors in one rule.
+          for (const selector of rule.selectors) {
+            found.push({
+              selector: selector.replace(/\s+/g, ' ').trim(),
+              background: d.value.trim(),
+              color,
+            });
+          }
         }
       }
     });

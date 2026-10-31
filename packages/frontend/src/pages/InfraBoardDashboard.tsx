@@ -3,7 +3,7 @@
  *
  * Sibling of CaseworkerDashboardV2 / PADashboardV2. Reuses keycloak auth,
  * tenant theme, the ⌘K palette pattern and the assistant dock. Scoped under
- * `.pbd` (layered on the shared `.cwd-v2` chrome from dashboard-v2.css).
+ * `.pbd` (layered on the shared `.cwd-v2` chrome: v2-chrome.css and dashboard-v2.css).
  *
  * Login target: test-infra-flevoland → /dashboard/infra-board
  * Gate: infra-projectteam realm role.

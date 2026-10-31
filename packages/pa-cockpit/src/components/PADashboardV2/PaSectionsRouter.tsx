@@ -140,7 +140,7 @@ export default function PaSectionsRouter({
     // `v2-main-pad` is inert here, and deliberately kept anyway.
     //
     // Its only rule anywhere is `.cwd-v2 .v2-main-pad`
-    // (packages/frontend/src/pages/caseworker-v2/dashboard-v2.css:436), in a
+    // (packages/frontend/src/pages/caseworker-v2/dashboard-v2.css), in a
     // stylesheet imported by CaseworkerDashboardV2.tsx alone. The PA shell
     // renders under `.pac`, which exists precisely so it cannot collide with
     // the caseworker app (see PADashboardV2's file header) and is never

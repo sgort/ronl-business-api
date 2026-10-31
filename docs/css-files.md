@@ -1,6 +1,6 @@
 # CSS files — what each stylesheet is for
 
-The repository tracks 25 `.css` files across the Keycloak theme, the shared
+The repository tracks 26 `.css` files across the Keycloak theme, the shared
 token files and four frontend packages. Nearly all of them scope every selector under a single
 root class per surface (`.cwd-v2`, `.pbd`, `.wood`, `.pac`, `.lcp`, …), so a
 stylesheet cannot leak into another app or dashboard. Tailwind is used for
@@ -44,13 +44,14 @@ Do not add an `@import` of the default Keycloak CSS to `login.css`:
 `theme.properties` already loads the base styles, and an `@import` would load
 PatternFly again _after_ the custom styles and override them.
 
-## `packages/shared` — design tokens
+## `packages/shared` — design tokens and the shared chrome
 
-| File                          | Lines | Root class | Function                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ----------------------------- | ----: | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `styles/tokens.css`           |   148 | `:root`    | The shared design tokens (`--rba-*`): Flevoland's fixed brand colours, the themed brand (chained to the tenant's `--color-primary`/`-dark`/`--color-secondary`), the accent and warning fills with the text on them (`--rba-accent-fill`, `--rba-on-accent-fill`, `--rba-warn-fill`), the neutrals (with `--rba-ink-inverse` for text on a coloured fill) and the status colours. Ends with `:root[data-tenant="flevoland"]`, which points them at Flevoland IT's semantic tokens for the Flevoland tenant. The palette's only home for hex values. |
-| `styles/flevoland/tokens.css` |   352 | `:root`    | Flevoland IT's design tokens (`--flevoland-*`), copied verbatim from their `flevoland-base.css` v0.2.0 (12-10-2026): the file header and section 1. `styles/tokens.css` imports it, so both hosts load it. Do not edit by hand; diff a new delivery against it.                                                                                                                                                                                                                                                                                     |
-| `styles/flevoland/base.css`   |   636 | global     | The rest of that delivery, verbatim: `@font-face` for Fira Sans, element base styles (`:where()`), the NL Design System Button mapping, reduced-motion and forced-colours rules. **Not loaded**: step 2 of #374 switches apps over to it one at a time.                                                                                                                                                                                                                                                                                             |
+| File                          | Lines | Root class        | Function                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------------- | ----: | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `styles/tokens.css`           |   154 | `:root`           | The shared design tokens (`--rba-*`): Flevoland's fixed brand colours, the themed brand (chained to the tenant's `--color-primary`/`-dark`/`--color-secondary`), the accent and warning fills with the text on them (`--rba-accent-fill`, `--rba-on-accent-fill`, `--rba-warn-fill`), the neutrals (with `--rba-ink-inverse` for text on a coloured fill) the status colours, and the v2 chrome's type families (`--rba-font-*`). Ends with `:root[data-tenant="flevoland"]`, which points them at Flevoland IT's semantic tokens for the Flevoland tenant. The palette's only home for hex values. |
+| `styles/flevoland/tokens.css` |   352 | `:root`           | Flevoland IT's design tokens (`--flevoland-*`), copied verbatim from their `flevoland-base.css` v0.2.0 (12-10-2026): the file header and section 1. `styles/tokens.css` imports it, so both hosts load it. Do not edit by hand; diff a new delivery against it.                                                                                                                                                                                                                                                                                                                                     |
+| `styles/v2-chrome.css`        |   517 | `.cwd-v2`, `.pac` | The dashboard chrome Caseworker V2 and PA-Cockpit share, each rule written once with both hosts' selectors (#374 item 4). Each app imports it first: the frontend's and pa-demo's `App.tsx`. See [The v2 chrome](#the-v2-chrome-shared-by-both-hosts-374-item-4) below.                                                                                                                                                                                                                                                                                                                             |
+| `styles/flevoland/base.css`   |   636 | global            | The rest of that delivery, verbatim: `@font-face` for Fira Sans, element base styles (`:where()`), the NL Design System Button mapping, reduced-motion and forced-colours rules. **Not loaded**: step 2 of #374 switches apps over to it one at a time.                                                                                                                                                                                                                                                                                                                                             |
 
 The caseworker app imports it in `App.tsx`; `@ronl/pa-cockpit`'s `styles.css`
 `@import`s it, which is how `pa-demo` gets it. Each surface's own variables
@@ -80,13 +81,149 @@ green on the dark toast, `--sim-hold` in `regelsimulatie.css`, and in TS/TSX
 the chart series, lane colours and `wachtend` (`inline-colours.test.ts`
 lists them per file).
 
+### The v2 chrome, shared by both hosts (#374 item 4)
+
+The dashboard chrome (top bar, logo, search, user block, mode tabs, body
+grid, left rail, main area, buttons, no-access panel, empty state, ⌘K
+palette, assistant dock) used to exist twice: under `.cwd-v2` in
+`dashboard-v2.css` and, with `.pac-*` class names, in `dashboard-pa.css`.
+Every declaration that was identical in both now lives once in
+`styles/v2-chrome.css`, as one rule with both hosts' selectors:
+
+```css
+.cwd-v2 .v2-topbar,
+.pac .pac-topbar {
+  background: var(--rba-brand);
+  height: 56px;
+  /* … */
+}
+```
+
+Where the two hosts differ (the rail is 240px in V2 and 248px in PA, for
+example), each keeps its own declaration in its own file. A chrome rule can
+therefore be spread over three places: the shared file, the host file, and a
+surface layered on it (Infra-board, Woo). The shared file always loads first.
+
+```mermaid
+flowchart LR
+  subgraph shared["packages/shared/styles"]
+    chrome["v2-chrome.css<br/>chrome both hosts share<br/>.cwd-v2 .v2-x, .pac .pac-x"]
+    tokens["tokens.css<br/>--rba-* tokens, incl. fonts"]
+  end
+  subgraph frontend["packages/frontend/src"]
+    app["App.tsx"]
+    pages["dashboard pages"]
+    v2["dashboard-v2.css (.cwd-v2)<br/>V2's own rules, and where V2 differs"]
+    layers["dashboard-infra.css (.pbd)<br/>dashboard-woo.css (.wood)"]
+  end
+  subgraph cockpit["packages/pa-cockpit/src"]
+    entry["styles.css"]
+    pa["dashboard-pa.css (.pac)<br/>PA's own rules, and where PA differs"]
+  end
+  demo["pa-demo App.tsx"]
+  overrides["demo-overrides.css"]
+
+  app -->|"1: first import"| chrome
+  app -->|"2"| pages
+  pages --> v2
+  pages --> layers
+  app -->|"3"| entry
+  demo -->|"1: first import"| chrome
+  demo -->|"2"| entry
+  demo -->|"3"| overrides
+  entry --> tokens
+  entry --> pa
+```
+
+**Load order decides.** At equal specificity the later rule wins, so the
+order in which each app loads these files is part of the design. This is the
+order the browser applies them in (abridged; `npm run check:css-move -- --files`
+prints the full list):
+
+```mermaid
+flowchart TB
+  subgraph fe["Frontend: Caseworker V2, Infra-board, Woo, and PA-Cockpit in the app"]
+    direction LR
+    f1["v2-chrome.css"] --> f2["process and signing<br/>component CSS"] --> f3["dashboard-v2.css<br/>regelsimulatie.css"] --> f4["dashboard-infra.css<br/>dashboard-woo.css"] --> f5["landing pages<br/>index.css (Tailwind)"] --> f6["tokens.css"] --> f7["dashboard-pa.css<br/>dossierbeheer.css"]
+  end
+  subgraph demo["pa-demo"]
+    direction LR
+    d1["v2-chrome.css"] --> d2["changelog.css"] --> d3["tokens.css"] --> d4["dashboard-pa.css<br/>dossierbeheer.css"] --> d5["demo-overrides.css"] --> d6["index.css"]
+  end
+```
+
+- **Each app imports `v2-chrome.css` itself, as its first stylesheet:** the
+  frontend at the top of `App.tsx`, above the page imports (whose modules
+  bring `dashboard-v2.css` and the Infra-board and Woo layers); pa-demo in
+  its `App.tsx`, above `@ronl/pa-cockpit`. `styles.css` does **not** import it:
+  in the frontend that would place the shared rules after the dashboard pages,
+  where they would beat the layers (`.pbd .v2-rail-card` would lose its
+  `padding-bottom`). Never import it anywhere else either. `css-tokens.test.ts`
+  checks both imports and that there is no third.
+- **The shared file uses `--rba-*` tokens only.** `--v2-*` exists only under
+  `.cwd-v2` and `--pac-*` only under `.pac`, so neither works in a rule for
+  both. The fonts got tokens for this (`--rba-font-serif/-sans/-mono`).
+- **Accent colours stay in the host files.** Infra-board and Woo set
+  `--v2-accent` inline on their root, to keep Flevoland's pink whatever the
+  tenant. `--rba-accent` is defined on `:root` and would ignore that, so every
+  declaration that uses the accent (logo `em`, active tab and rail item,
+  crumb, dock resize handle) keeps `var(--v2-accent…)` in `dashboard-v2.css`.
+  `css-tokens.test.ts` keeps `--rba-accent` out of the shared file.
+- **A few identical declarations stayed in the host files** because moving
+  them would have changed which rule wins:
+  - `.v2-btn`'s `padding` and `font-size`, and the small button's
+    `font-size`: in V2, `.v2-btn-sm` comes before `.v2-btn`, so `.v2-btn`
+    wins today, also on small buttons;
+  - the palette's `li .mode` and `li .label` text styles, and
+    `.v2-no-access-meta code`'s `font-size` and `padding`: the check cannot
+    tell these `span` and `code` elements from others with the same element
+    type elsewhere.
+
+**Changing the chrome.** Restyle a piece for both hosts in `v2-chrome.css`.
+If one host must differ, put that declaration in the host's file, not in
+the shared one. `pa-cockpit-class-coverage.test.ts` checks that every `v2-*`
+class a cockpit component renders is styled for `.pac`, in `dashboard-pa.css`
+or in the shared file.
+
+**Proving a move changes nothing: `npm run check:css-move`.** The per-file
+`check:css-equivalence` sees a moved rule as removed and added. This check
+compares an app's whole cascade instead: every stylesheet it loads, in the
+order the browser applies them (read from the import graph from its
+`main.tsx`), at `acc` and in the working tree.
+
+- Per selector and property, the winning value must be the same for every
+  tenant.
+- Two declarations that set a longhand in common (the same property, or a
+  shorthand and its longhands) must keep their order, when their selectors
+  have equal specificity and can style the same element.
+- Which classes an app renders, and which share an element, it reads from the
+  `className` attributes of the components that app loads. Each app also
+  declares its page roots that are never nested (`.cwd-v2`, `.pac`, the
+  landing pages).
+
+Its limits:
+
+- it does not see a custom property set inline on an element (hence the
+  accent rule above);
+- it does not follow a className composed across components;
+- it does not compare ancestors, so two `code` rules under different parents
+  count as competing;
+- it does not expand Tailwind: `index.css` is read as written. PA's chrome
+  now loads before it in the frontend; the review checked the elements
+  involved by hand (the `.pac` and palette roots carry no utility classes);
+- it compares order within one at-rule chain only, not a rule inside
+  `@media` against the same selector outside it (no such case today).
+
+The apps and their roots are defined in `scripts/css-colour/check-move.mjs`;
+item 5 can use the check as it is. Tests: `packages/frontend/src/css-move.test.ts`.
+
 ## `packages/frontend` — caseworker and board app
 
 | File                                            | Lines | Root class        | Function                                                                                                                                                                                                                                                                                                                                                                           |
 | ----------------------------------------------- | ----: | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/index.css`                                 |    25 | `:root`           | App-shell entry: the Tailwind directives and the default brand custom properties (`--color-primary`, …) that tenant theming overrides at runtime.                                                                                                                                                                                                                                  |
 | `src/styles/tailwind-palette.css`               |   210 | `:root`           | Tailwind's colour scales (`gray`, `slate`, `red`, `green`, `blue`, `amber`, `orange`, `yellow`) as `--twc-*` variables, which `tailwind.config.js` points the scales at. Defaults are Tailwind's own values; `:root[data-tenant="flevoland"]` maps each shade onto Flevoland's colours by role (#374). No opacity modifiers on these scales: `tailwind-palette.test.ts` checks it. |
-| `src/pages/caseworker-v2/dashboard-v2.css`      |  1063 | `.cwd-v2`         | Caseworker Dashboard V2. Its chrome and tokens are reused by the Infra-board and WOO dashboards, whose root element carries both classes.                                                                                                                                                                                                                                          |
+| `src/pages/caseworker-v2/dashboard-v2.css`      |   698 | `.cwd-v2`         | Caseworker Dashboard V2: its own sections, and the chrome declarations where it differs from PA (the shared chrome is in `@ronl/shared`'s `v2-chrome.css`). Its chrome and tokens are reused by the Infra-board and WOO dashboards, whose root element carries both classes.                                                                                                       |
 | `src/pages/caseworker-v2/regelsimulatie.css`    |   151 | `.cwd-v2`         | Regelsimulatie (rule simulation) view, ported from the handoff's `sim.css`. Adds no new colours — it reuses the existing tokens.                                                                                                                                                                                                                                                   |
 | `src/pages/infra-board/dashboard-infra.css`     |  1065 | `.pbd`            | Project/Infra-board sections: Mijn dag, Portfolio and Project. Builds on the `.cwd-v2` chrome.                                                                                                                                                                                                                                                                                     |
 | `src/pages/woo/dashboard-woo.css`               |   289 | `.wood`           | WOO dashboard sections, also on the `.cwd-v2` chrome.                                                                                                                                                                                                                                                                                                                              |
@@ -100,11 +237,11 @@ lists them per file).
 
 ## `packages/pa-cockpit` — shared PA-Cockpit package
 
-| File                                            | Lines | Root class | Function                                                                                                                                                         |
-| ----------------------------------------------- | ----: | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/styles.css`                                |    10 | —          | The package's stylesheet entry; hosts import `@ronl/pa-cockpit/styles.css`. It imports the cockpit sheets and deliberately leaves out the app-shell `index.css`. |
-| `src/pages/public-affairs-v2/dashboard-pa.css`  |  2046 | `.pac`     | PA-Cockpit Flevoland, the largest stylesheet in the repository.                                                                                                  |
-| `src/pages/public-affairs-v2/dossierbeheer.css` |   237 | `.pac`     | The Dossierbeheer authoring surface at `/pa/dossiers`; its classes are `.pac-db-*`. Extends `dashboard-pa.css` and reuses its `--pac-*` tokens.                  |
+| File                                            | Lines | Root class | Function                                                                                                                                                                                                                                |
+| ----------------------------------------------- | ----: | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/styles.css`                                |    19 | —          | The package's stylesheet entry; hosts import `@ronl/pa-cockpit/styles.css`. It imports the tokens and the cockpit sheets, and deliberately leaves out the app-shell `index.css` and the shared v2 chrome (each app imports that first). |
+| `src/pages/public-affairs-v2/dashboard-pa.css`  |  1773 | `.pac`     | PA-Cockpit Flevoland, the largest stylesheet in the repository: its own sections, and the chrome declarations where it differs from V2.                                                                                                 |
+| `src/pages/public-affairs-v2/dossierbeheer.css` |   237 | `.pac`     | The Dossierbeheer authoring surface at `/pa/dossiers`; its classes are `.pac-db-*`. Extends `dashboard-pa.css` and reuses its `--pac-*` tokens.                                                                                         |
 
 ## `packages/pa-demo` — public PA demo
 
@@ -234,7 +371,8 @@ Measured 12 October 2026; tracked in
 - **Copies that drift.** The two Keycloak `login.css` files (_done, item 1:
   one copy left_); the
   `pa-demo` copy of the app shell; and the cockpit's copy of every `v2-*`
-  rule, which `pa-cockpit-class-coverage.test.ts` exists to guard.
+  rule, which `pa-cockpit-class-coverage.test.ts` exists to guard (_done,
+  item 4: the shared chrome is in `v2-chrome.css`_).
 - **Very large files.** `dashboard-pa.css` (2,046 lines),
   `dashboard-infra.css` and `dashboard-v2.css` (over 1,000 each).
 - **Two styling approaches.** 33 older frontend components use Tailwind
@@ -250,7 +388,8 @@ Measured 12 October 2026; tracked in
    palette, the neutral greys and the status colours. `public-site` keeps its
    own Rijkshuisstijl tokens.
 4. Export a shared stylesheet for the `v2-*` chrome that both hosts import,
-   removing the cockpit's copied rules.
+   removing the cockpit's copied rules. _Done: `packages/shared/styles/v2-chrome.css`,
+   proved unchanged per host with `npm run check:css-move`._
 5. Split the large stylesheets section by section, only when already editing
    that section.
 6. Scoped CSS on shared tokens as the default for new work (see above).

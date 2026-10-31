@@ -1,6 +1,6 @@
 # One shared stylesheet for the v2 chrome (#374 item 4)
 
-Status: draft for approval, 2026-10-31.
+Status: approved 2026-10-31; amended after review the same day (see below).
 Issue: #374 item 4. Prerequisite for #405 (step 2, the Flevoland look). Item 5
 (split a section into its component's file when editing it) uses the same
 proof tool.
@@ -31,6 +31,26 @@ once, as `.cwd-v2 .v2-topbar, .pac .pac-topbar { … }`, using `--rba-*` tokens.
 No TSX change, no class rename. Renaming PA's classes to `v2-*` was the
 cleaner result but touches components and tests on both hosts; only moving the
 five `v2-*` classes the cockpit renders would leave #405 with two chromes.
+
+## Amendment after review (user, 2026-10-31)
+
+The whole-branch review found two errors in the first version of this
+design, both corrected below:
+
+1. **Load order.** The frontend's `App.tsx` imports the dashboard pages
+   statically, before `@ronl/pa-cockpit/styles.css`; nothing is lazy. So
+   `dashboard-v2.css` and the Infra-board and Woo layers load _before_
+   `styles.css`, and a chrome imported there would have overridden them
+   (`.pbd .v2-rail-card` would have lost its `padding-bottom`). Each app now
+   imports the chrome itself, first.
+2. **Accent.** Infra-board and Woo set `--v2-accent` inline on their root.
+   `--rba-accent` is defined on `:root` and ignores that, so declarations
+   that use the accent stay in the host files, and `--rba-accent-50/-d` are
+   not added.
+
+The first `check:css-move` missed both: it modelled a fixed, wrong file list
+and compared exact property names only. It now reads each app's real load
+order from the import graph and relates shorthands to longhands.
 
 ## Goals
 
@@ -75,64 +95,61 @@ A selector whose declarations all moved disappears from the host file.
 
 The host aliases that are not a plain `--rba-*` token get one in
 `packages/shared/styles/tokens.css`, and both aliases point at it, so hosts
-see the same values as before:
+see the same values as before: `--rba-font-serif`, `--rba-font-sans`,
+`--rba-font-mono` (today identical `--v2-serif`/`--pac-serif` etc.). Step 2
+swaps in Fira Sans here, once.
 
-- `--rba-font-serif`, `--rba-font-sans`, `--rba-font-mono` (today identical
-  `--v2-serif`/`--pac-serif` etc.). Step 2 swaps in Fira Sans here, once.
-- `--rba-accent-50` (`color-mix(in srgb, var(--rba-accent) 12%, white)`) and
-  `--rba-accent-d` (80% with black), if a moved declaration uses them.
+**Not the accent.** Infra-board and Woo override `--v2-accent` inline on
+their `.cwd-v2` root. A token on `:root` cannot follow that, so every
+declaration that uses the accent (`--v2-accent`, `--v2-accent-50`,
+`--v2-accent-d`) stays in the host files, and those aliases keep their
+`color-mix(… var(--v2-accent) …)` definitions.
 
-Any other derived alias a moved declaration needs is handled the same way.
+### Where it loads: once per app, first
 
-### Where it loads: once per host, before the host files
+Each app imports `@ronl/shared/styles/v2-chrome.css` itself, before any
+other stylesheet that styles the chrome:
 
-`packages/pa-cockpit/src/styles.css` gets
-`@import '@ronl/shared/styles/v2-chrome.css';` after the tokens and before
-`dashboard-pa.css`. That is the only import:
+- **The frontend** at the top of `App.tsx`, above the page imports. The page
+  modules bring `dashboard-v2.css`, `dashboard-infra.css` and
+  `dashboard-woo.css` when they run, so all of them come after the shared
+  rules, and the layers keep overriding the chrome as before.
+- **pa-demo** at the top of its `App.tsx`, above `@ronl/pa-cockpit` (a
+  cockpit component imports `dossierbeheer.css`) and
+  `@ronl/pa-cockpit/styles.css`.
 
-- **pa-demo** loads `styles.css`, so it gets the chrome before
-  `dashboard-pa.css`.
-- **The frontend** loads `styles.css` in `App.tsx` at start-up, before any
-  dashboard, and `dashboard-v2.css` is imported later, by the dashboard pages.
-  So the shared rules precede both host files there as well.
-
-`dashboard-v2.css` does **not** import it as well. A second copy, inlined by
-the CSS import into a later chunk, would come _after_ `dashboard-pa.css` and
-could beat a PA rule on an element with two classes (a shared `.pac-btn`
-padding over PA's own `.pac-btn-sm` padding). One import point avoids that.
-
-Moving the frontend's chrome rules earlier (from `dashboard-v2.css` to
-`styles.css`) is safe because the stylesheets that override them,
-`dashboard-infra.css`, `dashboard-woo.css` and `signing-panel.css`, load after
-both, as before. Nothing that loads before `dashboard-v2.css` targets these
-selectors on `.cwd-v2` elements.
+`styles.css` does **not** import it: in the frontend that copy would land
+after the dashboard pages. No other file imports it either; a later copy
+would override a host's own rules. A test pins both imports.
 
 ### The proof: `npm run check:css-move`
 
 The per-file `check:css-equivalence` sees a moved rule as removed and added,
-so it cannot prove this. A new script, `scripts/css-colour/check-move.mjs`,
-reusing `colour.mjs` and the environment code of `check-equivalence.mjs`,
-compares a **host's cascade** before and after:
+so it cannot prove this. `scripts/css-colour/check-move.mjs`, reusing
+`colour.mjs` and the environment code of `check-equivalence.mjs`, compares
+an **app's whole cascade** before and after:
 
-- A host is an ordered list of stylesheets plus the root classes it renders.
-  Two hosts: `cwd-v2` = [`v2-chrome.css`, `dashboard-v2.css`] with roots
-  `.cwd-v2`, `.cwd-v2-palette*`; `pac` = [`v2-chrome.css`, `dashboard-pa.css`]
-  with roots `.pac`, `.pac-palette*`. At the base ref, the shared file does not
-  exist and is simply empty.
-- Selector lists are split; selectors of the other host's roots are dropped.
-- For each at-rule chain, selector and property, the winning declaration
-  (last one) must have the same value, resolved per tenant environment as in
-  `check-equivalence.mjs` (no tenant, each enabled tenant). A colour may move
-  by ΔE2000 ≤ 1.0, anything else must be equal.
-- **Order:** for each property, the order of the selectors that declare it
-  must be the same before and after. That catches a declaration that moved
-  past a competing rule for another class on the same element.
+- **Which stylesheets, in which order:** read from the import graph from the
+  app's `main.tsx` (frontend, pa-demo), at the base ref and in the working
+  tree, the way the browser applies them: modules depth first in statement
+  order, each once, a CSS `@import` before its importer.
+- **Values:** for each at-rule chain, selector and property, the winning
+  declaration must have the same value, resolved per tenant environment as in
+  `check-equivalence.mjs`. A colour may move by ΔE2000 ≤ 1.0, anything else
+  must be equal.
+- **Order:** two declarations that set a longhand in common (the same
+  property, a shorthand and its longhands, crossing border sub-shorthands)
+  must keep their order, when their selectors have equal specificity and can
+  style the same element.
+- **Which elements:** read with the TypeScript parser from the className
+  attributes of the components the app loads. A class that appears in no
+  string literal is dead, so another app's selectors in the shared file count
+  for nothing. Each app declares its page roots that are never nested.
 - It fails on any difference, and lists it.
 
-`--host` and `--base` are options; defaults cover these two hosts against
-`acc`. Item 5 can add hosts later. The script has unit tests in the style of
-`css-colour.test.ts`: a moved identical rule passes; a changed value, a
-dropped declaration and a reordered competing property each fail.
+Limits, documented in the script and in `docs/css-files.md`: inline custom
+properties are not seen (hence the accent rule), a className composed across
+components is not followed, ancestors are not compared.
 
 ### Tests that change
 
@@ -142,9 +159,10 @@ dropped declaration and a reordered competing property each fail.
 - `css-tokens.test.ts`: `v2-chrome.css` is scanned like the other
   stylesheets (every `var(--rba-*)` defined).
 - `css-hex.test.ts` already covers `packages/shared/styles/**`.
-- A new check in `css-tokens.test.ts` (or its own small test): `styles.css`
-  imports `v2-chrome.css` before `dashboard-pa.css`, and no other stylesheet
-  imports it.
+- New checks in `css-tokens.test.ts`: the frontend's `App.tsx` imports
+  `v2-chrome.css` before any page and before `styles.css`; pa-demo's `App.tsx`
+  imports it before the cockpit; nothing else imports it; the shared file
+  does not use `--rba-accent`.
 
 ### Docs
 

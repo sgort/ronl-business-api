@@ -1,11 +1,10 @@
 /**
  * PANoAccessPanel — defence-in-depth fallback for users who reach the PA
  * cockpit without the `public-affairs` role / `province` org-type. Mirrors
- * the caseworker NoAccessPanel, but not its styles: packages/frontend's
- * `.v2-no-access` rules are scoped to `.cwd-v2` (dashboard-v2.css:457,464,
- * 472,478), so this package ships its own `.pac`-scoped copy instead, in
- * dashboard-pa.css's "No-access panel (defence-in-depth)" block, already
- * diverged from the caseworker rules.
+ * the caseworker NoAccessPanel and shares part of its styles: what both
+ * panels have in common is in packages/shared/styles/v2-chrome.css (#374
+ * item 4), and PA's own, diverged declarations are in dashboard-pa.css's
+ * "No-access panel (defence-in-depth)" block.
  */
 
 interface Props {
