@@ -41,6 +41,29 @@ describe('AuthCallback', () => {
     expect(screen.getByText('Verbinding maken...')).toBeInTheDocument();
   });
 
+  // One Flevoland look for the whole sign-in path, like the Keycloak theme
+  // (#400). The tenant-following blue-600 lost the tenant on the fresh page
+  // load back from Keycloak and flashed Tailwind's lighter blue.
+  it('draws its card header in Flevoland blue, not the tenant-following blue scale', () => {
+    mockKeycloak.init.mockReturnValue(new Promise(() => {}));
+    render(<AuthCallback />);
+    const header = screen.getByRole('heading', { name: 'MijnOmgeving' }).parentElement!;
+    expect(header.className).toContain('from-[color:var(--flevoland-color-brand-primary)]');
+    expect(header.className).toContain('to-[color:var(--flevoland-color-brand-primary-active)]');
+    expect(header.className).not.toMatch(/blue-\d/);
+  });
+
+  it('draws the error card and its button in Flevoland blue as well', async () => {
+    mockKeycloak.init.mockRejectedValue(new Error('boom'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<AuthCallback />);
+    const button = await screen.findByRole('button', { name: 'Terug naar inlogkeuze' });
+    expect(button.className).toContain('bg-[color:var(--flevoland-color-brand-primary)]');
+    expect(button.className).not.toMatch(/blue-\d/);
+    const header = screen.getByRole('heading', { name: 'MijnOmgeving' }).parentElement!;
+    expect(header.className).toContain('from-[color:var(--flevoland-color-brand-primary)]');
+  });
+
   it('medewerker flow, already authenticated: clears session keys and navigates by role', async () => {
     sessionStorage.setItem('selected_idp', 'medewerker');
     sessionStorage.setItem('username_hint', 'jan');

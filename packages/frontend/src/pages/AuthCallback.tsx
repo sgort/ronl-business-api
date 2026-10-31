@@ -167,11 +167,15 @@ export default function AuthCallback() {
     initializeAuth();
   }, [navigate]);
 
+  // Flevoland's brand blue, fixed for every tenant, like the Keycloak login
+  // theme (#400): the sign-in path has one look. Not the tenant-following
+  // blue-600, which lost the tenant on the fresh page load back from Keycloak
+  // (nothing sets data-tenant on this route) and flashed Tailwind's lighter blue.
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-t-2xl p-8 text-white text-center shadow-lg">
+          <div className="bg-gradient-to-r from-[color:var(--flevoland-color-brand-primary)] to-[color:var(--flevoland-color-brand-primary-active)] rounded-t-2xl p-8 text-white text-center shadow-lg">
             <h1 className="text-3xl font-bold mb-2">MijnOmgeving</h1>
             <p className="text-blue-100">Demo portaal van Open Regels</p>
           </div>
@@ -180,7 +184,7 @@ export default function AuthCallback() {
             <p className="text-gray-700 mb-6">{error}</p>
             <button
               onClick={() => navigate('/')}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+              className="px-6 py-3 bg-[color:var(--flevoland-color-brand-primary)] text-white rounded-lg hover:bg-[color:var(--flevoland-color-brand-primary-active)] transition-colors font-semibold"
             >
               Terug naar inlogkeuze
             </button>
@@ -193,13 +197,17 @@ export default function AuthCallback() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-t-2xl p-8 text-white text-center shadow-lg">
+        <div className="bg-gradient-to-r from-[color:var(--flevoland-color-brand-primary)] to-[color:var(--flevoland-color-brand-primary-active)] rounded-t-2xl p-8 text-white text-center shadow-lg">
           <h1 className="text-3xl font-bold mb-2">MijnOmgeving</h1>
           <p className="text-blue-100">Demo portaal van Open Regels</p>
         </div>
         <div className="bg-white rounded-b-2xl shadow-xl p-8 text-center">
           <div className="flex items-center justify-center gap-3 text-gray-500">
-            <svg className="animate-spin w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24">
+            <svg
+              className="animate-spin w-5 h-5 text-[color:var(--flevoland-color-brand-primary)]"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
               <circle
                 className="opacity-25"
                 cx="12"
