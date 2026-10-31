@@ -46,6 +46,10 @@ services:
     volumes:
       - ./ronl-realm.json:/opt/keycloak/data/import/ronl-realm.json:ro
       - keycloak-prod-data:/opt/keycloak/data
+      # Filled by hand from the repository's keycloak-themes/ (the one source of
+      # the ronl theme): copy keycloak-themes/ronl to /opt/keycloak/themes/ronl.
+      # Automating that copy is #196.
+      - /opt/keycloak/themes:/opt/keycloak/themes:ro
     healthcheck:
       test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/127.0.0.1/8080' && exit 0 || exit 1"]
       interval: 10s
