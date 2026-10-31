@@ -1,6 +1,6 @@
 # CSS files — what each stylesheet is for
 
-The repository tracks 24 `.css` files across the Keycloak theme, the shared
+The repository tracks 25 `.css` files across the Keycloak theme, the shared
 token files and four frontend packages. Nearly all of them scope every selector under a single
 root class per surface (`.cwd-v2`, `.pbd`, `.wood`, `.pac`, `.lcp`, …), so a
 stylesheet cannot leak into another app or dashboard. Tailwind is used for
@@ -17,9 +17,10 @@ below; the issue's checklist tracks progress.
 
 ## Keycloak login theme
 
-| File                                                 | Lines | Function                                                                                                                                                                                |
-| ---------------------------------------------------- | ----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `keycloak-themes/ronl/login/resources/css/login.css` |   441 | Custom Keycloak login theme, styled to match the MijnOmgeving landing page. Loaded by the theme's `theme.properties`. Mounted into the local Keycloak by the root `docker-compose.yml`. |
+| File                                                            | Lines | Function                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `keycloak-themes/ronl/login/resources/css/login.css`            |   447 | Custom Keycloak login theme, styled to match the MijnOmgeving landing page. Loaded by the theme's `theme.properties`. Mounted into the local Keycloak by the root `docker-compose.yml`. Colours from Flevoland's semantic tokens (#400). |
+| `keycloak-themes/ronl/login/resources/css/flevoland-tokens.css` |   352 | Byte-identical copy of `packages/shared/styles/flevoland/tokens.css`, loaded before `login.css`. Written by `npm run sync:keycloak-tokens`; never edit by hand.                                                                          |
 
 **This is the one copy of the theme** (#374 item 1). The ACC Keycloak compose
 file (`deployment/vm/keycloak/acc/docker-compose.yml`) mounts
@@ -27,7 +28,19 @@ file (`deployment/vm/keycloak/acc/docker-compose.yml`) mounts
 from `keycloak-themes/ronl/`. A stale second copy under `deployment/vm/` was
 removed; automating the copy to the VM is #196.
 
-Do not add an `@import` of the default Keycloak CSS to this file:
+**Colours: one Flevoland look for every tenant** (#400; design:
+`docs/superpowers/specs/2026-10-31-keycloak-theme-flevoland-colours-design.md`).
+Keycloak has one client for all tenants and cannot tell them apart before
+sign-in. `login.css` uses Flevoland's semantic tokens only, never their
+palette; only the DigiD, eHerkenning and eIDAS buttons keep their own hex
+colours. Keycloak serves the theme outside our build, so it carries a copy of
+the token file instead of importing it. After a new Flevoland delivery, run
+`npm run sync:keycloak-tokens`. `packages/frontend/src/keycloak-theme.test.ts`
+fails when the copy falls behind, when `theme.properties` stops loading it
+first, or when `login.css` uses a token the copy does not define;
+`css-hex.test.ts` covers the theme too.
+
+Do not add an `@import` of the default Keycloak CSS to `login.css`:
 `theme.properties` already loads the base styles, and an `@import` would load
 PatternFly again _after_ the custom styles and override them.
 
@@ -130,12 +143,12 @@ and wiring them into CI is a later step of
 | `npm run lint:css:summary` | A Markdown table: warnings per rule and per file.     |
 | `npm run test:stylelint`   | The tests for the custom rule and the summary script. |
 
-| Rule                       | Checks                                                                                                                                                                                |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rba/selector-root-class`  | Every selector in a scoped stylesheet starts with that file's root class. Global files are exempt.                                                                                    |
-| `color-no-hex`             | No hex colours outside the shared token file. `HEX_ALLOWED` in the config lists it and the files exempt for their own reasons (Keycloak theme, `pub.css`, the `index.css` fallbacks). |
-| `no-duplicate-selectors`   | The same selector defined twice in one file.                                                                                                                                          |
-| `declaration-no-important` | No `!important`.                                                                                                                                                                      |
+| Rule                       | Checks                                                                                                                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `rba/selector-root-class`  | Every selector in a scoped stylesheet starts with that file's root class. Global files are exempt.                                                                                                     |
+| `color-no-hex`             | No hex colours outside the shared token file. `HEX_ALLOWED` in the config lists it and the files exempt for their own reasons (the Keycloak theme's token copy, `pub.css`, the `index.css` fallbacks). |
+| `no-duplicate-selectors`   | The same selector defined twice in one file.                                                                                                                                                           |
+| `declaration-no-important` | No `!important`.                                                                                                                                                                                       |
 
 The configuration is `stylelint.config.mjs`; its `ROOTS` map sets each scoped
 file's root class(es). The custom rule lives in
@@ -173,7 +186,7 @@ replaced when someone is already editing that section.
 
 |     | Category                                              | Count | Approach                                                                                                                                                                                                                |
 | --- | ----------------------------------------------------- | ----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A   | The two Keycloak `login.css` copies                   |    98 | **Done (3a):** exempt. Keycloak serves them outside the build, so they cannot load the token file.                                                                                                                      |
+| A   | The two Keycloak `login.css` copies                   |    98 | **Done (3a):** exempt. Keycloak serves them outside the build, so they cannot load the token file. _Since #400: one copy, on Flevoland's tokens through a committed copy, and no longer exempt._                        |
 | B   | `public-site`'s `pub.css`                             |    85 | **Done (3a):** exempt; it is a separate brand (Rijkshuisstijl). Giving it its own `:root` token block remains an option.                                                                                                |
 | C   | `--color-*` defaults in the two `index.css` files     |    10 | **Done (3a):** exempt. These are the tenant-theme fallbacks, not palette colours.                                                                                                                                       |
 | D   | Surface variables with a different value              |    18 | Wait for the design decision in the table under [`packages/shared`](#packagesshared--design-tokens), then point them at tokens.                                                                                         |
@@ -190,7 +203,7 @@ Proposed order, one PR each:
 2. **E and H**, with a list for Flevoland to choose fixed or themed per place.
 3. **A tint scale** for the 30 repeated values. Tints built with `color-mix`
    shift slightly, so this one changes pixels and needs a visual check.
-4. **A ratchet in CI**, the "make it an error" step of item 2. _Done (#374 3d): with only data colours left, the gate lists them instead of counting. `packages/frontend/src/css-hex.test.ts` runs stylelint's `color-no-hex` with the repository config in the frontend suite (so in CI on every frontend, shared or pa-cockpit pull request) and fails on any hex outside its per-file list of data colours, each with its reason, and on a listed colour that is no longer used. The other stylelint rules stay report-only._
+4. **A ratchet in CI**, the "make it an error" step of item 2. _Done (#374 3d): with only data colours left, the gate lists them instead of counting. `packages/frontend/src/css-hex.test.ts` runs stylelint's `color-no-hex` with the repository config in the frontend suite (so in CI on every frontend, shared, pa-cockpit or Keycloak-theme pull request) and fails on any hex outside its per-file list of data colours, each with its reason, and on a listed colour that is no longer used. The other stylelint rules stay report-only._
 
 ## Default for new work
 

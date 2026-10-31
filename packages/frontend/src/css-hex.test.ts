@@ -23,10 +23,21 @@ const STYLESHEETS = [
   'packages/pa-cockpit/src/**/*.css',
   'packages/pa-demo/src/**/*.css',
   'packages/shared/styles/**/*.css',
+  'keycloak-themes/**/*.css',
 ];
 
 /** The hex colours allowed to stay, per file: data and category colours only. */
 const DATA_COLOURS: Record<string, Record<string, string>> = {
+  // The list is per file, so these may only stay in the provider rules; a
+  // listed value reused elsewhere in login.css is the one thing it misses.
+  'keycloak-themes/ronl/login/resources/css/login.css': {
+    '#f97316': 'DigiD button: external identity provider, not our brand',
+    '#ea580c': 'DigiD button gradient end',
+    '#3b82f6': 'eHerkenning button: external identity provider, not our brand',
+    '#2563eb': 'eHerkenning button gradient end',
+    '#4f46e5': 'eIDAS button: external identity provider, not our brand',
+    '#3730a3': 'eIDAS button gradient end',
+  },
   'packages/frontend/src/pages/caseworker-v2/regelsimulatie.css': {
     '#7c3aed': '--sim-hold: the objection-hold segment, distinct from chrome and accent',
     '#9166f0': 'the light stripe of that hold segment',

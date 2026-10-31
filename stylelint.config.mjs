@@ -41,9 +41,8 @@ const HEX_ALLOWED = [
   // element styles.
   "packages/shared/styles/flevoland/tokens.css",
   "packages/shared/styles/flevoland/base.css",
-  // The Keycloak login theme: served by Keycloak, outside the build, so it
-  // cannot load the token file.
-  "keycloak-themes/ronl/login/resources/css/login.css",
+  // The Keycloak theme's copy of Flevoland's tokens (#400), like its source.
+  "keycloak-themes/ronl/login/resources/css/flevoland-tokens.css",
   // Open Regels: a separate brand on its own Rijkshuisstijl tokens.
   "packages/public-site/src/styles/pub.css",
   // Tailwind's own palette as the defaults of the tenant-following scales

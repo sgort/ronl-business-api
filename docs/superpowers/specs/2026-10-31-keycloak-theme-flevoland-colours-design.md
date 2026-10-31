@@ -132,6 +132,20 @@ card shadows also stay.
    only the theme still runs the frontend suite. (Its deploy and preview jobs
    are unaffected beyond running once more.)
 
+### Our sign-in screen follows (added after the browser check)
+
+The browser check showed a second jump in both flows: `AuthCallback.tsx`
+("Verbinding maken...") draws its card with the tenant-following
+`blue-600`/`blue-700`. Before sign-in it is reached inside the app, with
+`data-tenant="flevoland"` set, so it is Flevoland blue; after Keycloak or
+Entra ID it is a fresh page load, nothing sets `data-tenant` on that route, and
+it falls back to Tailwind's lighter blue. With one look for the sign-in path,
+its card header, spinner and error button take `brand-primary` /
+`brand-primary-active` directly (Tailwind arbitrary values on the Flevoland
+tokens, which `tokens.css` loads on every page). Other tenants lose nothing:
+their themes never changed the `blue-*` scale, so this screen was Tailwind blue
+for them. `AuthCallback.test.tsx` checks the classes.
+
 ### Docs
 
 `docs/css-files.md`: the Keycloak section lists `flevoland-tokens.css`, says

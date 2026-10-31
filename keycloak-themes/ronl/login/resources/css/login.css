@@ -2,6 +2,12 @@
  * RONL Business API - Keycloak Custom Theme
  * Matches MijnOmgeving landing page design
  *
+ * Colours: Flevoland IT's semantic tokens (--flevoland-color-*), one look for
+ * every tenant (#400). theme.properties loads them first from
+ * flevoland-tokens.css, a copy of packages/shared/styles/flevoland/tokens.css;
+ * refresh it with `npm run sync:keycloak-tokens`. Only the identity-provider
+ * buttons keep their own hex colours.
+ *
  * NOTE: Do NOT add @import for default Keycloak CSS here.
  * theme.properties already loads common/keycloak base styles via
  * the `import` directive. An @import in this file causes PatternFly
@@ -15,7 +21,7 @@
 
 /* Page Background - Light gray like landing page */
 body {
-  background: linear-gradient(135deg, #e8eef3 0%, #f5f7fa 100%);
+  background: linear-gradient(135deg, var(--flevoland-color-background-muted) 0%, var(--flevoland-color-background-document) 100%);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
   margin: 0;
   padding: 0;
@@ -36,8 +42,8 @@ body {
 
 /* Header Card - Blue Gradient matching landing page */
 #kc-header {
-  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
-  color: white;
+  background: linear-gradient(135deg, var(--flevoland-color-brand-primary) 0%, var(--flevoland-color-brand-primary-active) 100%);
+  color: var(--flevoland-color-text-on-brand);
   width: 100%;
   max-width: 500px;
   padding: 2rem;
@@ -67,7 +73,7 @@ body {
 
 /* Content Card - White background */
 #kc-content {
-  background: white;
+  background: var(--flevoland-color-background-surface);
   width: 100%;
   max-width: 500px;
   padding: 2.5rem 2rem;
@@ -87,7 +93,7 @@ body {
 
 /* Welcome Text */
 .instruction {
-  color: #4b5563;
+  color: var(--flevoland-color-text-subtle);
   font-size: 1.125rem;
   font-weight: 600;
   margin-bottom: 0.5rem;
@@ -106,7 +112,7 @@ label,
   display: block;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #374151;
+  color: var(--flevoland-color-text-heading);
   margin-bottom: 0.5rem;
 }
 
@@ -118,9 +124,9 @@ input[type="email"],
   width: 100%;
   padding: 0.75rem 1rem;
   font-size: 1rem;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--flevoland-color-border-default);
   border-radius: 8px;
-  background: #f9fafb;
+  background: var(--flevoland-color-background-subtle);
   transition: all 0.2s ease;
   outline: none;
   -webkit-appearance: none;
@@ -131,21 +137,21 @@ input[type="text"]:focus,
 input[type="password"]:focus,
 input[type="email"]:focus,
 .pf-c-form-control:focus {
-  border-color: #3b82f6;
-  background: white;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: var(--flevoland-color-focus-outline);
+  background: var(--flevoland-color-background-surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--flevoland-color-focus-outline) 10%, transparent);
 }
 
 input[type="text"]:hover,
 input[type="password"]:hover,
 input[type="email"]:hover {
-  border-color: #d1d5db;
+  border-color: var(--flevoland-color-border-hover);
 }
 
 /* Error state */
 input[aria-invalid="true"] {
-  border-color: #ef4444;
-  background: #fef2f2;
+  border-color: var(--flevoland-color-status-error-border);
+  background: var(--flevoland-color-status-error-background);
 }
 
 /* Hide password visibility toggle */
@@ -175,27 +181,27 @@ input[name="login"] {
   padding: 0.875rem 1.5rem;
   font-size: 1rem;
   font-weight: 600;
-  color: white;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: var(--flevoland-color-text-on-brand);
+  background: linear-gradient(135deg, var(--flevoland-color-brand-primary-hover) 0%, var(--flevoland-color-brand-primary) 100%);
   border: none;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--flevoland-color-brand-primary) 20%, transparent);
   margin-top: 0.5rem;
 }
 
 #kc-login:hover,
 input[name="login"]:hover {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
+  background: linear-gradient(135deg, var(--flevoland-color-brand-primary) 0%, var(--flevoland-color-brand-primary-active) 100%);
+  box-shadow: 0 4px 8px color-mix(in srgb, var(--flevoland-color-brand-primary) 30%, transparent);
   transform: translateY(-1px);
 }
 
 #kc-login:active,
 input[name="login"]:active {
   transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--flevoland-color-brand-primary) 20%, transparent);
 }
 
 #kc-login:disabled,
@@ -209,7 +215,7 @@ input[name="login"]:disabled {
 #kc-cancel-container {
   margin-top: 1.25rem;
   padding-top: 1.25rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--flevoland-color-border-subtle);
   text-align: center;
 }
 
@@ -217,7 +223,7 @@ input[name="login"]:disabled {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  color: #6b7280;
+  color: var(--flevoland-color-text-subtle);
   font-size: 0.875rem;
   font-weight: 500;
   text-decoration: none;
@@ -225,7 +231,7 @@ input[name="login"]:disabled {
 }
 
 #kc-cancel:hover {
-  color: #374151;
+  color: var(--flevoland-color-text-heading);
 }
 
 #kc-cancel svg {
@@ -236,7 +242,7 @@ input[name="login"]:disabled {
 /* Forgot Password Link */
 .kcFormOptionsWrapperClass a,
 #kc-reset-password a {
-  color: #3b82f6;
+  color: var(--flevoland-color-link-default);
   text-decoration: none;
   font-size: 0.875rem;
   font-weight: 500;
@@ -245,7 +251,7 @@ input[name="login"]:disabled {
 
 .kcFormOptionsWrapperClass a:hover,
 #kc-reset-password a:hover {
-  color: #2563eb;
+  color: var(--flevoland-color-link-hover);
   text-decoration: underline;
 }
 
@@ -253,18 +259,18 @@ input[name="login"]:disabled {
 .alert-error,
 .pf-c-alert.pf-m-danger,
 #kc-error-message {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--flevoland-color-status-error-background);
+  border: 1px solid var(--flevoland-color-status-error-border);
   border-radius: 8px;
   padding: 1rem;
   margin-bottom: 1.5rem;
-  color: #991b1b;
+  color: var(--flevoland-color-status-error-text-on-background);
   font-size: 0.875rem;
 }
 
 #input-error,
 .kcInputErrorMessageClass {
-  color: #dc2626;
+  color: var(--flevoland-color-status-error-text);
   font-size: 0.8125rem;
   margin-top: 0.375rem;
   display: block;
@@ -273,23 +279,23 @@ input[name="login"]:disabled {
 /* Success / Info Messages */
 .alert-success,
 .pf-c-alert.pf-m-success {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background: var(--flevoland-color-status-success-background);
+  border: 1px solid var(--flevoland-color-status-success-border);
   border-radius: 8px;
   padding: 1rem;
   margin-bottom: 1.5rem;
-  color: #166534;
+  color: var(--flevoland-color-status-success-text);
   font-size: 0.875rem;
 }
 
 .alert-info,
 .pf-c-alert.pf-m-info {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: var(--flevoland-color-status-info-background);
+  border: 1px solid var(--flevoland-color-status-info-border);
   border-radius: 8px;
   padding: 1rem;
   margin-bottom: 1.5rem;
-  color: #1e40af;
+  color: var(--flevoland-color-status-info-text);
   font-size: 0.875rem;
 }
 
@@ -298,19 +304,19 @@ input[name="login"]:disabled {
   text-align: center;
   margin-top: 2rem;
   padding-top: 1.5rem;
-  border-top: 1px solid #e5e7eb;
-  color: #6b7280;
+  border-top: 1px solid var(--flevoland-color-border-subtle);
+  color: var(--flevoland-color-text-subtle);
   font-size: 0.875rem;
 }
 
 #kc-registration a {
-  color: #3b82f6;
+  color: var(--flevoland-color-link-default);
   text-decoration: none;
   font-weight: 600;
 }
 
 #kc-registration a:hover {
-  color: #2563eb;
+  color: var(--flevoland-color-link-hover);
   text-decoration: underline;
 }
 
@@ -321,14 +327,14 @@ input[name="login"]:disabled {
 
 #kc-social-providers hr {
   border: none;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--flevoland-color-border-subtle);
   margin-bottom: 1.25rem;
 }
 
 #kc-social-providers h2 {
   font-size: 0.875rem;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--flevoland-color-text-subtle);
   text-align: center;
   margin-bottom: 1rem;
 }
@@ -384,7 +390,7 @@ a[href*="eidas"] {
 #kc-info {
   text-align: center;
   margin-top: 2rem;
-  color: #9ca3af;
+  color: var(--flevoland-color-text-disabled);
   font-size: 0.75rem;
 }
 
@@ -403,7 +409,7 @@ a[href*="eidas"] {
 
 /* Accessibility */
 :focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--flevoland-color-focus-outline);
   outline-offset: 2px;
 }
 
@@ -415,7 +421,7 @@ a[href*="eidas"] {
   }
 
   #kc-login {
-    border: 2px solid white;
+    border: 2px solid var(--flevoland-color-text-on-brand);
   }
 }
 
@@ -426,16 +432,16 @@ a[href*="eidas"] {
   gap: 0.5rem;
   padding: 0.625rem 1rem;
   margin-bottom: 1.5rem;
-  background: #f0f4ff;
-  border: 1px solid #c7d7fd;
+  background: var(--flevoland-color-brand-primary-subtle);
+  border: 1px solid color-mix(in srgb, var(--flevoland-color-brand-primary) 20%, transparent);
   border-radius: 8px;
-  color: #3730a3;
+  color: var(--flevoland-color-brand-primary-active);
   font-size: 0.875rem;
   font-weight: 500;
 }
 
 #kc-context-banner svg {
   flex-shrink: 0;
-  color: #4f46e5;
+  color: var(--flevoland-color-brand-primary);
 }
 /* ─────────────────────────────────────────────────────────────── */

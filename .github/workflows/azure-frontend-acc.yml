@@ -8,6 +8,9 @@ on:
       - 'packages/frontend/**'
       - 'packages/shared/**'
       - 'packages/pa-cockpit/**'
+      # The Keycloak login theme: its guard tests (keycloak-theme.test.ts,
+      # css-hex.test.ts) run in this suite (#400).
+      - 'keycloak-themes/**'
       - '.github/workflows/azure-frontend-acc.yml'
       # The root lockfile and manifest: every workspace resolves through them, so
       # a lockfile-only change -- Renovate's lock-file maintenance above all --
@@ -85,7 +88,7 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           # The paths under push: above, as one regular expression. Keep the two in step.
-          PATTERN: '^(\.nvmrc$|packages/frontend/|packages/shared/|packages/pa-cockpit/|\.github/workflows/azure-frontend-acc\.yml$|package-lock\.json$|package\.json$)'
+          PATTERN: '^(\.nvmrc$|packages/frontend/|packages/shared/|packages/pa-cockpit/|keycloak-themes/|\.github/workflows/azure-frontend-acc\.yml$|package-lock\.json$|package\.json$)'
         run: |
           if [ "$EVENT" != "pull_request" ]; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
