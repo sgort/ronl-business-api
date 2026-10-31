@@ -1,6 +1,6 @@
 # CSS files — what each stylesheet is for
 
-The repository tracks 25 `.css` files across the Keycloak theme, the shared
+The repository tracks 24 `.css` files across the Keycloak theme, the shared
 token files and four frontend packages. Nearly all of them scope every selector under a single
 root class per surface (`.cwd-v2`, `.pbd`, `.wood`, `.pac`, `.lcp`, …), so a
 stylesheet cannot leak into another app or dashboard. Tailwind is used for
@@ -17,14 +17,17 @@ below; the issue's checklist tracks progress.
 
 ## Keycloak login theme
 
-| File                                                               | Lines | Function                                                                                                                                                                                |
-| ------------------------------------------------------------------ | ----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `keycloak-themes/ronl/login/resources/css/login.css`               |   441 | Custom Keycloak login theme, styled to match the MijnOmgeving landing page. Loaded by the theme's `theme.properties`. Mounted into the local Keycloak by the root `docker-compose.yml`. |
-| `deployment/vm/keycloak/themes/ronl/login/resources/css/login.css` |   441 | Byte-identical copy in the VM deployment tree. The ACC Keycloak compose file mounts `/opt/keycloak/themes` from the VM host; this is the copy meant for that directory.                 |
+| File                                                 | Lines | Function                                                                                                                                                                                |
+| ---------------------------------------------------- | ----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `keycloak-themes/ronl/login/resources/css/login.css` |   441 | Custom Keycloak login theme, styled to match the MijnOmgeving landing page. Loaded by the theme's `theme.properties`. Mounted into the local Keycloak by the root `docker-compose.yml`. |
 
-**Keep the two copies in sync.** An edit to one has to be made to the other.
+**This is the one copy of the theme** (#374 item 1). The ACC Keycloak compose
+file (`deployment/vm/keycloak/acc/docker-compose.yml`) mounts
+`/opt/keycloak/themes` from the VM host, and that directory is filled by hand
+from `keycloak-themes/ronl/`. A stale second copy under `deployment/vm/` was
+removed; automating the copy to the VM is #196.
 
-Do not add an `@import` of the default Keycloak CSS to either file:
+Do not add an `@import` of the default Keycloak CSS to this file:
 `theme.properties` already loads the base styles, and an `@import` would load
 PatternFly again _after_ the custom styles and override them.
 
@@ -215,7 +218,8 @@ Measured 12 October 2026; tracked in
   "no prettier" and "no `@import` in `login.css`" exist only as comments.
   _Since item 2: stylelint reports the first two, but does not enforce them
   yet._
-- **Copies that drift.** The two Keycloak `login.css` files; the
+- **Copies that drift.** The two Keycloak `login.css` files (_done, item 1:
+  one copy left_); the
   `pa-demo` copy of the app shell; and the cockpit's copy of every `v2-*`
   rule, which `pa-cockpit-class-coverage.test.ts` exists to guard.
 - **Very large files.** `dashboard-pa.css` (2,046 lines),
@@ -226,7 +230,7 @@ Measured 12 October 2026; tracked in
 **Plan**, in order of value for effort, one PR per step:
 
 1. Guard the Keycloak copies: deploy from one source, or check in CI that
-   they are identical.
+   they are identical. _Done: one source, `keycloak-themes/ronl/`._
 2. Add stylelint, report-only at first: selectors start with the root class,
    no hex outside a token file, no duplicate selectors, no `!important`.
 3. One shared token file (for example in `@ronl/shared`) for the Flevoland

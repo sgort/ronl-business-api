@@ -44,7 +44,6 @@ const HEX_ALLOWED = [
   // The Keycloak login theme: served by Keycloak, outside the build, so it
   // cannot load the token file.
   "keycloak-themes/ronl/login/resources/css/login.css",
-  "deployment/vm/keycloak/themes/ronl/login/resources/css/login.css",
   // Open Regels: a separate brand on its own Rijkshuisstijl tokens.
   "packages/public-site/src/styles/pub.css",
   // Tailwind's own palette as the defaults of the tenant-following scales
