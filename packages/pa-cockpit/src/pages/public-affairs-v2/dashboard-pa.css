@@ -257,7 +257,9 @@
   color: var(--pac-ink);
   white-space: nowrap;
 }
-.pac .pac-total b { color: var(--pac-accent); }
+/* The darker accent: the chip sits on --pac-bg, where Flevoland pink is
+   4.23:1 at this size; the dark shade reaches about 6.1:1 (#409, axe on ACC). */
+.pac .pac-total b { color: var(--pac-accent-d); }
 
 /* ── Kompas (radar + scorecard) ─────────────────────────── */
 .pac .pac-kompas {
