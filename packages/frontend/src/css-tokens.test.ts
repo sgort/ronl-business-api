@@ -212,11 +212,14 @@ describe('shared v2 chrome', () => {
 
   it('nothing else loads it, the cockpit stylesheet included', () => {
     // A second copy, inlined later in the cascade, would override a host's own rules.
+    // An import statement (TS `import '…'`, CSS `@import '…'` or `@import url(…)`),
+    // not a mention: the changelog names the file in its text.
+    const IMPORTS_CHROME = /^\s*@?import\s+(?:url\(\s*)?['"][^'"]*v2-chrome\.css['"]/m;
     const loaders = [...CSS_ROOTS, join(SHARED_ROOT, 'styles')]
       .flatMap((dir) => sourceFiles(dir))
       // Tests name the path without loading it.
       .filter((file) => !/\.test\.tsx?$/.test(file))
-      .filter((file) => stripComments(readFileSync(file, 'utf8')).includes('v2-chrome.css'))
+      .filter((file) => IMPORTS_CHROME.test(stripComments(readFileSync(file, 'utf8'))))
       .map((file) => relative(REPO_ROOT, file).split('\\').join('/'));
     expect(loaders.sort()).toEqual([
       'packages/frontend/src/App.tsx',
