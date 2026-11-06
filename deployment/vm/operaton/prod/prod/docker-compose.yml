@@ -1,0 +1,22 @@
+name: operaton-prod
+
+services:
+  operaton:
+    image: operaton/operaton:${OPERATON_TAG}
+    container_name: ${OPERATON_NAME}
+    restart: unless-stopped
+    volumes:
+      - ${OPERATON_DATA}:/operaton/h2-data
+    environment:
+      TZ: Europe/Amsterdam
+      DB_DRIVER: org.h2.Driver
+      DB_URL: jdbc:h2:file:/operaton/h2-data/operaton-prod;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      JAVA_OPTS: -XX:MaxRAMPercentage=70.0 -Doperaton.cors.enabled=false
+      DEBUG: "false"
+    networks:
+      npm-network:
+        ipv4_address: 172.18.0.10
+
+networks:
+  npm-network:
+    external: true

@@ -1,0 +1,28 @@
+name: caddy-proxy
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./static:/srv/static
+      - caddy_data:/data
+      - caddy_config:/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - npm-network
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  npm-network:
+    external: true
+
