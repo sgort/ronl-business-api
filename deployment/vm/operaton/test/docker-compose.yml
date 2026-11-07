@@ -1,0 +1,55 @@
+# #415 test harness: Operaton 1.0.0 (the version the VM runs) on host port 8091.
+# Throwaway: up, check, down -v. Never part of the local dev stack.
+#
+#   docker compose -p op415 -f deployment/vm/operaton/test/docker-compose.yml up -d
+#   deployment/vm/operaton/test/check-engine.sh
+#   docker compose -p op415 -f deployment/vm/operaton/test/docker-compose.yml down -v
+#
+# How the settings reach the engine: as -D system properties in JAVA_OPTS.
+# The image's internal/run.sh puts $JAVA_OPTS on the java command line, and
+# system properties override the image's configuration/default.yml.
+#
+# The engine's tenant check stays on (its default). DMNs are deployed without
+# a tenant by design, so every public rule is visible to publicReader;
+# tenant-scoped definitions are not, which this check asserts.
+#
+# run.example.enabled=false: the built-in invoice example seeds demo tasks on an
+# EMPTY database in @PostDeploy, which fails with authorization on (NPE, "task"
+# is null) and stops the engine. On a database that already holds the example
+# (the VM) it starts normally, verified 7 November 2026.
+name: op415
+
+services:
+  operaton:
+    image: operaton/operaton:1.0.0
+    container_name: op415-operaton
+    environment:
+      TZ: Europe/Amsterdam
+      DB_DRIVER: org.h2.Driver
+      DB_URL: jdbc:h2:mem:op415;DB_CLOSE_DELAY=-1
+      JAVA_OPTS: >-
+        -Doperaton.bpm.run.auth.enabled=true
+        -Doperaton.bpm.authorization.enabled=true
+        -Doperaton.bpm.run.cors.enabled=false
+        -Doperaton.bpm.run.example.enabled=false
+    ports:
+      - '8091:8080'
+
+  # One-shot: the same script the VM and the local stack use.
+  accounts:
+    image: curlimages/curl:8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777
+    container_name: op415-accounts
+    depends_on:
+      - operaton
+    entrypoint: ['sh', '/provision-accounts.sh']
+    volumes:
+      - ../provision-accounts.sh:/provision-accounts.sh:ro
+    environment:
+      OPERATON_URL: http://operaton:8080/engine-rest
+      OPERATON_ADMIN_USER: demo
+      OPERATON_ADMIN_PASSWORD: demo
+      SERVICE_ACCOUNTS: rbaBackend ldeBackend
+      PW_RBABACKEND: rbaBackend
+      PW_LDEBACKEND: ldeBackend
+      EXISTING_ADMIN_MEMBERS: ''
+      PUBLIC_READER_PASSWORD: publicReader
