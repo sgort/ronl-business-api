@@ -14,9 +14,10 @@ jest.mock('@services/edocs.service', () => ({
 jest.mock('@services/operaton.service', () => ({
   operatonService: { getDeployedTemplate: jest.fn() },
 }));
-jest.mock('@utils/config', () => ({
-  config: { operaton: { baseUrl: 'http://operaton/engine-rest' } },
-}));
+const mockOperatonConfig: { baseUrl: string; username?: string; password?: string } = {
+  baseUrl: 'http://operaton/engine-rest',
+};
+jest.mock('@utils/config', () => ({ config: { operaton: mockOperatonConfig } }));
 jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
 }));
@@ -352,6 +353,45 @@ describe('fetchAndLock', () => {
   it('returns [] when the response has no data', async () => {
     mockPost.mockResolvedValue({ data: undefined });
     await expect(internals(new ExternalTaskWorker()).fetchAndLock()).resolves.toEqual([]);
+  });
+});
+
+describe('Operaton credentials (#415)', () => {
+  afterEach(() => {
+    delete mockOperatonConfig.username;
+    delete mockOperatonConfig.password;
+  });
+
+  const callOptions = () => mockPost.mock.calls.map((c) => c[2]);
+
+  it('sends the configured credentials on fetchAndLock, complete and failure', async () => {
+    mockOperatonConfig.username = 'svc';
+    mockOperatonConfig.password = 'pw';
+    mockPost.mockResolvedValue({ data: [] });
+    const w = internals(new ExternalTaskWorker());
+
+    await w.fetchAndLock();
+    await w.completeTask('t-1', {});
+    await w.failTask('t-1', 'boom');
+
+    expect(callOptions()).toEqual([
+      expect.objectContaining({ auth: { username: 'svc', password: 'pw' } }),
+      expect.objectContaining({ auth: { username: 'svc', password: 'pw' } }),
+      expect.objectContaining({ auth: { username: 'svc', password: 'pw' } }),
+    ]);
+  });
+
+  it('sends no auth when no credentials are configured', async () => {
+    mockPost.mockResolvedValue({ data: [] });
+    const w = internals(new ExternalTaskWorker());
+
+    await w.fetchAndLock();
+    await w.completeTask('t-1', {});
+    await w.failTask('t-1', 'boom');
+
+    for (const options of callOptions()) {
+      expect(options).not.toHaveProperty('auth');
+    }
   });
 });
 
