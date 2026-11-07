@@ -1,0 +1,22 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Contact: mailto:steven.gort@ictu.nl
+Expires: 2026-03-21T11:00:00.000Z
+Canonical: https://nextcloud.open-regels.nl/.well-known/security.txt
+Encryption: https://nextcloud.open-regels.nl/gpg.asc
+Preferred-Languages: nl, en
+-----BEGIN PGP SIGNATURE-----
+
+iQGzBAEBCgAdFiEEr56E2WFWj0yTZACXrpd08O9HN2wFAmjEMAgACgkQrpd08O9H
+N2yquQwAmDgvfw38r8l3FxaiXQtCPVzOfuT5YStvNgfFNibDkXLYAGPSqFrT9z2J
+h5bvTPsc1dthmg+ozG5/jWIqJbzwixbFPKYEsW5Fribnn3r0UnQG28GEwf6ypPJE
+nzOnLfLd/IKLsU1I+FyeaAE4Igdvw+PgO4CQUS7SjRLu+w+iUud+tcGMrmx/X+9p
+JMAOKYqQGzV3oiAMxNBZXp6+mpb71u/NgLLa+rdrpE1T7bpu9axzNKa/4MxfXbpY
+0jMzLQzxfnA6/scj4w22GgWeTRW82YuWnQT1aEuIyNU7jlqGyDD8z4GzcSWxW9GL
+NZqmKrttqmUfEp1e4m9HlYco1w2RI4aoRWRITZqc2TO7tvTH99mGKL+bY9WZxOWG
+A+b66FaRdCINry6Xb40lN4F7eFNDwFts8l/sryPYi2ondAZt+Wx3jVGxh48VDJtM
+Kh6x5pMjpGAOo6pG0TyDXmuv2IeIG/owIh1hJbQ6hvZJQcaPmwNYXU3/SKxVBCYR
+2jtorZ1K
+=tJAf
+-----END PGP SIGNATURE-----
