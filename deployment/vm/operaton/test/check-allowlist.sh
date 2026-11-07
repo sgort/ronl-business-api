@@ -111,6 +111,10 @@ echo "-- CORS"
 anon GET "$ER/decision-definition/key/op415_public/xml" -H "Origin: $ORIGIN" >/dev/null
 check "public GET carries Access-Control-Allow-Origin *" '*' "$(header_value Access-Control-Allow-Origin)"
 check "public GET carries no Access-Control-Allow-Credentials" '' "$(header_value Access-Control-Allow-Credentials)"
+# Exactly one: a second copy (the engine's own CORS) makes browsers reject it.
+check "  ... exactly one Access-Control-Allow-Origin" 1 "$(grep -ci '^access-control-allow-origin:' "$head_file")"
+anon POST "$ER/decision-definition/key/op415_public/evaluate" -H "Origin: $ORIGIN" $JSON -d "$EVAL_BODY" >/dev/null
+check "public evaluate carries exactly one Access-Control-Allow-Origin" 1 "$(grep -ci '^access-control-allow-origin:' "$head_file")"
 s=$(anon OPTIONS "$ER/decision-definition/key/op415_public/evaluate" -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type')
 check "preflight on a public evaluate answers" 204 "$s"
 check "  ... with Access-Control-Allow-Origin *" '*' "$(header_value Access-Control-Allow-Origin)"
