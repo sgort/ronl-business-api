@@ -83,7 +83,7 @@ services:
   # packages/backend/.env.example. Volume permissions are fixed by the
   # operaton-init service above before this container starts.
   operaton:
-    image: operaton/operaton:2.1.5@sha256:ed5d68637e2024dee93c3de19472d3ba4e835073c7c8d66f2bd3f36c15616892
+    image: operaton/operaton:2.2.0@sha256:b1168e06bab3fc05a33e4c5775033d500c64324ab00721283c5d7547318cba00
     container_name: ronl-operaton
     environment:
       TZ: Europe/Amsterdam
