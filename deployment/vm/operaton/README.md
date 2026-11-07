@@ -72,9 +72,27 @@ does not check. Step 1 has been running since 7 November 2026 (#424).
    | `ronl-linkeddata-backend-acc`  | `RONL-Preproduction` | `ldeBackendAcc`  |
    | `ronl-linkeddata-backend-prod` | `RONL-Preproduction` | `ldeBackendProd` |
 
-   RBA PROD's stray `OPERATON_URL` setting can go in the same pass. Restart each app, and check that `/v1/health`
-   reports Operaton up: `acc.api.open-regels.nl`, `api.open-regels.nl`,
-   `acc.backend.linkeddata.open-regels.nl` and `backend.linkeddata.open-regels.nl`.
+   RBA PROD's stray `OPERATON_URL` setting can go in the same pass. A setting change does not reliably restart an
+   app, but the deploys in step 4 do (ACC on merge, PROD on promotion), so every app reads its new values before
+   step 6.
+
+   **Check each password now**, while a mismatch is still harmless. The engine ignores credentials until step 6;
+   after it, a backend with a wrong password fails a login every ~20 s and locks its own account within minutes.
+   The Cockpit login checks passwords already, and every service account is in `operaton-admin`. It needs a CSRF
+   token first; without one it answers 403 before looking at the password.
+
+   ```sh
+   B=https://operaton.open-regels.nl/operaton; J=$(mktemp)
+   curl -s -c "$J" -o /dev/null "$B/app/cockpit/"
+   T=$(awk '$6=="XSRF-TOKEN"{print $7}' "$J")
+   curl -s -o /dev/null -w '%{http_code}\n' -b "$J" -H "X-XSRF-TOKEN: $T" -X POST \
+     --data-urlencode 'username=rbaBackendAcc' --data-urlencode 'password=<from the App Service>' \
+     "$B/api/admin/auth/user/default/login/cockpit"
+   rm -f "$J"
+   ```
+
+   200: the password matches. 401: it does not; fix the App Service or the account. Check each account once, as
+   every failure counts towards the lockout (see Accounts).
 
 4. **Merge the code**, and promote it to PROD: the RBA #415 pull request and the linked-data-explorer one
    (`fix/operaton-basic-auth`). Both backends then refuse to start on ACC or PROD without the settings from step 3,
