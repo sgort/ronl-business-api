@@ -100,6 +100,21 @@ nextcloud.open-regels.nl {
 }
 
 operaton.open-regels.nl {
+    # TEMPORARY (#415, rollout step 1): record every /engine-rest caller for
+    # 7 days, so no caller is missed before the engine requires a login.
+    # Removed again in rollout step 8, and the log file deleted.
+    # Caddy redacts Authorization in access logs (log_credentials is off by
+    # default), so no credentials are written. Read it on the VM with:
+    #   docker exec caddy cat /data/logs/operaton-engine-rest.log
+    log operaton_engine_rest {
+        output file /data/logs/operaton-engine-rest.log {
+            roll_keep_for 168h
+        }
+        format json
+    }
+    @not_engine_rest not path /engine-rest/*
+    log_skip @not_engine_rest
+
     # Handle static files
     handle /.well-known/* {
         root * /srv/static/operaton
