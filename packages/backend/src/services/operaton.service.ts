@@ -15,6 +15,7 @@ import type { DocumentTemplate } from '@services/document/documentTemplate.types
 import type { EdocsAuthor } from '@services/edocs.service';
 import { edocsAuthorFrom } from '@services/edocs-author';
 import { parseSwimlane } from '../rip-swimlane/bpmn-swimlane';
+import { engineSegment } from '@utils/engine-segment';
 
 const logger = createLogger('operaton-service');
 
@@ -198,7 +199,9 @@ export class OperatonService {
    * Returns the raw Operaton response object.
    */
   async getDecisionDefinition(key: string): Promise<unknown> {
-    const response = await this.client.get(`/decision-definition/key/${key}`);
+    // Encoded: this client runs as an operaton-admin account (#415), so a "../"
+    // in a caller's key must not reach another engine endpoint.
+    const response = await this.client.get(`/decision-definition/key/${engineSegment(key)}`);
     return response.data;
   }
 
@@ -372,7 +375,7 @@ export class OperatonService {
       let response;
       try {
         response = await this.client.post(
-          `/process-definition/key/${processKey}/tenant-id/${scopeTenant}/start`,
+          `/process-definition/key/${engineSegment(processKey)}/tenant-id/${engineSegment(scopeTenant)}/start`,
           request
         );
       } catch (scopedError) {
@@ -381,7 +384,10 @@ export class OperatonService {
         if (!scopedMessage.includes('No matching process definition with key')) {
           throw scopedError;
         }
-        response = await this.client.post(`/process-definition/key/${processKey}/start`, request);
+        response = await this.client.post(
+          `/process-definition/key/${engineSegment(processKey)}/start`,
+          request
+        );
       }
 
       logger.info('Process started successfully', {
@@ -418,7 +424,9 @@ export class OperatonService {
    */
   async getProcessInstance(processInstanceId: string): Promise<ProcessInstance> {
     try {
-      const response = await this.client.get(`/process-instance/${processInstanceId}`);
+      const response = await this.client.get(
+        `/process-instance/${engineSegment(processInstanceId)}`
+      );
       return response.data;
     } catch (error) {
       logger.error('Failed to get process instance', {
@@ -442,10 +450,15 @@ export class OperatonService {
       // getAccessVariables).
       const response =
         options.deserializeValues === false
-          ? await this.client.get(`/process-instance/${processInstanceId}/variables`, {
-              params: { deserializeValues: false },
-            })
-          : await this.client.get(`/process-instance/${processInstanceId}/variables`);
+          ? await this.client.get(
+              `/process-instance/${engineSegment(processInstanceId)}/variables`,
+              {
+                params: { deserializeValues: false },
+              }
+            )
+          : await this.client.get(
+              `/process-instance/${engineSegment(processInstanceId)}/variables`
+            );
       return response.data;
     } catch (error) {
       logger.error('Failed to get process variables', {
@@ -470,9 +483,12 @@ export class OperatonService {
     processInstanceId: string
   ): Promise<{ municipality: unknown; applicantId: unknown }> {
     try {
-      const response = await this.client.get(`/process-instance/${processInstanceId}/variables`, {
-        params: { deserializeValues: false },
-      });
+      const response = await this.client.get(
+        `/process-instance/${engineSegment(processInstanceId)}/variables`,
+        {
+          params: { deserializeValues: false },
+        }
+      );
       const variables = response.data as Record<string, OperatonVariable>;
       return {
         municipality: variables.municipality?.value,
@@ -552,7 +568,9 @@ export class OperatonService {
    * and still answers once the instance has ended.
    */
   async getProcessLineage(processInstanceId: string): Promise<ProcessLineage> {
-    const res = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const res = await this.client.get(
+      `/history/process-instance/${engineSegment(processInstanceId)}`
+    );
     const h = res.data as {
       id: string;
       processDefinitionKey: string;
@@ -572,7 +590,7 @@ export class OperatonService {
    */
   async deleteProcessInstance(processInstanceId: string, reason?: string): Promise<void> {
     try {
-      await this.client.delete(`/process-instance/${processInstanceId}`, {
+      await this.client.delete(`/process-instance/${engineSegment(processInstanceId)}`, {
         params: { skipCustomListeners: false, skipIoMappings: false },
         data: { reason: reason || 'Cancelled by user' },
       });
@@ -833,7 +851,9 @@ export class OperatonService {
   private async getCachedBpmnXml(processDefinitionId: string): Promise<string> {
     const cached = this.bpmnXmlCache.get(processDefinitionId);
     if (cached) return cached;
-    const res = await this.client.get(`/process-definition/${processDefinitionId}/xml`);
+    const res = await this.client.get(
+      `/process-definition/${engineSegment(processDefinitionId)}/xml`
+    );
     const xml: string = res.data.bpmn20Xml;
     this.bpmnXmlCache.set(processDefinitionId, xml);
     return xml;
@@ -871,7 +891,9 @@ export class OperatonService {
     processInstanceId: string,
     taskDefinitionKey: string
   ): Promise<{ templateId: string; template: DocumentTemplate } | null> {
-    const histRes = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const histRes = await this.client.get(
+      `/history/process-instance/${engineSegment(processInstanceId)}`
+    );
     const processDefinitionId: string = histRes.data.processDefinitionId;
 
     const bpmnXml = await this.getCachedBpmnXml(processDefinitionId);
@@ -912,13 +934,19 @@ export class OperatonService {
     taskDefinitionKey: string | undefined,
     templateId: string
   ): Promise<DocumentTemplate> {
-    const histRes = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const histRes = await this.client.get(
+      `/history/process-instance/${engineSegment(processInstanceId)}`
+    );
     const processDefinitionId: string = histRes.data.processDefinitionId;
 
-    const procDefRes = await this.client.get(`/process-definition/${processDefinitionId}`);
+    const procDefRes = await this.client.get(
+      `/process-definition/${engineSegment(processDefinitionId)}`
+    );
     const deploymentId: string = procDefRes.data.deploymentId;
 
-    const resourcesRes = await this.client.get(`/deployment/${deploymentId}/resources`);
+    const resourcesRes = await this.client.get(
+      `/deployment/${engineSegment(deploymentId)}/resources`
+    );
     const resources: Array<{ id: string; name: string; deploymentId: string }> = resourcesRes.data;
     const resource = resources.find((r) => r.name === `${templateId}.document`);
     if (!resource) {
@@ -931,7 +959,7 @@ export class OperatonService {
     }
 
     const dataRes = await this.client.get(
-      `/deployment/${deploymentId}/resources/${resource.id}/data`,
+      `/deployment/${engineSegment(deploymentId)}/resources/${engineSegment(resource.id)}/data`,
       {
         responseType: 'text',
       }
@@ -1073,7 +1101,7 @@ export class OperatonService {
     variables: Record<string, OperatonVariable>
   ): Promise<void> {
     try {
-      await this.client.post(`/process-instance/${processInstanceId}/variables`, {
+      await this.client.post(`/process-instance/${engineSegment(processInstanceId)}/variables`, {
         modifications: variables,
       });
     } catch (error) {
@@ -1155,11 +1183,15 @@ export class OperatonService {
 
   async getDecisionDocument(processInstanceId: string): Promise<Record<string, unknown>> {
     // 1. Resolve processDefinitionId via history API (active /process-instance/{id} returns 404 for COMPLETED)
-    const histRes = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const histRes = await this.client.get(
+      `/history/process-instance/${engineSegment(processInstanceId)}`
+    );
     const processDefinitionId: string = histRes.data.processDefinitionId;
 
     // 2. Fetch BPMN XML for that definition
-    const xmlRes = await this.client.get(`/process-definition/${processDefinitionId}/xml`);
+    const xmlRes = await this.client.get(
+      `/process-definition/${engineSegment(processDefinitionId)}/xml`
+    );
     const bpmnXml: string = xmlRes.data.bpmn20Xml;
 
     // 3. The document of the path the instance took: the most recently completed
@@ -1173,11 +1205,15 @@ export class OperatonService {
     }
 
     // 4. Get deploymentId from the process definition record
-    const procDefRes = await this.client.get(`/process-definition/${processDefinitionId}`);
+    const procDefRes = await this.client.get(
+      `/process-definition/${engineSegment(processDefinitionId)}`
+    );
     const deploymentId: string = procDefRes.data.deploymentId;
 
     // 5. List resources in that deployment, find the .document file
-    const resourcesRes = await this.client.get(`/deployment/${deploymentId}/resources`);
+    const resourcesRes = await this.client.get(
+      `/deployment/${engineSegment(deploymentId)}/resources`
+    );
     const resources: Array<{ id: string; name: string; deploymentId: string }> = resourcesRes.data;
     const docResource = resources.find((r) => r.name === `${documentRef}.document`);
     if (!docResource) {
@@ -1186,7 +1222,7 @@ export class OperatonService {
 
     // 6. Fetch the raw JSON of the DocumentTemplate resource
     const dataRes = await this.client.get(
-      `/deployment/${deploymentId}/resources/${docResource.id}/data`,
+      `/deployment/${engineSegment(deploymentId)}/resources/${engineSegment(docResource.id)}/data`,
       { responseType: 'text' }
     );
     return JSON.parse(dataRes.data) as Record<string, unknown>;
@@ -1261,7 +1297,7 @@ export class OperatonService {
             return;
           }
           try {
-            const defRes = await this.client.get(`/process-definition/${defId}`);
+            const defRes = await this.client.get(`/process-definition/${engineSegment(defId)}`);
             defKeyMap[defId] = defRes.data.key ?? defId;
           } catch {
             defKeyMap[defId] = defId;
@@ -1455,7 +1491,7 @@ export class OperatonService {
    */
   async getTask(taskId: string): Promise<Task> {
     try {
-      const response = await this.client.get(`/task/${taskId}`);
+      const response = await this.client.get(`/task/${engineSegment(taskId)}`);
       return response.data;
     } catch (error) {
       logger.error('Failed to get task', {
@@ -1489,7 +1525,7 @@ export class OperatonService {
     try {
       logger.info('Completing task', { taskId });
 
-      await this.client.post(`/task/${taskId}/complete`, request);
+      await this.client.post(`/task/${engineSegment(taskId)}/complete`, request);
 
       logger.info('Task completed successfully', { taskId });
     } catch (error) {
@@ -1506,7 +1542,7 @@ export class OperatonService {
    */
   async claimTask(taskId: string, userId: string): Promise<void> {
     try {
-      await this.client.post(`/task/${taskId}/claim`, { userId });
+      await this.client.post(`/task/${engineSegment(taskId)}/claim`, { userId });
 
       logger.info('Task claimed', { taskId, userId });
     } catch (error) {
@@ -1539,9 +1575,12 @@ export class OperatonService {
         },
       };
 
-      const response = await this.client.post(`/decision-definition/key/${decisionKey}/evaluate`, {
-        variables: evaluationVariables,
-      });
+      const response = await this.client.post(
+        `/decision-definition/key/${engineSegment(decisionKey)}/evaluate`,
+        {
+          variables: evaluationVariables,
+        }
+      );
 
       logger.info('DMN evaluation completed', { decisionKey });
 
@@ -1640,7 +1679,7 @@ export class OperatonService {
    */
   async getDeployedTaskForm(taskId: string): Promise<{ data: string; contentType: string }> {
     try {
-      const response = await this.client.get(`/task/${taskId}/deployed-form`, {
+      const response = await this.client.get(`/task/${engineSegment(taskId)}/deployed-form`, {
         responseType: 'text',
       });
       // String(), not a cast. Axios 1.18 widened header values to
@@ -1750,13 +1789,19 @@ export class OperatonService {
     }
 
     // 2. Resolve deployment
-    const histRes = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const histRes = await this.client.get(
+      `/history/process-instance/${engineSegment(processInstanceId)}`
+    );
     const processDefinitionId: string = histRes.data.processDefinitionId;
-    const procDefRes = await this.client.get(`/process-definition/${processDefinitionId}`);
+    const procDefRes = await this.client.get(
+      `/process-definition/${engineSegment(processDefinitionId)}`
+    );
     const deploymentId: string = procDefRes.data.deploymentId;
 
     // 3. List resources
-    const resourcesRes = await this.client.get(`/deployment/${deploymentId}/resources`);
+    const resourcesRes = await this.client.get(
+      `/deployment/${engineSegment(deploymentId)}/resources`
+    );
     const resources: Array<{ id: string; name: string }> = resourcesRes.data;
 
     // 4. Fetch each named .document resource, null if absent
@@ -1764,7 +1809,7 @@ export class OperatonService {
       const resource = resources.find((r) => r.name === `${name}.document`);
       if (!resource) return null;
       const dataRes = await this.client.get(
-        `/deployment/${deploymentId}/resources/${resource.id}/data`,
+        `/deployment/${engineSegment(deploymentId)}/resources/${engineSegment(resource.id)}/data`,
         { responseType: 'text' }
       );
       return JSON.parse(dataRes.data) as Record<string, unknown>;
@@ -2066,13 +2111,19 @@ export class OperatonService {
     }
 
     // 2. Resolve deployment
-    const histRes = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const histRes = await this.client.get(
+      `/history/process-instance/${engineSegment(processInstanceId)}`
+    );
     const processDefinitionId: string = histRes.data.processDefinitionId;
-    const procDefRes = await this.client.get(`/process-definition/${processDefinitionId}`);
+    const procDefRes = await this.client.get(
+      `/process-definition/${engineSegment(processDefinitionId)}`
+    );
     const deploymentId: string = procDefRes.data.deploymentId;
 
     // 3. List resources
-    const resourcesRes = await this.client.get(`/deployment/${deploymentId}/resources`);
+    const resourcesRes = await this.client.get(
+      `/deployment/${engineSegment(deploymentId)}/resources`
+    );
     const resources: Array<{ id: string; name: string }> = resourcesRes.data;
 
     // 4. Fetch each named .document resource, null if absent
@@ -2080,7 +2131,7 @@ export class OperatonService {
       const resource = resources.find((r) => r.name === `${name}.document`);
       if (!resource) return null;
       const dataRes = await this.client.get(
-        `/deployment/${deploymentId}/resources/${resource.id}/data`,
+        `/deployment/${engineSegment(deploymentId)}/resources/${engineSegment(resource.id)}/data`,
         { responseType: 'text' }
       );
       return JSON.parse(dataRes.data) as Record<string, unknown>;

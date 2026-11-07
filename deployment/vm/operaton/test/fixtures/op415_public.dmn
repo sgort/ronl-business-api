@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- #415 test fixture: a public rule. Evaluated anonymously through the allowlist. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:operaton="http://operaton.org/schema/1.0/dmn"
+             id="op415_public_definitions" name="op415 public" namespace="https://open-regels.nl/op415">
+  <decision id="op415_public" name="op415 public" operaton:historyTimeToLive="P1D">
+    <decisionTable id="op415_public_table" hitPolicy="FIRST">
+      <input id="op415_in" label="x">
+        <inputExpression id="op415_in_expr" typeRef="integer"><text>x</text></inputExpression>
+      </input>
+      <output id="op415_out" name="result" typeRef="string" />
+      <rule id="op415_rule_big">
+        <inputEntry id="op415_rule_big_in"><text>&gt;= 10</text></inputEntry>
+        <outputEntry id="op415_rule_big_out"><text>"big"</text></outputEntry>
+      </rule>
+      <rule id="op415_rule_small">
+        <inputEntry id="op415_rule_small_in"><text>-</text></inputEntry>
+        <outputEntry id="op415_rule_small_out"><text>"small"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

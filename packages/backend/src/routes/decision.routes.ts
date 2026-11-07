@@ -115,21 +115,9 @@ router.get('/:key', async (req, res) => {
   }
 
   try {
-    // Call Operaton to get decision definition
-    const response = await fetch(
-      `${operatonService['client'].defaults.baseURL}/decision-definition/key/${key}`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const definition = await response.json();
+    // Through the shared client, which carries the engine login (#415); a
+    // bare fetch carries none and is refused.
+    const definition = await operatonService.getDecisionDefinition(key);
 
     res.json({
       success: true,

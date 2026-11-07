@@ -3,7 +3,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
-import { OPERATON_URL } from './target';
+import { OPERATON_URL, operatonFetch } from './target';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -65,22 +65,26 @@ async function askYesNo(question: string): Promise<boolean> {
  * parent's history does not cascade to them).
  */
 async function deleteHistory(operatonUrl: string, businessKey: string): Promise<number> {
-  const parentsRes = await fetch(
+  const parentsRes = await operatonFetch(
     `${operatonUrl}/history/process-instance?processInstanceBusinessKey=${encodeURIComponent(businessKey)}`
   );
   const parents = (await parentsRes.json()) as Array<{ id: string }>;
 
   let deleted = 0;
   for (const parent of parents) {
-    const subsRes = await fetch(
+    const subsRes = await operatonFetch(
       `${operatonUrl}/history/process-instance?superProcessInstanceId=${parent.id}`
     );
     const subs = (await subsRes.json()) as Array<{ id: string }>;
     for (const sub of subs) {
-      await fetch(`${operatonUrl}/history/process-instance/${sub.id}`, { method: 'DELETE' });
+      await operatonFetch(`${operatonUrl}/history/process-instance/${sub.id}`, {
+        method: 'DELETE',
+      });
       deleted++;
     }
-    await fetch(`${operatonUrl}/history/process-instance/${parent.id}`, { method: 'DELETE' });
+    await operatonFetch(`${operatonUrl}/history/process-instance/${parent.id}`, {
+      method: 'DELETE',
+    });
     deleted++;
   }
   return deleted;
@@ -103,7 +107,7 @@ async function deleteHistory(operatonUrl: string, businessKey: string): Promise<
  */
 async function hasHistory(operatonUrl: string, businessKey: string): Promise<boolean> {
   try {
-    const res = await fetch(
+    const res = await operatonFetch(
       `${operatonUrl}/history/process-instance/count?processInstanceBusinessKey=${encodeURIComponent(businessKey)}`
     );
     if (!res.ok) return true; // can't tell — offer it rather than drop it

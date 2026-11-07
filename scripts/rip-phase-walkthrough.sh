@@ -42,6 +42,8 @@
 #
 # Optional overrides (env vars):
 #   OPERATON_URL   engine REST base       (default http://localhost:8081/engine-rest)
+#   OPERATON_USERNAME, OPERATON_PASSWORD   engine login, an operaton-admin
+#                  account (default demo/demo, the local stack; #415)
 #   BACKEND_URL    backend base           (default http://localhost:3002)
 #   KEYCLOAK_URL   Keycloak base          (default http://localhost:8080)
 #   KEYCLOAK_REALM realm                  (default ronl)
@@ -56,6 +58,24 @@ set -uo pipefail
 SCRIPT_NAME="scripts/$(basename "${BASH_SOURCE[0]}")"
 
 OPERATON_URL="${OPERATON_URL:-http://localhost:8081/engine-rest}"
+# The engine requires a login (#415). Every call to ${OPERATON_URL} goes through
+# ocurl. A local engine defaults to the stack's demo/demo; a remote one (ACC,
+# PROD) needs an operaton-admin account in OPERATON_USERNAME and
+# OPERATON_PASSWORD, and the script refuses to guess: demo/demo against the VM
+# is a failed login on every call, and Operaton locks an account after ten.
+if [ -z "${OPERATON_USERNAME:-}" ] || [ -z "${OPERATON_PASSWORD:-}" ]; then
+  case "$OPERATON_URL" in
+    http://localhost:* | http://localhost/* | http://127.0.0.1:* | http://127.0.0.1/*)
+      OPERATON_USERNAME=demo
+      OPERATON_PASSWORD=demo
+      ;;
+    *)
+      echo "OPERATON_USERNAME and OPERATON_PASSWORD are required for $OPERATON_URL (only a local engine defaults to demo/demo)" >&2
+      exit 2
+      ;;
+  esac
+fi
+ocurl() { curl -u "${OPERATON_USERNAME}:${OPERATON_PASSWORD}" "$@"; }
 BACKEND_URL="${BACKEND_URL:-http://localhost:3002}"
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8080}"
 KEYCLOAK_REALM="${KEYCLOAK_REALM:-ronl}"
@@ -236,7 +256,7 @@ if [[ -n "$CLEAN_INSTANCE_ID" ]]; then
   section "Cleaning up ${CLEAN_INSTANCE_ID}"
   for u in "process-instance/${CLEAN_INSTANCE_ID}?skipCustomListeners=true&skipIoMappings=true" \
            "history/process-instance/${CLEAN_INSTANCE_ID}"; do
-    code=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "${OPERATON_URL}/${u}")
+    code=$(ocurl -s -o /dev/null -w '%{http_code}' -X DELETE "${OPERATON_URL}/${u}")
     case "$code" in
       200|204) pass "deleted ${u%%\?*}" ;;
       404)     pass "already gone: ${u%%\?*}" ;;
@@ -255,7 +275,7 @@ fi
 # ── Pre-flight ────────────────────────────────────────────────────────────────
 section "Pre-flight"
 
-code=$(curl -s -o /dev/null -w '%{http_code}' "${OPERATON_URL}/engine")
+code=$(ocurl -s -o /dev/null -w '%{http_code}' "${OPERATON_URL}/engine")
 [[ "$code" == "200" ]] || { fail "Operaton not reachable at ${OPERATON_URL} (HTTP ${code:-000})"; fatal; }
 pass "Operaton reachable"
 
@@ -382,7 +402,7 @@ VARIABLES_JSON=$(jq -n \
 # caught three scripts in this repo.
 candidates_for() { # $1 = predecessor process key, $2 = this phase's process key
   local prev_key="$1" this_key="$2" finished taken
-  finished=$(curl -s -X POST "${OPERATON_URL}/history/process-instance" \
+  finished=$(ocurl -s -X POST "${OPERATON_URL}/history/process-instance" \
     -H 'Content-Type: application/json' \
     -d "$(jq -n --arg k "$prev_key" --arg t "$TENANT" \
           '{processDefinitionKey: $k, finished: true,
@@ -392,7 +412,7 @@ candidates_for() { # $1 = predecessor process key, $2 = this phase's process key
   # "Already started" covers running AND finished instances of this phase, the
   # same union the board uses -- a project mid-R3.1 is no more a candidate for
   # R3.1 than one that has finished it.
-  taken=$(curl -s -X POST "${OPERATON_URL}/history/process-instance" \
+  taken=$(ocurl -s -X POST "${OPERATON_URL}/history/process-instance" \
     -H 'Content-Type: application/json' \
     -d "$(jq -n --arg k "$this_key" --arg t "$TENANT" \
           '{processDefinitionKey: $k,
@@ -477,7 +497,7 @@ drive_phase() {
   [[ -n "$PHASE_NOTE" ]] && echo "  note: ${PHASE_NOTE}"
 
   local defs
-  defs=$(curl -s "${OPERATON_URL}/process-definition?key=${PROCESS_KEY}&latestVersion=true")
+  defs=$(ocurl -s "${OPERATON_URL}/process-definition?key=${PROCESS_KEY}&latestVersion=true")
   if [[ "$(echo "$defs" | jq 'length')" == "0" ]]; then
     fail "${PROCESS_KEY} is not deployed on this engine"
     echo "  Deploy it via LDE first, then add its key to packages/shared/src/rip-phases.ts."
@@ -512,31 +532,31 @@ drive_phase() {
   pass "started ${RESULT_INSTANCE_ID} (businessKey=${RESULT_BUSINESS_KEY})"
 
   local municipality
-  municipality=$(curl -s "${OPERATON_URL}/process-instance/${RESULT_INSTANCE_ID}/variables/municipality" | jq -r '.value // empty')
+  municipality=$(ocurl -s "${OPERATON_URL}/process-instance/${RESULT_INSTANCE_ID}/variables/municipality" | jq -r '.value // empty')
   [[ -n "$municipality" ]] || { fail "no municipality variable — the instance would be INVISIBLE on the board"; return 1; }
   pass "municipality=${municipality}"
 
   local done=0 waited found tasks count id name key stop
   RESULT_LEFT_OPEN=""
   while true; do
-    tasks=$(curl -s "${OPERATON_URL}/task?processInstanceId=${RESULT_INSTANCE_ID}")
+    tasks=$(ocurl -s "${OPERATON_URL}/task?processInstanceId=${RESULT_INSTANCE_ID}")
     count=$(echo "$tasks" | jq 'length' 2>/dev/null); [[ -z "$count" || "$count" == "null" ]] && count=0
 
     if [[ "$count" == "0" ]]; then
       # Either the phase is finished, or an external task is in flight and the
       # backend worker has not picked it up yet. Distinguish the two rather
       # than guessing: ask the engine whether the instance still exists.
-      if [[ "$(curl -s -o /dev/null -w '%{http_code}' "${OPERATON_URL}/process-instance/${RESULT_INSTANCE_ID}")" == "404" ]]; then
+      if [[ "$(ocurl -s -o /dev/null -w '%{http_code}' "${OPERATON_URL}/process-instance/${RESULT_INSTANCE_ID}")" == "404" ]]; then
         pass "phase complete — ${done} task(s) completed, instance ended"
         return 0
       fi
       waited=0; found=false
       while [[ "$waited" -lt "$TASK_POLL_TIMEOUT" ]]; do
         sleep "$TASK_POLL_INTERVAL"; waited=$((waited + TASK_POLL_INTERVAL))
-        tasks=$(curl -s "${OPERATON_URL}/task?processInstanceId=${RESULT_INSTANCE_ID}")
+        tasks=$(ocurl -s "${OPERATON_URL}/task?processInstanceId=${RESULT_INSTANCE_ID}")
         count=$(echo "$tasks" | jq 'length' 2>/dev/null); [[ -z "$count" || "$count" == "null" ]] && count=0
         [[ "$count" != "0" ]] && { found=true; break; }
-        [[ "$(curl -s -o /dev/null -w '%{http_code}' "${OPERATON_URL}/process-instance/${RESULT_INSTANCE_ID}")" == "404" ]] && {
+        [[ "$(ocurl -s -o /dev/null -w '%{http_code}' "${OPERATON_URL}/process-instance/${RESULT_INSTANCE_ID}")" == "404" ]] && {
           pass "phase complete — ${done} task(s) completed, instance ended"; return 0; }
       done
       if [[ "$found" != "true" ]]; then
@@ -585,7 +605,7 @@ drive_phase() {
       return 1
     fi
 
-    resp=$(curl -s -w '\n%{http_code}' -X POST "${OPERATON_URL}/task/${id}/complete" \
+    resp=$(ocurl -s -w '\n%{http_code}' -X POST "${OPERATON_URL}/task/${id}/complete" \
       -H 'Content-Type: application/json' \
       -d "$(jq -n --argjson v "$VARIABLES_JSON" '{variables: $v}')")
     code=$(echo "$resp" | tail -n1)
@@ -609,7 +629,7 @@ if [[ "$CHAIN" == "true" ]]; then
   LAST=""
   for p in $LADDER; do
     phase_config "$p" || continue
-    if [[ "$(curl -s "${OPERATON_URL}/process-definition?key=${PROCESS_KEY}&latestVersion=true" | jq 'length')" == "0" ]]; then
+    if [[ "$(ocurl -s "${OPERATON_URL}/process-definition?key=${PROCESS_KEY}&latestVersion=true" | jq 'length')" == "0" ]]; then
       echo ""
       echo "── ${p} — ${PROCESS_KEY} not deployed, stopping the chain here ──"
       break
@@ -619,7 +639,7 @@ if [[ "$CHAIN" == "true" ]]; then
 
   for p in $LADDER; do
     phase_config "$p" || continue
-    [[ "$(curl -s "${OPERATON_URL}/process-definition?key=${PROCESS_KEY}&latestVersion=true" | jq 'length')" == "0" ]] && break
+    [[ "$(ocurl -s "${OPERATON_URL}/process-definition?key=${PROCESS_KEY}&latestVersion=true" | jq 'length')" == "0" ]] && break
     mode="complete"
     # The final deployed phase stops before its terminal task(s) unless asked
     # to finish, so there is something left to click through on the board.

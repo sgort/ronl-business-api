@@ -516,6 +516,16 @@ function validateConfig() {
     errors.push('OPERATON_BASE_URL is required in production');
   }
 
+  // #415: the engine's REST API requires a login. Without these the backend,
+  // its external-task worker and the AI assistant would all fail later, in the
+  // background, so a deploy without them must not start.
+  if (!process.env.OPERATON_USERNAME && config.nodeEnv === 'production') {
+    errors.push('OPERATON_USERNAME is required in production');
+  }
+  if (!process.env.OPERATON_PASSWORD && config.nodeEnv === 'production') {
+    errors.push('OPERATON_PASSWORD is required in production');
+  }
+
   if (!config.anthropic.apiKey) {
     errors.push('ANTHROPIC_API_KEY is required');
   } else if (config.nodeEnv === 'production' && isPlaceholder(config.anthropic.apiKey)) {

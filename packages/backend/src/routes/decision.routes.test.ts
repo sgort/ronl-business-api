@@ -35,6 +35,7 @@ jest.mock('@middleware/tenant.middleware', () => ({
 jest.mock('@services/operaton.service', () => ({
   operatonService: {
     evaluateDecision: jest.fn(),
+    getDecisionDefinition: jest.fn(),
     client: { defaults: { baseURL: 'http://operaton' } },
   },
 }));
@@ -51,7 +52,10 @@ import decisionRouter from './decision.routes';
 import { operatonService } from '@services/operaton.service';
 import { auditLog } from '@middleware/audit.middleware';
 
-const svc = operatonService as unknown as { evaluateDecision: jest.Mock };
+const svc = operatonService as unknown as {
+  evaluateDecision: jest.Mock;
+  getDecisionDefinition: jest.Mock;
+};
 const mockAuditLog = auditLog as jest.Mock;
 const mockFetch = jest.fn();
 
@@ -140,9 +144,11 @@ describe('POST /:key/evaluate', () => {
 
 describe('GET /:key', () => {
   it('returns the decision definition', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ id: 'def-1', key: 'MyDec', name: 'My decision', version: 1 }),
+    svc.getDecisionDefinition.mockResolvedValue({
+      id: 'def-1',
+      key: 'MyDec',
+      name: 'My decision',
+      version: 1,
     });
 
     const res = await auth(request(app).get('/v1/decision/MyDec'));
@@ -150,22 +156,21 @@ describe('GET /:key', () => {
     expect(res.status).toBe(200);
     expectToMatchOperation(res, 'get', '/decision/{key}');
     expect(res.body.data).toEqual({ id: 'def-1', key: 'MyDec', name: 'My decision', version: 1 });
-    expect(mockFetch).toHaveBeenCalledWith(
-      'http://operaton/decision-definition/key/MyDec',
-      expect.any(Object)
-    );
   });
 
-  it('404 when the upstream lookup is not ok', async () => {
-    mockFetch.mockResolvedValue({ ok: false, status: 404 });
-    const res = await auth(request(app).get('/v1/decision/MyDec'));
-    expect(res.status).toBe(404);
-    expectToMatchOperation(res, 'get', '/decision/{key}');
-    expect(res.body.code).toBe('DECISION_NOT_FOUND');
+  it('looks the key up through the authenticated Operaton client, not a bare fetch (#415)', async () => {
+    // The engine requires a login: a bare fetch carries no credentials and is
+    // refused, so the lookup must go through operatonService's client.
+    svc.getDecisionDefinition.mockResolvedValue({ id: 'def-1' });
+
+    await auth(request(app).get('/v1/decision/MyDec'));
+
+    expect(svc.getDecisionDefinition).toHaveBeenCalledWith('MyDec');
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it('404 when the fetch throws', async () => {
-    mockFetch.mockRejectedValue(new Error('network'));
+  it('404 when the lookup fails', async () => {
+    svc.getDecisionDefinition.mockRejectedValue(new Error('Request failed with status code 404'));
     const res = await auth(request(app).get('/v1/decision/MyDec'));
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/decision/{key}');
@@ -205,19 +210,11 @@ describe('non-Error rejections', () => {
   });
 
   it('GET /:key still answers 404', async () => {
-    // fetch itself rejecting (DNS failure, connection refused) rather than
-    // answering !ok, so the rejection is whatever the runtime threw.
-    const fetchSpy = jest
-      .spyOn(globalThis, 'fetch')
-      .mockRejectedValue('socket hang up' as unknown as Error);
-    try {
-      const res = await auth(request(app).get('/v1/decision/MyDec'));
-      expect(res.status).toBe(404);
-      expectToMatchOperation(res, 'get', '/decision/{key}');
-      expect(res.body.code).toBe('DECISION_NOT_FOUND');
-    } finally {
-      fetchSpy.mockRestore();
-    }
+    svc.getDecisionDefinition.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/decision/MyDec'));
+    expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/decision/{key}');
+    expect(res.body.code).toBe('DECISION_NOT_FOUND');
   });
 });
 

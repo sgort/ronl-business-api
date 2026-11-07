@@ -46,6 +46,43 @@ beforeEach(() => {
   svc = new OperatonService();
 });
 
+describe('caller values cannot walk to another engine endpoint (#415)', () => {
+  // The client runs as an operaton-admin account; Express has already decoded
+  // route parameters, so "%2F" and "%3F" arrive as "/" and "?".
+  const EVIL = 'x/../../process-instance?';
+  const enginePaths = () =>
+    [mockClient.get, mockClient.post, mockClient.delete].flatMap((m) =>
+      m.mock.calls.map((c) => String(c[0]))
+    );
+
+  const expectContained = () => {
+    const paths = enginePaths();
+    expect(paths.length).toBeGreaterThan(0);
+    for (const p of paths) {
+      expect(p).not.toContain('/../');
+      expect(p).not.toContain('?');
+    }
+  };
+
+  it('completeTask', async () => {
+    mockClient.post.mockResolvedValue({ data: {} });
+    await svc.completeTask(EVIL, { variables: {} } as never).catch(() => undefined);
+    expectContained();
+  });
+
+  it('getProcessVariables', async () => {
+    mockClient.get.mockResolvedValue({ data: {} });
+    await svc.getProcessVariables(EVIL).catch(() => undefined);
+    expectContained();
+  });
+
+  it('evaluateDecision', async () => {
+    mockClient.post.mockResolvedValue({ data: [] });
+    await svc.evaluateDecision(EVIL, {}, 'flevoland').catch(() => undefined);
+    expectContained();
+  });
+});
+
 describe('passthrough queries', () => {
   it('listProcessInstances GETs /process-instance with params', async () => {
     mockClient.get.mockResolvedValue({ data: [{ id: 'p1' }] });
@@ -65,6 +102,16 @@ describe('passthrough queries', () => {
     mockClient.get.mockResolvedValue({ data: { id: 'd' } });
     await svc.getDecisionDefinition('MyDec');
     expect(mockClient.get).toHaveBeenCalledWith('/decision-definition/key/MyDec');
+  });
+
+  it('getDecisionDefinition encodes the key, so it cannot walk to another engine path', async () => {
+    // #415: the client runs as an operaton-admin service account, so an
+    // unencoded "../" in a caller's key would reach any engine endpoint.
+    mockClient.get.mockResolvedValue({ data: {} });
+    await svc.getDecisionDefinition('x/../../process-instance');
+    expect(mockClient.get).toHaveBeenCalledWith(
+      '/decision-definition/key/x%2F..%2F..%2Fprocess-instance'
+    );
   });
 
   it('getProcessInstance GETs and returns data; rethrows on error', async () => {

@@ -11,8 +11,12 @@ without credentials.
 
 That bypasses everything the Business API enforces in front of the engine: the per-case tenant check
 (`packages/backend/src/auth/tenant-access.ts`), level-of-assurance gating, and audit logging. The engine
-is the one instance shared by ACC and PROD, so this exposes production case data and lets anyone change
-it.
+is the one instance shared by ACC and PROD, so this exposes the case data of both tiers and lets anyone
+change it.
+
+Both tiers are a sandbox for rapid prototyping, with no real users or citizen data. PROD is the channel for
+more stable releases than ACC, not production in the usual sense. The fix still matters: it is what the
+architecture promises, and it has to be in place before anything real runs on this stack.
 
 The IOU Project Start Architecture records "a Business API stands between every portal and the engine;
 the engine is never reachable from outside" as a core decision (AB-13). This work makes that true, with
@@ -92,7 +96,7 @@ exactly the CORS reason.
 
 - **Switch on REST authentication** (HTTP basic) for `engine-rest`. In Operaton Run that is the
   `operaton.bpm.run.auth.enabled` setting (environment `OPERATON_BPM_RUN_AUTH_ENABLED=true`). _To verify
-  on localhost:_ the exact key in Operaton 2.1.x.
+  on localhost:_ the exact key in Operaton 1.0.0, the version the VM runs.
 - **Switch on authorisation checks** (`operaton.bpm.authorization.enabled=true`), so the engine itself
   limits what each account may do.
 - **Accounts:**
@@ -101,7 +105,7 @@ exactly the CORS reason.
   | ------------------------------------- | ----------- | ------------------------------------------------ |
   | `rba-backend-acc`, `rba-backend-prod` | admin group | the RBA backend, worker and MCP server, per tier |
   | `lde-backend-acc`, `lde-backend-prod` | admin group | the LDE backend and worker, per tier             |
-  | personal account (repository owner)   | admin group | curl, scripts, e2e cleanup                       |
+  | `demo` (existing, strong password)    | admin group | curl, scripts, e2e cleanup                       |
   | existing Cockpit users                | unchanged   | the web apps                                     |
   | `public-reader`                       | none        | used only by Caddy for the public allowlist      |
 
@@ -163,17 +167,52 @@ In `deployment/vm/caddy/Caddyfile`, inside the `operaton.open-regels.nl` block:
   each inline secret becomes a `${VAR}` reference to an env file that stays on the VM. Also recorded:
   the network definition, so the engine stays at `172.18.0.10:8080`, and the running image as reported
   by `docker inspect`.
-- **Also recorded: the users and groups that exist on the engine today**, the name of the admin group,
-  and whether any is a default or shared login (for example Operaton Run's stock `demo`/`demo`). If the
-  VM still has a well-known admin login, switching on authentication only stops anonymous callers, so
-  those accounts are deleted or get a new password in rollout step 5.
-- **How Caddy is started on the VM**, so the plan knows how `{$OPERATON_PUBLIC_READER_AUTH}` reaches it
-  (env file, compose `environment:`, or systemd).
-- **The `latest` tag is replaced** by the version tag the VM is actually running. No digest pin; that
-  stays with #196. _My call:_ the VM's version wins. If it is not 2.1.5, the local stack moves to the
-  VM's version in this change, so that what localhost proves carries over.
-- **These files land before the plan is written.** The apply steps and the Operaton configuration keys
-  cannot be written concretely without them.
+- **These files landed on 6 November 2026** (`6ec7f29`, `0997ab0`): `deployment/vm/operaton/prod/docker-compose.yml`
+  and the full `deployment/vm/caddy/` directory. What they show:
+  - **The VM runs Operaton 1.0.0, not 2.x.** The running image is `operaton/operaton@sha256:74659f07…`,
+    which is Docker Hub's `1.0.0` (published 7 November 2025). The tag `latest` was pulled about a year
+    ago and never again. The local stack runs 2.1.5, a major version ahead.
+  - **Operaton has no mounted configuration files.** Everything is environment variables in the compose
+    file, with the tag, container name and data path in `.env` (ignored by git). Switching on
+    authentication and authorisation is therefore more environment variables, with keys that must be
+    right **for 1.0.0**.
+  - **The database is H2**, file-based (`operaton-prod`), and holds both tiers' data. This work does not
+    touch it. It matters for the later move and for any upgrade.
+  - **The Caddy container receives no environment variables.** `deployment/vm/caddy/docker-compose.yml`
+    gets an `env_file:` pointing at an env file on the VM, so `{$OPERATON_PUBLIC_READER_AUTH}` reaches
+    the Caddyfile.
+- **The users, groups and tenants on the VM engine**, read in its Admin app on 6 November 2026 (names
+  left out on purpose, as this repository is public):
+  - **5 users:** `demo` and four personal accounts (the repository owner, two colleagues and one
+    external contributor).
+  - **3 groups:** `operaton-admin` (system), `Modelers` and `Reviewers`. **Only `demo` is in
+    `operaton-admin`.** The four personal accounts are not admins.
+  - **No tenants exist**, although definitions are deployed with a tenant ID (for example `flevoland`).
+  - **Authorizations:** only `operaton-admin` → ALL on Application. Checks are off today, so nothing else
+    has mattered.
+  - **`demo` stays.** Its password on the VM is strong (repository owner, 6 November 2026), so it is not a
+    default login there. The local stack's `demo`/`demo` is the stock one and is local only.
+
+  Consequences:
+  - **The four personal accounts lose what they see in Cockpit and Tasklist** when authorisation checks
+    go on, because none of them is an admin. **Decided (repository owner, 6 November 2026):** all four
+    are added to `operaton-admin`, so they keep full access, as today.
+  - **`public-reader` cannot be a member of every tenant**, because no tenant entities exist. _Builder's
+    call, proven on the local 1.0.0 run:_ switch the engine's tenant check off
+    (`tenantCheckEnabled=false`). The backends are admins and do their own tenant check
+    (`tenant-access.ts`), so this only affects `public-reader` and the personal accounts. The
+    alternative, creating tenant entities and memberships, is recorded if the check-off route fails.
+  - **Local accounts are built from scratch.** Localhost (2.1.5) has only the stock `demo` and
+    `operaton-admin`.
+
+- **The tag is pinned to `1.0.0`**, which is what runs, so the pin changes no bytes on the VM. No digest
+  pin; that stays with #196.
+- **The settings are proven on 1.0.0.** The local stack stays on 2.1.5 for everyday work and e2e. A one-off
+  local 1.0.0 container validates the authentication and authorisation settings, the `public-reader`
+  permissions and the Caddy allowlist, so the proof carries over to the VM. The backends' changes are
+  also exercised against 2.1.5, so they do not break when the engine is upgraded.
+- **Upgrading 1.0.0 → 2.1.5 is its own issue**, not part of this work. It is a major upgrade of the
+  engine serving both tiers, with an H2 schema migration, and must not be bundled with a security fix.
 - **#415's Operaton changes are made in those files** and reviewed in the pull request.
 - **Still applied by hand.** The pull request includes the exact apply steps (below). #196 gets a comment
   that `deployment/vm/operaton/` exists.
@@ -252,11 +291,11 @@ the code. Code that reaches a tier without them refuses to start.
 4. **Merge the code.** The RBA and LDE pull requests merge to `acc` and reach PROD through their normal
    promotions. Credentials are now sent, and still ignored.
 5. **Switch on authentication and authorisation** on the VM's Operaton (the repository's
-   `deployment/vm/operaton/` files), and restart. Brief engine outage. In the same step, delete default
-   or shared logins found when the files were copied, or give them new passwords.
+   `deployment/vm/operaton/` files), and restart. Brief engine outage. The four personal accounts must
+   already have the access decided under the risks section.
 6. **Apply the Caddyfile** with the public allowlist, and reload Caddy.
-7. **Verify from outside:** the two calls from the issue now answer `401`, and so does a default login
-   such as `demo:demo`. A public DMN source fetch and a public `evaluate` answer `200` without
+7. **Verify from outside:** the two calls from the issue now answer `401`, and so does `demo` with a
+   wrong password. A public DMN source fetch and a public `evaluate` answer `200` without
    credentials. All four `/v1/health` endpoints are green. One RIP process runs end to end on ACC, and
    the e2e suite passes on ACC.
 8. **Remove the temporary access log** from step 1, and delete what it collected.
@@ -266,14 +305,15 @@ restoring the previous Caddyfile. Steps 1 to 4 are harmless left in place.
 
 ## Risks
 
-- **Cockpit users who are not in the admin group lose visibility** once authorisation checks are on.
-  Check the colleague's account before step 4.
+- **The four personal accounts lose visibility** in Cockpit and Tasklist once authorisation checks are
+  on, because only `demo` is in `operaton-admin`. All four are added to `operaton-admin` before rollout
+  step 5 (decided 6 November 2026).
 - **A caller we did not find.** Mitigation: the 7-day access log in rollout step 1. CPRMV was checked
   directly: it fetches only through its `repository-publication-location-format`,
   `…/deployment/{deploymentid}/resources/{resourceid}/data`, which is on the allowlist.
-- **Operaton 2.1.x configuration keys** differ from Camunda's. Everything marked _to verify_ is proven
+- **Operaton 1.0.0 configuration keys** differ from Camunda's. Everything marked _to verify_ is proven
   on localhost first.
-- **Existing PROD data** is not migrated or touched. Only access changes.
+- **Existing case data** (both tiers) is not migrated or touched. Only access changes.
 
 ## Later: the engine move (not this work)
 
