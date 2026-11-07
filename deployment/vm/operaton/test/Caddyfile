@@ -1,0 +1,12 @@
+# #415 test harness: the same engine-rest handling as the VM's
+# operaton.open-regels.nl block, on plain HTTP port 8090.
+{
+	admin off
+}
+
+:8090 {
+	import /etc/caddy/operaton-engine-rest.caddy
+	handle {
+		respond "not engine-rest (test harness)" 404
+	}
+}

@@ -107,6 +107,7 @@ flattened
 
 # VM Deployment Secrets
 deployment/vm/**/.env
+deployment/vm/**/caddy.env
 deployment/vm/**/keycloak-passwords.txt
 **/keycloak-passwords*.txt
 

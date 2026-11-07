@@ -125,29 +125,12 @@ operaton.open-regels.nl {
         file_server
     }
     
-    # Handle OPTIONS preflight requests for CORS
-    @options method OPTIONS
-    handle @options {
-        header Access-Control-Allow-Origin "*"
-        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-        header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
-        header Access-Control-Allow-Credentials "true"
-        header Access-Control-Max-Age "3600"
-        respond "" 204
-    }
-    
-    # Handle REST API endpoints - add CORS headers to proxy response
-    @api path /engine-rest/*
-    handle @api {
-        reverse_proxy 172.18.0.10:8080 {
-            header_up Host {host}
-            header_down Access-Control-Allow-Origin "*"
-            header_down Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-            header_down Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
-            header_down Access-Control-Allow-Credentials "true"
-        }
-    }
-    
+    # Engine REST API (#415): the rules stay public (read definitions and
+    # deployments, evaluate decisions, as publicReader); everything else needs
+    # the caller's own credentials. CORS only on the public paths.
+    # Proven by deployment/vm/operaton/test/check-allowlist.sh.
+    import operaton-engine-rest.caddy
+
     # Handle all other routes (Cockpit, Tasklist, etc.) with strict security
     handle {
         import enhanced_security_headers

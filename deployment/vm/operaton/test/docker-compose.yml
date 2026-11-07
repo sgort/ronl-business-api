@@ -1,8 +1,10 @@
 # #415 test harness: Operaton 1.0.0 (the version the VM runs) on host port 8091.
 # Throwaway: up, check, down -v. Never part of the local dev stack.
 #
-#   docker compose -p op415 -f deployment/vm/operaton/test/docker-compose.yml up -d
+#   docker compose -p op415 -f deployment/vm/operaton/test/docker-compose.yml up -d operaton caddy
+#   docker compose -p op415 -f deployment/vm/operaton/test/docker-compose.yml run --rm --no-deps accounts
 #   deployment/vm/operaton/test/check-engine.sh
+#   deployment/vm/operaton/test/check-allowlist.sh
 #   docker compose -p op415 -f deployment/vm/operaton/test/docker-compose.yml down -v
 #
 # How the settings reach the engine: as -D system properties in JAVA_OPTS.
@@ -34,6 +36,23 @@ services:
         -Doperaton.bpm.run.example.enabled=false
     ports:
       - '8091:8080'
+
+  # Caddy as on the VM (2.10.2), in front of the engine on host port 8090,
+  # importing the very file the VM imports.
+  caddy:
+    image: caddy:2.10.2-alpine
+    container_name: op415-caddy
+    depends_on:
+      - operaton
+    environment:
+      OPERATON_UPSTREAM: operaton:8080
+      # base64 of publicReader:publicReader (test-only password)
+      OPERATON_PUBLIC_READER_AUTH: cHVibGljUmVhZGVyOnB1YmxpY1JlYWRlcg==
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../../caddy/operaton-engine-rest.caddy:/etc/caddy/operaton-engine-rest.caddy:ro
+    ports:
+      - '8090:8090'
 
   # One-shot: the same script the VM and the local stack use.
   accounts:

@@ -8,8 +8,13 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    # #415: OPERATON_PUBLIC_READER_AUTH (base64 of publicReader:<password>),
+    # read by operaton-engine-rest.caddy. The file lives only on the VM.
+    # Changing it needs `docker compose up -d` (a recreate), not a reload.
+    env_file: ./caddy.env
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./operaton-engine-rest.caddy:/etc/caddy/operaton-engine-rest.caddy:ro
       - ./static:/srv/static
       - caddy_data:/data
       - caddy_config:/config
