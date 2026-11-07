@@ -4,6 +4,13 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import LoginChoice from './LoginChoice';
 import { BOARDS } from './login-choice/boards.config';
+import { applyTenantTheme } from '../services/tenant';
+
+// Pass-through, so the tests below can see which tenant id the page hands on.
+vi.mock('../services/tenant', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/tenant')>();
+  return { ...actual, applyTenantTheme: vi.fn(actual.applyTenantTheme) };
+});
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 vi.mock('react-router-dom', () => ({
@@ -294,6 +301,14 @@ describe('LoginChoice', () => {
       expect(screen.queryByRole('button', { name: /Flevoland-account/ })).not.toBeInTheDocument();
       expect(document.documentElement.style.getPropertyValue('--color-primary')).toBe('#ec0000');
       expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    it('hands the tenant id to the theme, for the tenant marker', async () => {
+      visit('/amsterdam');
+      render(<LoginChoice />);
+
+      await screen.findByRole('button', { name: /Inloggen als medewerker/ });
+      expect(applyTenantTheme).toHaveBeenLastCalledWith(theme('#ec0000'), 'amsterdam');
     });
 
     it('renders nothing until a tenant path is resolved, so Flevoland never flashes', () => {

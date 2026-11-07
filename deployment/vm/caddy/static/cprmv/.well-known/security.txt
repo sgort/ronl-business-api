@@ -1,0 +1,22 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Contact: mailto:steven.gort@ictu.nl
+Expires: 2026-03-21T11:00:00.000Z
+Canonical: https://cprmv.open-regels.nl/.well-known/security.txt
+Encryption: https://cprmv.open-regels.nl/gpg.asc
+Preferred-Languages: nl, en
+-----BEGIN PGP SIGNATURE-----
+
+iQGzBAEBCgAdFiEEr56E2WFWj0yTZACXrpd08O9HN2wFAmjD7OwACgkQrpd08O9H
+N2xb0wwAi/QmF+qkA7Wd8MKAGS3t0I4EXNBUsEWzMJLH3F6vxYFl0eofGEb5AG77
+7Bbpx5f0i9UabdElh797o4ComU4W6m3DSIi2JbmOkIV5aMaNHQ9b/PLYQgNX61wF
+/OfcCaMRmagZe+QlsalPabCNIhRemKXrF8FuM9DHFiBh3oDkb+81eqUTHBmgCSzk
+akMc1lGr4aJwjNqIHCLaHzT+0omPZuvLupTEtZJJ8mqlH6958TY2wUNKSklusH2l
+Zynls7And6mH+X61lStGTseiyeYDkITmUg+w14nVTlWSTNx+F7h3syoxuBF+fLKv
+05L9U3lUhmjf1S5uQaiIFTuQSiFfzFu51HhocA3PLJNHHNpYaca7/LSFuumNp1fT
+z87+dLztW7GYTyWi1X0bS3je4ho54GC+2KpO5Y8+XtnhFBbKY918GA1WlhuKmQkx
+7iEg9MpgNRUWpegh25mFgq/zlWkSfCSxQk6E06/O0BQlUmqgQqFVLVv/hFOwVR2S
+RqeSX7yz
+=EQ37
+-----END PGP SIGNATURE-----

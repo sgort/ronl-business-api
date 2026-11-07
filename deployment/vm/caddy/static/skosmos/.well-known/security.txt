@@ -1,0 +1,22 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Contact: mailto:steven.gort@ictu.nl
+Expires: 2026-03-21T11:00:00.000Z
+Canonical: https://skosmos.open-regels.nl/.well-known/security.txt
+Encryption: https://skosmos.open-regels.nl/gpg.asc
+Preferred-Languages: nl, en
+-----BEGIN PGP SIGNATURE-----
+
+iQGzBAEBCgAdFiEEr56E2WFWj0yTZACXrpd08O9HN2wFAmjL5noACgkQrpd08O9H
+N2zAqwv+NT3giCmeNGyeOHp56b9K9NRzXq0TV5MsBYSCxqv+dvsGwzMWHVDNqI6D
+f/da895/l5Z8tYA99bfd7W3CqcxC/Or1+vQrbefA8tz6Cot8ss2AGbo2RxQ2w1Qh
+UGN0pgJFpwD3v2HNOhTFGLtAvdRH+ptNi9RC5Db+UpmzPNzYlowKY8pQ+me95X+J
+QpYn+3KYDkk17VukY6sepAkdCtkTq2YmUnQXpKUNhM6sQ6bfQ9yGqv3XCE2z79tJ
+ZyQYNBxOp82pNDvUUCWAgjlB7DwWAqfjZZqsvFY4g35aYZ/VdC0wPe+38GaUd7Z4
+Q7FWY0RK2iY9JMIOi7eIKhDh/rxRzm6fT9B5uBYGeDBlxpfF/8yx6AnHGShI5vTX
+YFq/4JjXRTNpuEq7wadEFlY24iWxHot0kxJdHWg7JOHvpg3On+HbjkIbWtxhC8Tb
+vQrUX7zwa81gG0cVCSHQ4Bpz9AOJ0Z1f+nza4PguTU6EZ124DylM0iL8mcjN66/l
+ijPlZd3z
+=fbdw
+-----END PGP SIGNATURE-----

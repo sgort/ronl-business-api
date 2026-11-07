@@ -103,7 +103,7 @@ export const Timeline: React.FC<TimelineProps> = ({
     <div className="bg-white rounded-lg shadow-lg p-6 relative">
       {/* Loading Overlay - This is where the loading state goes! */}
       {isLoading && (
-        <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg z-20">
+        <div className="absolute inset-0 bg-white/75 flex items-center justify-center rounded-lg z-20">
           <div className="text-gray-600">Gegevens laden...</div>
         </div>
       )}

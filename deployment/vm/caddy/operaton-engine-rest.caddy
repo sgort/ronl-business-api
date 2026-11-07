@@ -1,0 +1,79 @@
+# Operaton engine-rest behind credentials (#415). Imported into the
+# operaton.open-regels.nl site block of ./Caddyfile, and by the test harness in
+# deployment/vm/operaton/test/, which proves every rule below.
+#
+# - Reading the rules and evaluating a decision stays public. A request on
+#   those paths WITHOUT an Authorization header is forwarded as the read-only
+#   Operaton user publicReader, whose permissions the engine itself limits to
+#   definitions, deployments and decision evaluation.
+# - Everything else under /engine-rest is forwarded unchanged: without the
+#   caller's own credentials, Operaton answers 401.
+# - CORS only on the public paths, without credentials. The engine's own CORS
+#   is off (operaton.bpm.run.cors.enabled=false).
+#
+# {$OPERATON_PUBLIC_READER_AUTH} is base64 of publicReader:<password>, from the
+# Caddy container's env file (caddy.env on the VM, never committed).
+# {$OPERATON_UPSTREAM} defaults to the engine's address on the VM network.
+#
+# Named matchers only, so the handle blocks keep the order written here.
+
+# Reading the rules: definitions and their XML, deployments and their resources.
+# Exact shapes, anchored, so sub-resources that return instance data
+# (statistics, form-variables, start forms, ...) are never public.
+@public_read {
+	method GET
+	path_regexp public_read ^/engine-rest/(?:(?:process-definition|decision-definition|decision-requirements-definition)(?:/count)?|(?:process-definition|decision-definition|decision-requirements-definition)/(?:key/[^/]+(?:/tenant-id/[^/]+)?|[^/]+)(?:/xml)?|deployment(?:/count)?|deployment/[^/]+(?:/resources(?:/[^/]+(?:/data)?)?)?)$
+	not path */statistics
+	not header Authorization *
+}
+
+# Evaluating a decision: the published implementedBy links point here.
+@public_evaluate {
+	method POST
+	path_regexp public_evaluate ^/engine-rest/decision-definition/(?:key/[^/]+(?:/tenant-id/[^/]+)?|[^/]+)/evaluate$
+	not header Authorization *
+}
+
+# Browser preflight, for the public paths only.
+@public_preflight {
+	method OPTIONS
+	path_regexp public_preflight ^/engine-rest/(?:process-definition|decision-definition|decision-requirements-definition|deployment)(?:/.*)?$
+}
+
+@engine_rest path /engine-rest/*
+
+handle @public_preflight {
+	header Access-Control-Allow-Origin "*"
+	header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+	header Access-Control-Allow-Headers "Content-Type"
+	header Access-Control-Max-Age "3600"
+	respond "" 204
+}
+
+handle @public_read {
+	header Access-Control-Allow-Origin "*"
+	reverse_proxy {$OPERATON_UPSTREAM:172.18.0.10:8080} {
+		header_up Host {host}
+		header_up Authorization "Basic {$OPERATON_PUBLIC_READER_AUTH}"
+		header_down -Access-Control-Allow-Credentials
+	}
+}
+
+handle @public_evaluate {
+	header Access-Control-Allow-Origin "*"
+	reverse_proxy {$OPERATON_UPSTREAM:172.18.0.10:8080} {
+		header_up Host {host}
+		header_up Authorization "Basic {$OPERATON_PUBLIC_READER_AUTH}"
+		header_down -Access-Control-Allow-Credentials
+	}
+}
+
+handle @engine_rest {
+	reverse_proxy {$OPERATON_UPSTREAM:172.18.0.10:8080} {
+		header_up Host {host}
+		header_down -Access-Control-Allow-Origin
+		header_down -Access-Control-Allow-Credentials
+		header_down -Access-Control-Allow-Methods
+		header_down -Access-Control-Allow-Headers
+	}
+}

@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 
-import { OPERATON_URL } from './target';
+import { OPERATON_URL, operatonFetch } from './target';
 
 /**
  * Idempotent: a rerun without a full reset may find the task already
@@ -19,7 +19,7 @@ export async function claimIfNeeded(page: Page) {
  * lives on the called sub-process instance, not on the shell).
  */
 export async function instanceIdsForBusinessKey(businessKey: string): Promise<string[]> {
-  const res = await fetch(
+  const res = await operatonFetch(
     `${OPERATON_URL}/process-instance?businessKey=${encodeURIComponent(businessKey)}`
   );
   if (!res.ok) throw new Error(`Operaton returned HTTP ${res.status} looking up ${businessKey}`);
@@ -28,7 +28,9 @@ export async function instanceIdsForBusinessKey(businessKey: string): Promise<st
 
   const ids = roots.map((r) => r.id);
   for (const root of roots) {
-    const subsRes = await fetch(`${OPERATON_URL}/process-instance?superProcessInstance=${root.id}`);
+    const subsRes = await operatonFetch(
+      `${OPERATON_URL}/process-instance?superProcessInstance=${root.id}`
+    );
     if (!subsRes.ok) continue;
     for (const sub of (await subsRes.json()) as Array<{ id: string }>) ids.push(sub.id);
   }

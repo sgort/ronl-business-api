@@ -67,11 +67,27 @@ export function KompasRadar({ kompas, size = 240 }: { kompas: KompasScores; size
   return (
     <svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Flevolands Kompas radar">
       {[0.5, 1].map((f) => (
-        <polygon key={f} points={ringPoly(f)} fill="none" stroke="#d1d5db" strokeWidth="1" />
+        <polygon
+          key={f}
+          points={ringPoly(f)}
+          fill="none"
+          stroke="var(--rba-rule)"
+          strokeWidth="1"
+        />
       ))}
       {crit.map((c, i) => {
         const [x, y] = pt(i, R);
-        return <line key={c.key} x1={cx} y1={cy} x2={x} y2={y} stroke="#e5e7eb" strokeWidth="1" />;
+        return (
+          <line
+            key={c.key}
+            x1={cx}
+            y1={cy}
+            x2={x}
+            y2={y}
+            stroke="var(--rba-rule-2)"
+            strokeWidth="1"
+          />
+        );
       })}
       <polygon
         points={dataPoly}
@@ -96,7 +112,7 @@ export function KompasRadar({ kompas, size = 240 }: { kompas: KompasScores; size
             textAnchor={anchor}
             fontFamily="'JetBrains Mono', monospace"
             fontSize="9.5"
-            fill="#6b7280"
+            fill="var(--rba-ink-3)"
             letterSpacing="0.02em"
           >
             {c.short}
@@ -124,11 +140,11 @@ function KompasBars({ kompas }: { kompas: KompasScores }) {
               y={y + 11}
               fontFamily="'JetBrains Mono', monospace"
               fontSize="9.5"
-              fill="#6b7280"
+              fill="var(--rba-ink-3)"
             >
               {c.short}
             </text>
-            <rect x="78" y={y} width={full} height="15" fill="#e5e7eb" />
+            <rect x="78" y={y} width={full} height="15" fill="var(--rba-rule-2)" />
             <rect x="78" y={y} width={w} height="15" fill={color} />
           </g>
         );

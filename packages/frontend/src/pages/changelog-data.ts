@@ -112,6 +112,117 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.11.0',
+      status: 'Released',
+      date: '3 nov 2026',
+      scope: ['frontend', 'pa-demo', 'ci'],
+      commits: [
+        {
+          sha: '67c0e22',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The shared-chrome import guard counts imports, not mentions',
+          details: [
+            'The test that keeps `v2-chrome.css` to one import per app looked for any mention of the file name, so this release’s changelog entry, which names the file, counted as a third import. It now matches import statements only; a real second import still fails.',
+          ],
+        },
+        {
+          sha: 'e02aefe',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Accessibility checks with axe-core, one scan per page type',
+          details: [
+            'The frontend E2E suite scans ten page types with axe-core 4.13, WCAG 2.0–2.2 at levels A and AA: the landing page, the sign-in screen, three Keycloak form variants, and the Caseworker V2, Infra-board, Woo and PA-Cockpit dashboards, plus Caseworker V2 for Heusden as the other-tenant check. A critical or serious violation fails unless it is listed in `e2e/a11y-baseline.ts`, and a baseline entry that no longer occurs fails too, so a fix shrinks the list. The full axe result of every page is attached to the Playwright report.',
+            'The baseline is a "before" picture for step 2 of the Flevoland look: the ⌘K search hint on every dashboard (fixed in #405) and two contrast issues for tenants other than Flevoland (#412). The run against ACC also found the PA-Cockpit score total (`.pac-total b`) in Flevoland pink at 4.23:1 on the grey background; it now uses the darker accent, 6.13:1 (#409).',
+          ],
+        },
+        {
+          sha: '3bedc08',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'One shared stylesheet for the dashboard chrome',
+          details: [
+            'The chrome of Caseworker V2 (`.cwd-v2`, also under the Infra-board and Woo) and PA-Cockpit (`.pac`) existed twice. Every declaration identical in both, 294 in 57 rules, now lives once in `packages/shared/styles/v2-chrome.css`, as grouped rules on `--rba-*` tokens; where the two differ, each keeps its own declaration. Nothing changes on screen. Each app imports the file first, in its `App.tsx`, so the dashboard pages and their layers still override it; accent colours stay in the host files because Infra-board and Woo set `--v2-accent` inline.',
+            '`npm run check:css-move` proves such a move: it compares each app’s whole cascade, read from its import graph, at `acc` and in the working tree, per tenant, including the order of competing rules. `docs/css-files.md` explains the load order with diagrams (#374 item 4, #411).',
+          ],
+        },
+        {
+          sha: '1c87081',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The Keycloak login page and the sign-in screen take Flevoland’s colours',
+          details: [
+            'Keycloak has one client for all tenants and cannot tell them apart before sign-in, so the login page gets one look: Flevoland’s. The theme carries `flevoland-tokens.css`, a copy of Flevoland IT’s token file kept in step by `npm run sync:keycloak-tokens` and a test, and `login.css` uses their semantic tokens only. The DigiD, eHerkenning and eIDAS buttons keep their own colours.',
+            'The "Verbinding maken..." screen (`AuthCallback.tsx`) uses the same fixed Flevoland blues. Its tenant-following blue fell back to Tailwind’s lighter blue on the page load back from Keycloak or Entra ID, a visible jump between two blues (#400, #408).',
+          ],
+        },
+        {
+          sha: 'd2f59f5',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'The PROD Keycloak compose file mounts the themes, as on the VM',
+          details: [
+            'The repository’s copy had drifted from the file the PROD VM runs, which mounts `/opt/keycloak/themes` like ACC does (#374 item 1).',
+          ],
+        },
+        {
+          sha: '173bdcf',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'One copy of the Keycloak login theme',
+          details: [
+            '`keycloak-themes/ronl/` is the theme the VM serves. The older copy under `deployment/vm/keycloak/themes/` was mounted by nothing and had already drifted, so it is removed rather than guarded. The compose files say the VM’s theme folder is filled by hand from the repository; automating that is #196 (#374 item 1, #407).',
+          ],
+        },
+        {
+          sha: '336a12e',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'CI fails on any new hex colour in our stylesheets',
+          details: [
+            '`css-hex.test.ts` runs stylelint’s `color-no-hex` rule over the stylesheets and compares the result with a per-file list of the remaining data and category colours, each with its reason. A hex outside the list fails, and so does a listed colour that is no longer used (#374 3d, #406).',
+          ],
+        },
+        {
+          sha: '0216f1c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Flevoland’s colours are switched on for the Flevoland tenant',
+          details: [
+            'The tenant marker is on: `data-tenant="flevoland"` on `<html>` applies Flevoland IT’s palette through our tokens. Navy text, Material greys, the `#f8f8f8` page, Flevoland’s status colours, brown warning text, and yellow fills with dark text; pink stays for accent text and lines. Other tenants are unchanged (#374 step 1, PR 4 of 4, #404).',
+          ],
+        },
+        {
+          sha: '5fe78ff',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'Hard-coded colours go through the shared tokens',
+          details: [
+            'Every neutral, brand and status colour in the stylesheets and inline styles now comes from the tokens; hex values went from 369 to 22, all of them data and category colours. Pale status tints are merged by role into `--rba-ok-*`, `--rba-warn-*` and `--rba-bad-*`, each group taking its darkest text or lightest background value so no merge lowers contrast. Other tenants accept small shifts, at most ΔE2000 6.9 (#374 step 1, PR 3 of 4, #403).',
+          ],
+        },
+        {
+          sha: '63c7f66',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Tailwind’s colour scales follow the tenant',
+          details: [
+            'The gray, slate, red, green, blue, amber, orange and yellow scales point at `--twc-*` variables whose defaults are Tailwind’s own, so every tenant renders as before; Flevoland maps each shade onto its palette by role. A test compiles the app’s Tailwind CSS both ways and compares every declaration. The default ring colour is pinned to blue-500, and legacy `bg-opacity-*` classes are replaced (#374 step 1, PR 2 of 4, #402).',
+          ],
+        },
+        {
+          sha: 'bedd57c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Flevoland tokens, the tenant marker and accent fills',
+          details: [
+            'Flevoland IT’s stylesheet moves into `packages/shared/styles/flevoland/`: their tokens are loaded, their element styles kept for step 2. `tokens.css` points our `--rba-*` tokens at Flevoland’s semantic tokens for the Flevoland tenant, and new fill tokens give yellow with dark text there. The marker stays off in this PR. `npm run check:css-equivalence` compares changed stylesheets with `acc` for every tenant and fails on a colour moving by more than ΔE2000 1.0 (#374 step 1, PR 1 of 4, #401).',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.10.4',
       status: 'Released',
       date: '29 okt 2026',

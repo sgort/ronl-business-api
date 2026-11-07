@@ -36,6 +36,8 @@
 #
 # Optional overrides (env vars):
 #   OPERATON_URL        Operaton engine REST base (default: http://localhost:8081/engine-rest)
+#   OPERATON_USERNAME   engine login, an operaton-admin account (default: demo; #415)
+#   OPERATON_PASSWORD   its password (default: demo)
 #   BACKEND_URL         Backend base — both the /v1/health/live pre-flight and
 #                       the POST /v1/process/:key/start call go through this
 #                       (default: http://localhost:3002)
@@ -107,6 +109,24 @@ set -u
 SCRIPT_NAME="$(basename "$0")"
 
 OPERATON_URL="${OPERATON_URL:-http://localhost:8081/engine-rest}"
+# The engine requires a login (#415). Every call to ${OPERATON_URL} goes through
+# ocurl. A local engine defaults to the stack's demo/demo; a remote one (ACC,
+# PROD) needs an operaton-admin account in OPERATON_USERNAME and
+# OPERATON_PASSWORD, and the script refuses to guess: demo/demo against the VM
+# is a failed login on every call, and Operaton locks an account after ten.
+if [ -z "${OPERATON_USERNAME:-}" ] || [ -z "${OPERATON_PASSWORD:-}" ]; then
+  case "$OPERATON_URL" in
+    http://localhost:* | http://localhost/* | http://127.0.0.1:* | http://127.0.0.1/*)
+      OPERATON_USERNAME=demo
+      OPERATON_PASSWORD=demo
+      ;;
+    *)
+      echo "OPERATON_USERNAME and OPERATON_PASSWORD are required for $OPERATON_URL (only a local engine defaults to demo/demo)" >&2
+      exit 2
+      ;;
+  esac
+fi
+ocurl() { curl -u "${OPERATON_USERNAME}:${OPERATON_PASSWORD}" "$@"; }
 BACKEND_URL="${BACKEND_URL:-http://localhost:3002}"
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8080}"
 KEYCLOAK_REALM="${KEYCLOAK_REALM:-ronl}"
@@ -186,7 +206,7 @@ collapse_ws() {
 
 section "Pre-flight"
 
-ENGINE_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${OPERATON_URL}/engine" 2>/dev/null)
+ENGINE_CODE=$(ocurl -s -o /dev/null -w "%{http_code}" "${OPERATON_URL}/engine" 2>/dev/null)
 if [[ "$ENGINE_CODE" != "200" ]]; then
   fail "Operaton engine not reachable at ${OPERATON_URL} (HTTP ${ENGINE_CODE:-000})"
   echo ""
@@ -215,7 +235,7 @@ pass "backend live (GET ${BACKEND_URL}/v1/health/live)"
 if [[ -n "$CLEAN_INSTANCE_ID" ]]; then
   section "Cleaning up instance ${CLEAN_INSTANCE_ID}"
 
-  RUNTIME_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+  RUNTIME_CODE=$(ocurl -s -o /dev/null -w "%{http_code}" -X DELETE \
     "${OPERATON_URL}/process-instance/${CLEAN_INSTANCE_ID}?skipCustomListeners=true" 2>/dev/null)
   if [[ "$RUNTIME_CODE" == "204" ]]; then
     pass "runtime instance deleted (HTTP 204)"
@@ -230,7 +250,7 @@ if [[ -n "$CLEAN_INSTANCE_ID" ]]; then
   # This is the delete that matters: the Faseladder's "Gereed"/"Klaar"
   # counters read completed HISTORY, so a runtime-only delete would still
   # leave a phantom completion inflating those counts for whoever looks next.
-  HISTORY_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+  HISTORY_CODE=$(ocurl -s -o /dev/null -w "%{http_code}" -X DELETE \
     "${OPERATON_URL}/history/process-instance/${CLEAN_INSTANCE_ID}" 2>/dev/null)
   if [[ "$HISTORY_CODE" == "204" ]]; then
     pass "history deleted (HTTP 204)"
@@ -250,7 +270,7 @@ fi
 
 section "Process definition"
 
-DEF_JSON=$(curl -s "${OPERATON_URL}/process-definition?key=${PROCESS_KEY}&latestVersion=true" 2>/dev/null)
+DEF_JSON=$(ocurl -s "${OPERATON_URL}/process-definition?key=${PROCESS_KEY}&latestVersion=true" 2>/dev/null)
 DEF_COUNT=$(echo "$DEF_JSON" | jq 'length' 2>/dev/null)
 if [[ -z "$DEF_COUNT" || "$DEF_COUNT" == "0" || "$DEF_COUNT" == "null" ]]; then
   fail "${PROCESS_KEY} is not deployed on ${OPERATON_URL}"
@@ -341,7 +361,7 @@ pass "instance started via backend (id=${INSTANCE_ID}, businessKey=${BUSINESS_KE
 # against Operaton ran fine but carried no municipality variable, so it
 # never appeared on the board (operatonService.getUserTasks filters on
 # processVariables=municipality_eq_<tenant>).
-MUNICIPALITY_RESPONSE=$(curl -s -w '\n%{http_code}' \
+MUNICIPALITY_RESPONSE=$(ocurl -s -w '\n%{http_code}' \
   "${OPERATON_URL}/process-instance/${INSTANCE_ID}/variables/municipality" 2>/dev/null)
 MUNICIPALITY_CODE=$(echo "$MUNICIPALITY_RESPONSE" | tail -n1)
 MUNICIPALITY_BODY=$(echo "$MUNICIPALITY_RESPONSE" | sed '$d')
@@ -411,7 +431,7 @@ LAST_COMPLETED_NAME=""
 REACHED_APPROVAL=false
 
 while true; do
-  TASKS_JSON=$(curl -s "${OPERATON_URL}/task?processInstanceId=${INSTANCE_ID}" 2>/dev/null)
+  TASKS_JSON=$(ocurl -s "${OPERATON_URL}/task?processInstanceId=${INSTANCE_ID}" 2>/dev/null)
   TASK_COUNT=$(echo "$TASKS_JSON" | jq 'length' 2>/dev/null)
   [[ -z "$TASK_COUNT" || "$TASK_COUNT" == "null" ]] && TASK_COUNT=0
 
@@ -426,7 +446,7 @@ while true; do
     while [[ "$WAITED" -lt "$TASK_POLL_TIMEOUT" ]]; do
       sleep "$TASK_POLL_INTERVAL"
       WAITED=$((WAITED + TASK_POLL_INTERVAL))
-      TASKS_JSON=$(curl -s "${OPERATON_URL}/task?processInstanceId=${INSTANCE_ID}" 2>/dev/null)
+      TASKS_JSON=$(ocurl -s "${OPERATON_URL}/task?processInstanceId=${INSTANCE_ID}" 2>/dev/null)
       TASK_COUNT=$(echo "$TASKS_JSON" | jq 'length' 2>/dev/null)
       [[ -z "$TASK_COUNT" || "$TASK_COUNT" == "null" ]] && TASK_COUNT=0
       if [[ "$TASK_COUNT" != "0" ]]; then
@@ -479,7 +499,7 @@ while true; do
   fi
 
   COMPLETE_BODY=$(jq -n --argjson vars "$VARIABLES_JSON" '{variables: $vars}')
-  COMPLETE_RESPONSE=$(curl -s -w '\n%{http_code}' -X POST \
+  COMPLETE_RESPONSE=$(ocurl -s -w '\n%{http_code}' -X POST \
     "${OPERATON_URL}/task/${TASK_ID}/complete" \
     -H 'Content-Type: application/json' -d "$COMPLETE_BODY" 2>/dev/null)
   COMPLETE_CODE=$(echo "$COMPLETE_RESPONSE" | tail -n1)

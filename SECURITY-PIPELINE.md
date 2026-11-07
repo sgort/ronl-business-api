@@ -48,11 +48,11 @@ failing a merge.
 | Dependency                          | Pin                                                 | Version           | Maintained by                                                                                 |
 | ----------------------------------- | --------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------- |
 | `actions/checkout` (×15)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
-| `actions/setup-node` (×13)          | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                                      |
+| `actions/setup-node` (×13)          | `949feb2413d6458794dcd2491c4babbbce0c15c1`          | v7.1.0            | Renovate                                                                                      |
 | `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                                  |
-| `actions/upload-artifact` (×3)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                                      |
+| `actions/upload-artifact` (×3)      | `cf430e030ddbb5b0abf93d22962f4752f3646cd9`          | v7.0.2            | Renovate                                                                                      |
 | `azure/login` (×2)                  | `a641126d1b8aa4d1fa005f4f92df94a3a4c4c906`          | v3.1.0            | Renovate                                                                                      |
-| `zizmorcore/zizmor-action`          | `cc914d7f3750a2d13d75c7f184a1060aa0e9d482`          | v0.6.4            | Renovate                                                                                      |
+| `zizmorcore/zizmor-action`          | `53290badfa369cb0bf7ad16342cb62c2fa47ac7b`          | v0.8.0            | Renovate                                                                                      |
 | zizmor itself                       | `version: '1.29.0'` input, not `latest`             | 1.29.0            | Renovate — as the image `ghcr.io/zizmorcore/zizmor`, in the `github actions` group; see below |
 | `renovate-config-validator`         | `npx --package renovate@44.50.3`                    | 44.50.3           | **manual** — an inline npx argument, not a manifest entry                                     |
 | Semgrep itself                      | `pip install semgrep==1.176.1`                      | 1.176.1           | **manual** — a version inside a `run:` block, which no Renovate manager parses                |

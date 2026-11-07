@@ -1,6 +1,6 @@
 {
   "name": "@ronl/pa-cockpit",
-  "version": "2026.10.3",
+  "version": "2026.11.0",
   "description": "The PA-Cockpit UI, shared by the caseworker app and the public demo",
   "private": true,
   "type": "module",
@@ -32,7 +32,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
-    "@testing-library/user-event": "^14.6.7",
+    "@testing-library/user-event": "^14.6.8",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@typescript-eslint/eslint-plugin": "^6.21.0",

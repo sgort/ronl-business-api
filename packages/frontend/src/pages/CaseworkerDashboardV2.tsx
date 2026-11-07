@@ -318,7 +318,7 @@ function CaseworkerDashboardV2Shell() {
             <div className="v2-main-pad">
               <div className="v2-crumb">{currentMode.label.toUpperCase()}</div>
               <h1 className="v2-page-title">Inloggen vereist</h1>
-              <p style={{ color: '#4b5563', maxWidth: '52ch', margin: '14px 0 22px' }}>
+              <p style={{ color: 'var(--rba-ink-2)', maxWidth: '52ch', margin: '14px 0 22px' }}>
                 Deze omgeving bevat persoonlijke werkgegevens. Log in als medewerker om je taken,
                 zaken en profielinformatie te bekijken.
               </p>

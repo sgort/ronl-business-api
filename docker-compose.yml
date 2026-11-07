@@ -68,7 +68,7 @@ services:
   # complete (see depends_on below). Idempotent — a no-op on an already-owned
   # volume, so it is safe to leave enabled on every `docker compose up`.
   operaton-init:
-    image: alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+    image: alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
     container_name: ronl-operaton-init
     command: chown -R 1000:1000 /data
     volumes:
@@ -89,7 +89,16 @@ services:
       TZ: Europe/Amsterdam
       DB_DRIVER: org.h2.Driver
       DB_URL: jdbc:h2:file:/operaton/h2-data/operaton-local;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-      JAVA_OPTS: -XX:MaxRAMPercentage=70.0
+      # #415: the same login and permission checks as the VM engine
+      # (deployment/vm/operaton/prod/docker-compose.yml). The invoice example is
+      # off: on an EMPTY database it fails to start with authorization on.
+      # Accounts come from the operaton-accounts one-shot below.
+      JAVA_OPTS: >-
+        -XX:MaxRAMPercentage=70.0
+        -Doperaton.bpm.run.auth.enabled=true
+        -Doperaton.bpm.authorization.enabled=true
+        -Doperaton.bpm.run.cors.enabled=false
+        -Doperaton.bpm.run.example.enabled=false
       DEBUG: 'false'
     volumes:
       - operaton-data:/operaton/h2-data
@@ -104,6 +113,31 @@ services:
       timeout: 5s
       retries: 10
       start_period: 60s
+    networks:
+      - ronl-network
+
+  # One-shot (#415): creates the local accounts with the same script the VM
+  # uses. Idempotent, so it runs on every `docker compose up`. Local-only,
+  # non-secret passwords: rbaBackend/rbaBackend, ldeBackend/ldeBackend,
+  # publicReader/publicReader; demo/demo stays the admin.
+  operaton-accounts:
+    image: curlimages/curl:8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777
+    container_name: ronl-operaton-accounts
+    entrypoint: ['sh', '/provision-accounts.sh']
+    volumes:
+      - ./deployment/vm/operaton/provision-accounts.sh:/provision-accounts.sh:ro
+    environment:
+      OPERATON_URL: http://operaton:8080/engine-rest
+      OPERATON_ADMIN_USER: demo
+      OPERATON_ADMIN_PASSWORD: demo
+      SERVICE_ACCOUNTS: rbaBackend ldeBackend
+      PW_RBABACKEND: rbaBackend
+      PW_LDEBACKEND: ldeBackend
+      EXISTING_ADMIN_MEMBERS: ''
+      PUBLIC_READER_PASSWORD: publicReader
+    depends_on:
+      operaton:
+        condition: service_healthy
     networks:
       - ronl-network
 

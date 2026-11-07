@@ -1,7 +1,8 @@
-import axios from 'axios';
+import axios, { type AxiosRequestConfig } from 'axios';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
 import { getErrorMessage } from '@utils/errors';
+import { operatonBasicAuth } from '@utils/operaton-auth';
 import { edocsService } from '@services/edocs.service';
 import { operatonService } from '@services/operaton.service';
 import { edocsAuthorFrom } from '@services/edocs-author';
@@ -202,7 +203,7 @@ export class ExternalTaskWorker {
     const response = await axios.post<ExternalTask[]>(
       `${this.operatonBaseUrl}/external-task/fetchAndLock`,
       body,
-      { headers: { 'Content-Type': 'application/json' } }
+      this.requestOptions()
     );
 
     return response.data ?? [];
@@ -348,6 +349,12 @@ export class ExternalTaskWorker {
     };
   }
 
+  /** JSON headers, plus the engine credentials when configured (#415). */
+  private requestOptions(): AxiosRequestConfig {
+    const auth = operatonBasicAuth();
+    return { headers: { 'Content-Type': 'application/json' }, ...(auth && { auth }) };
+  }
+
   // ─── Complete / fail ─────────────────────────────────────────────────────────
 
   private async completeTask(
@@ -357,7 +364,7 @@ export class ExternalTaskWorker {
     await axios.post(
       `${this.operatonBaseUrl}/external-task/${taskId}/complete`,
       { workerId: this.workerId, variables },
-      { headers: { 'Content-Type': 'application/json' } }
+      this.requestOptions()
     );
   }
 
@@ -366,7 +373,7 @@ export class ExternalTaskWorker {
       await axios.post(
         `${this.operatonBaseUrl}/external-task/${taskId}/failure`,
         { workerId: this.workerId, errorMessage, retries: 0, retryTimeout: 0 },
-        { headers: { 'Content-Type': 'application/json' } }
+        this.requestOptions()
       );
     } catch (err) {
       logger.error('Failed to report task failure to Operaton', {

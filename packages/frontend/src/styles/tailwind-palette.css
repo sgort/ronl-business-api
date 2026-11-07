@@ -1,0 +1,210 @@
+/*
+ * Tailwind's colour scales as CSS variables (#374, step 1). tailwind.config.js
+ * points gray, slate, red, green, blue, amber, orange and yellow at these, so
+ * the Tailwind-styled screens follow the tenant like the rest of the app.
+ *
+ * :root holds Tailwind's own values, so every tenant renders exactly as with
+ * plain Tailwind. :root[data-tenant="flevoland"] maps each shade onto
+ * Flevoland IT's colours by role: light shades are backgrounds, 200-300 lines,
+ * 400-500 decorative or disabled, darker shades text. Red, green and amber/
+ * orange/yellow take Flevoland's error, success and warning colours; blue
+ * takes their brand blue.
+ *
+ * var() colours lose Tailwind's alpha channel: no opacity modifiers on these
+ * scales (tailwind-palette.test.ts checks it).
+ */
+:root {
+  --twc-gray-50: #f9fafb;
+  --twc-gray-100: #f3f4f6;
+  --twc-gray-200: #e5e7eb;
+  --twc-gray-300: #d1d5db;
+  --twc-gray-400: #9ca3af;
+  --twc-gray-500: #6b7280;
+  --twc-gray-600: #4b5563;
+  --twc-gray-700: #374151;
+  --twc-gray-800: #1f2937;
+  --twc-gray-900: #111827;
+  --twc-gray-950: #030712;
+
+  --twc-slate-50: #f8fafc;
+  --twc-slate-100: #f1f5f9;
+  --twc-slate-200: #e2e8f0;
+  --twc-slate-300: #cbd5e1;
+  --twc-slate-400: #94a3b8;
+  --twc-slate-500: #64748b;
+  --twc-slate-600: #475569;
+  --twc-slate-700: #334155;
+  --twc-slate-800: #1e293b;
+  --twc-slate-900: #0f172a;
+  --twc-slate-950: #020617;
+
+  --twc-red-50: #fef2f2;
+  --twc-red-100: #fee2e2;
+  --twc-red-200: #fecaca;
+  --twc-red-300: #fca5a5;
+  --twc-red-400: #f87171;
+  --twc-red-500: #ef4444;
+  --twc-red-600: #dc2626;
+  --twc-red-700: #b91c1c;
+  --twc-red-800: #991b1b;
+  --twc-red-900: #7f1d1d;
+  --twc-red-950: #450a0a;
+
+  --twc-green-50: #f0fdf4;
+  --twc-green-100: #dcfce7;
+  --twc-green-200: #bbf7d0;
+  --twc-green-300: #86efac;
+  --twc-green-400: #4ade80;
+  --twc-green-500: #22c55e;
+  --twc-green-600: #16a34a;
+  --twc-green-700: #15803d;
+  --twc-green-800: #166534;
+  --twc-green-900: #14532d;
+  --twc-green-950: #052e16;
+
+  --twc-blue-50: #eff6ff;
+  --twc-blue-100: #dbeafe;
+  --twc-blue-200: #bfdbfe;
+  --twc-blue-300: #93c5fd;
+  --twc-blue-400: #60a5fa;
+  --twc-blue-500: #3b82f6;
+  --twc-blue-600: #2563eb;
+  --twc-blue-700: #1d4ed8;
+  --twc-blue-800: #1e40af;
+  --twc-blue-900: #1e3a8a;
+  --twc-blue-950: #172554;
+
+  --twc-amber-50: #fffbeb;
+  --twc-amber-100: #fef3c7;
+  --twc-amber-200: #fde68a;
+  --twc-amber-300: #fcd34d;
+  --twc-amber-400: #fbbf24;
+  --twc-amber-500: #f59e0b;
+  --twc-amber-600: #d97706;
+  --twc-amber-700: #b45309;
+  --twc-amber-800: #92400e;
+  --twc-amber-900: #78350f;
+  --twc-amber-950: #451a03;
+
+  --twc-orange-50: #fff7ed;
+  --twc-orange-100: #ffedd5;
+  --twc-orange-200: #fed7aa;
+  --twc-orange-300: #fdba74;
+  --twc-orange-400: #fb923c;
+  --twc-orange-500: #f97316;
+  --twc-orange-600: #ea580c;
+  --twc-orange-700: #c2410c;
+  --twc-orange-800: #9a3412;
+  --twc-orange-900: #7c2d12;
+  --twc-orange-950: #431407;
+
+  --twc-yellow-50: #fefce8;
+  --twc-yellow-100: #fef9c3;
+  --twc-yellow-200: #fef08a;
+  --twc-yellow-300: #fde047;
+  --twc-yellow-400: #facc15;
+  --twc-yellow-500: #eab308;
+  --twc-yellow-600: #ca8a04;
+  --twc-yellow-700: #a16207;
+  --twc-yellow-800: #854d0e;
+  --twc-yellow-900: #713f12;
+  --twc-yellow-950: #422006;
+}
+
+:root[data-tenant="flevoland"] {
+  --twc-gray-50: var(--flevoland-color-background-document);
+  --twc-gray-100: var(--flevoland-color-background-subtle);
+  --twc-gray-200: var(--flevoland-color-background-muted);
+  --twc-gray-300: var(--flevoland-color-border-subtle);
+  --twc-gray-400: var(--flevoland-color-neutral-500);
+  --twc-gray-500: var(--flevoland-color-text-disabled);
+  --twc-gray-600: var(--flevoland-color-text-subtle);
+  --twc-gray-700: var(--flevoland-color-text-heading);
+  --twc-gray-800: var(--flevoland-color-text-default);
+  --twc-gray-900: var(--flevoland-color-text-default);
+  --twc-gray-950: var(--flevoland-color-text-default);
+
+  --twc-slate-50: var(--flevoland-color-background-document);
+  --twc-slate-100: var(--flevoland-color-background-subtle);
+  --twc-slate-200: var(--flevoland-color-background-muted);
+  --twc-slate-300: var(--flevoland-color-border-subtle);
+  --twc-slate-400: var(--flevoland-color-neutral-500);
+  --twc-slate-500: var(--flevoland-color-text-disabled);
+  --twc-slate-600: var(--flevoland-color-text-subtle);
+  --twc-slate-700: var(--flevoland-color-text-heading);
+  --twc-slate-800: var(--flevoland-color-text-default);
+  --twc-slate-900: var(--flevoland-color-text-default);
+  --twc-slate-950: var(--flevoland-color-text-default);
+
+  --twc-red-50: var(--flevoland-color-status-error-background);
+  --twc-red-100: var(--flevoland-color-status-error-background);
+  --twc-red-200: var(--flevoland-color-red-300);
+  --twc-red-300: var(--flevoland-color-red-300);
+  --twc-red-400: var(--flevoland-color-status-error-text);
+  --twc-red-500: var(--flevoland-color-status-error-text);
+  --twc-red-600: var(--flevoland-color-status-error-text);
+  --twc-red-700: var(--flevoland-color-status-error-text);
+  --twc-red-800: var(--flevoland-color-status-error-text-on-background);
+  --twc-red-900: var(--flevoland-color-status-error-text-on-background);
+  --twc-red-950: var(--flevoland-color-status-error-text-on-background);
+
+  --twc-green-50: var(--flevoland-color-status-success-background);
+  --twc-green-100: var(--flevoland-color-status-success-background);
+  --twc-green-200: var(--flevoland-color-green-300);
+  --twc-green-300: var(--flevoland-color-green-300);
+  --twc-green-400: var(--flevoland-color-status-success-text);
+  --twc-green-500: var(--flevoland-color-status-success-text);
+  --twc-green-600: var(--flevoland-color-status-success-text);
+  --twc-green-700: var(--flevoland-color-status-success-text);
+  --twc-green-800: var(--flevoland-color-status-success-hover);
+  --twc-green-900: var(--flevoland-color-status-success-hover);
+  --twc-green-950: var(--flevoland-color-status-success-hover);
+
+  --twc-blue-50: var(--flevoland-color-brand-primary-subtle);
+  --twc-blue-100: var(--flevoland-color-brand-primary-subtle);
+  --twc-blue-200: var(--flevoland-color-blue-200);
+  --twc-blue-300: var(--flevoland-color-blue-200);
+  --twc-blue-400: var(--flevoland-color-brand-primary);
+  --twc-blue-500: var(--flevoland-color-brand-primary);
+  --twc-blue-600: var(--flevoland-color-brand-primary);
+  --twc-blue-700: var(--flevoland-color-brand-primary-active);
+  --twc-blue-800: var(--flevoland-color-text-default);
+  --twc-blue-900: var(--flevoland-color-text-default);
+  --twc-blue-950: var(--flevoland-color-text-default);
+
+  --twc-amber-50: var(--flevoland-color-status-warning-background);
+  --twc-amber-100: var(--flevoland-color-status-warning-background);
+  --twc-amber-200: var(--flevoland-color-status-warning-border);
+  --twc-amber-300: var(--flevoland-color-status-warning-border);
+  --twc-amber-400: var(--flevoland-color-status-warning-text);
+  --twc-amber-500: var(--flevoland-color-status-warning-text);
+  --twc-amber-600: var(--flevoland-color-status-warning-text);
+  --twc-amber-700: var(--flevoland-color-status-warning-text);
+  --twc-amber-800: var(--flevoland-color-status-warning-text);
+  --twc-amber-900: var(--flevoland-color-status-warning-text);
+  --twc-amber-950: var(--flevoland-color-status-warning-text);
+
+  --twc-orange-50: var(--flevoland-color-status-warning-background);
+  --twc-orange-100: var(--flevoland-color-status-warning-background);
+  --twc-orange-200: var(--flevoland-color-status-warning-border);
+  --twc-orange-300: var(--flevoland-color-status-warning-border);
+  --twc-orange-400: var(--flevoland-color-status-warning-text);
+  --twc-orange-500: var(--flevoland-color-status-warning-text);
+  --twc-orange-600: var(--flevoland-color-status-warning-text);
+  --twc-orange-700: var(--flevoland-color-status-warning-text);
+  --twc-orange-800: var(--flevoland-color-status-warning-text);
+  --twc-orange-900: var(--flevoland-color-status-warning-text);
+  --twc-orange-950: var(--flevoland-color-status-warning-text);
+
+  --twc-yellow-50: var(--flevoland-color-status-warning-background);
+  --twc-yellow-100: var(--flevoland-color-status-warning-background);
+  --twc-yellow-200: var(--flevoland-color-status-warning-border);
+  --twc-yellow-300: var(--flevoland-color-status-warning-border);
+  --twc-yellow-400: var(--flevoland-color-status-warning-text);
+  --twc-yellow-500: var(--flevoland-color-status-warning-text);
+  --twc-yellow-600: var(--flevoland-color-status-warning-text);
+  --twc-yellow-700: var(--flevoland-color-status-warning-text);
+  --twc-yellow-800: var(--flevoland-color-status-warning-text);
+  --twc-yellow-900: var(--flevoland-color-status-warning-text);
+  --twc-yellow-950: var(--flevoland-color-status-warning-text);
+}

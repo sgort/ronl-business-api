@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import { loginAsMedewerker } from './helpers/auth';
 import { watchForRateLimit } from './helpers/rate-limit';
 import { recordPendingCleanup } from './helpers/operaton-cleanup';
-import { OPERATON_URL } from './helpers/target';
+import { OPERATON_URL, operatonFetch } from './helpers/target';
 
 const OPERATON = OPERATON_URL;
 const COLLEAGUE = 'e2e-collega';
@@ -215,7 +215,7 @@ test.describe('ProcessView', () => {
 
 /** The targets of the deployed process's first parallel split with two branches, from its XML. */
 async function parallelBranchTargets(definitionId: string): Promise<string[]> {
-  const res = await fetch(`${OPERATON}/process-definition/${definitionId}/xml`);
+  const res = await operatonFetch(`${OPERATON}/process-definition/${definitionId}/xml`);
   const { bpmn20Xml } = (await res.json()) as { bpmn20Xml: string };
   const gateways = [...bpmn20Xml.matchAll(/<(?:bpmn:)?parallelGateway[^>]*\bid="([^"]+)"/g)].map(
     (m) => m[1]
@@ -237,10 +237,12 @@ test.describe('ProcessView — controlled marks', () => {
 
   test.afterEach(async () => {
     if (instanceId) {
-      await fetch(`${OPERATON}/process-instance/${instanceId}?skipCustomListeners=true`, {
+      await operatonFetch(`${OPERATON}/process-instance/${instanceId}?skipCustomListeners=true`, {
         method: 'DELETE',
       });
-      await fetch(`${OPERATON}/history/process-instance/${instanceId}`, { method: 'DELETE' });
+      await operatonFetch(`${OPERATON}/history/process-instance/${instanceId}`, {
+        method: 'DELETE',
+      });
       instanceId = null;
     }
     const throttled = rateLimit?.hit();
@@ -250,7 +252,7 @@ test.describe('ProcessView — controlled marks', () => {
   test('test 2 — mine, claimed and open marks, and parallel bars', async ({ page }) => {
     test.slow(); // starts, claims and reloads against a real engine
     const defs = (await (
-      await fetch(`${OPERATON}/process-definition?key=RipR24Process&latestVersion=true`)
+      await operatonFetch(`${OPERATON}/process-definition?key=RipR24Process&latestVersion=true`)
     ).json()) as Array<{ id: string; tenantId: string | null }>;
     const def = defs.find((d) => d.tenantId === 'flevoland') ?? defs[0];
     if (!def) test.skip(true, 'RipR24Process is not deployed on this tier.');
@@ -260,7 +262,7 @@ test.describe('ProcessView — controlled marks', () => {
 
     // Start an own instance with both parallel branches open.
     const businessKey = `e2e-process-view-${Date.now()}`;
-    const started = await fetch(`${OPERATON}/process-definition/${def!.id}/start`, {
+    const started = await operatonFetch(`${OPERATON}/process-definition/${def!.id}/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -281,7 +283,7 @@ test.describe('ProcessView — controlled marks', () => {
     recordPendingCleanup(businessKey);
 
     const tasks = (await (
-      await fetch(`${OPERATON}/task?processInstanceId=${instanceId}`)
+      await operatonFetch(`${OPERATON}/task?processInstanceId=${instanceId}`)
     ).json()) as Array<{ id: string; taskDefinitionKey: string; name: string }>;
     expect(tasks.length, 'both parallel branches are open tasks').toBeGreaterThanOrEqual(2);
     const [mineTask, colleagueTask] = tasks;
@@ -292,7 +294,7 @@ test.describe('ProcessView — controlled marks', () => {
     // project name: another running R2.4 with the same open task would be
     // indistinguishable from this one, so the test cannot run then.
     const sameName = (await (
-      await fetch(
+      await operatonFetch(
         `${OPERATON}/task?processDefinitionKey=RipR24Process&name=${encodeURIComponent(mineTask.name)}`
       )
     ).json()) as Array<{ processInstanceId: string }>;
@@ -303,7 +305,7 @@ test.describe('ProcessView — controlled marks', () => {
       );
     }
 
-    await fetch(`${OPERATON}/task/${colleagueTask.id}/assignee`, {
+    await operatonFetch(`${OPERATON}/task/${colleagueTask.id}/assignee`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: COLLEAGUE }),

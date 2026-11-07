@@ -8,18 +8,18 @@
   --blue:    var(--rba-flevoland-blue);
   --blue-700:var(--rba-flevoland-blue-d);
   --pink:    var(--rba-flevoland-pink);
-  --amber:   #d98800;
-  --ink:     #0f172a;
+  --amber:   var(--rba-warn-ink-6);
+  --ink:     var(--rba-ink-strong);
   --text:    var(--rba-ink);
-  --muted:   #5b6472;
-  --line:    #e3e8ef;
+  --muted:   var(--rba-ink-3);
+  --line:    var(--rba-rule-2);
   --card:    var(--rba-paper);
 
   box-sizing: border-box;
   scroll-behavior: smooth;
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--text);
-  background: linear-gradient(180deg, #eef2f7 0%, #f6f8fb 38%, #f6f8fb 100%);
+  background: linear-gradient(180deg, var(--rba-bg) 0%, var(--rba-bg) 38%, var(--rba-bg) 100%);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
@@ -185,7 +185,7 @@
   color: var(--muted);
 }
 
-.lcp .hero-note svg { color: #8a93a3; }
+.lcp .hero-note svg { color: var(--rba-ink-4); }
 
 /* ── Boards section ───────────────────────────────────────── */
 .lcp .section-head {
@@ -233,7 +233,7 @@
 .lcp .card:hover {
   box-shadow: 0 14px 30px -12px rgba(15, 23, 42, 0.22);
   transform: translateY(-3px);
-  border-color: #d3dae4;
+  border-color: var(--rba-rule);
 }
 
 /* preview panel — recognisable mini of each board */
@@ -258,7 +258,7 @@
 }
 
 /* Caseworker — task rows */
-.lcp .pv-case { background: linear-gradient(160deg, #eef4fc 0%, #e3edfa 100%); }
+.lcp .pv-case { background: linear-gradient(160deg, color-mix(in srgb, var(--rba-flevoland-blue) 7%, white) 0%, color-mix(in srgb, var(--rba-flevoland-blue) 12%, white) 100%); }
 .lcp .pv-case .ptag { color: var(--blue); }
 
 .lcp .task-list {
@@ -271,7 +271,7 @@
 
 .lcp .task-row {
   background: var(--rba-paper);
-  border: 1px solid #dde6f2;
+  border: 1px solid var(--rba-rule-2);
   border-left: 3px solid var(--blue);
   border-radius: 5px;
   height: 26px;
@@ -281,14 +281,14 @@
   padding: 0 8px;
 }
 
-.lcp .task-row .bar { height: 5px; border-radius: 3px; background: #c7d3e6; }
+.lcp .task-row .bar { height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--rba-flevoland-blue-d) 22%, white); }
 .lcp .task-row .chip { margin-left: auto; height: 10px; border-radius: 3px; }
 .lcp .task-row.late { border-left-color: var(--pink); }
 .lcp .task-row.late .chip { background: var(--pink); width: 26px; }
-.lcp .task-row .chip.open { background: #d7e0ee; width: 22px; }
+.lcp .task-row .chip.open { background: color-mix(in srgb, var(--rba-flevoland-blue-d) 16%, white); width: 22px; }
 
 /* PA-Cockpit — kompas / radar */
-.lcp .pv-pa { background: linear-gradient(160deg, #fdeef5 0%, #fbe2ee 100%); }
+.lcp .pv-pa { background: linear-gradient(160deg, color-mix(in srgb, var(--rba-flevoland-pink) 6%, white) 0%, color-mix(in srgb, var(--rba-flevoland-pink) 11%, white) 100%); }
 .lcp .pv-pa .ptag { color: var(--pink); }
 
 .lcp .radar {
@@ -337,7 +337,7 @@
 }
 
 /* Infra-board — phase swimlanes */
-.lcp .pv-infra { background: linear-gradient(160deg, #fef4e6 0%, #fbe9cf 100%); }
+.lcp .pv-infra { background: linear-gradient(160deg, var(--rba-warn-bg) 0%, color-mix(in srgb, var(--rba-warn-bg) 93%, var(--rba-warn)) 100%); }
 .lcp .pv-infra .ptag { color: var(--amber); }
 
 .lcp .lanes {
@@ -359,7 +359,7 @@
 
 .lcp .lane .pcard {
   background: var(--rba-paper);
-  border: 1px solid #ecdcc0;
+  border: 1px solid var(--rba-warn-line-2);
   border-radius: 4px;
   height: 16px;
   position: relative;
@@ -374,12 +374,12 @@
   background: var(--amber);
 }
 
-.lcp .lane .pcard.g::before { background: #1f9d57; }
+.lcp .lane .pcard.g::before { background: var(--rba-ok-ink-3); }
 .lcp .lane .pcard.r::before { background: var(--pink); }
 
 /* Woo-dashboard — stoplicht KPI grid */
-.lcp .pv-woo { background: linear-gradient(160deg, #eef8ef 0%, #d9f0da 100%); }
-.lcp .pv-woo .ptag { color: #2d7a33; }
+.lcp .pv-woo { background: linear-gradient(160deg, var(--rba-ok-bg) 0%, color-mix(in srgb, var(--rba-ok-bg) 87%, var(--rba-ok)) 100%); }
+.lcp .pv-woo .ptag { color: var(--rba-ok-ink-2); }
 .lcp .woo-mini {
   position: absolute;
   left: 14px; right: 14px; bottom: 14px; top: 38px;
@@ -393,12 +393,12 @@
   background: var(--rba-paper); padding: 6px 8px;
 }
 .lcp .woo-kpi .wlbl { font-size: 10px; color: var(--rba-ink-3); flex: 1; }
-.lcp .woo-kpi b { font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700; color: #111827; }
+.lcp .woo-kpi b { font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700; color: var(--rba-ink-strong); }
 .lcp .wdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .lcp .wdot.groen { background: var(--rba-ok); }
 .lcp .wdot.geel  { background: var(--rba-warn); }
 .lcp .wdot.rood  { background: var(--rba-bad); }
-.lcp .wdot.blauw { background: #0046ad; }
+.lcp .wdot.blauw { background: var(--rba-flevoland-blue); }
 
 /* card body */
 .lcp .body {
@@ -450,14 +450,14 @@
   gap: 7px;
   font-size: 12px;
   font-weight: 600;
-  color: #166534;
+  color: var(--rba-ok-ink);
 }
 
 .lcp .avail .led {
   width: 8px; height: 8px;
   border-radius: 50%;
-  background: #1f9d57;
-  box-shadow: 0 0 0 3px rgba(31, 157, 87, 0.16);
+  background: var(--rba-ok-ink-3);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rba-ok-ink-3) 16%, transparent);
 }
 
 .lcp .open-link {
@@ -487,14 +487,14 @@
   font-weight: 600;
   color: var(--blue);
   background: var(--rba-paper);
-  border: 1px solid #ccdafb;
+  border: 1px solid color-mix(in srgb, var(--rba-flevoland-blue) 23%, white);
   border-radius: 6px;
   padding: 4px 9px;
   cursor: pointer;
   white-space: nowrap;
 }
 
-.lcp .entra-link:hover { background: #f0f4ff; border-color: var(--blue); }
+.lcp .entra-link:hover { background: color-mix(in srgb, var(--rba-flevoland-blue) 8%, white); border-color: var(--blue); }
 
 .lcp .open-link svg { transition: transform 0.15s ease; }
 .lcp .card:hover .open-link svg { transform: translateX(3px); }
@@ -504,14 +504,14 @@
   display: flex;
   align-items: flex-start;
   gap: 13px;
-  background: #f0f4ff;
-  border: 1px solid #ccdafb;
+  background: color-mix(in srgb, var(--rba-flevoland-blue) 8%, white);
+  border: 1px solid color-mix(in srgb, var(--rba-flevoland-blue) 23%, white);
   border-radius: 12px;
   padding: 16px 18px;
   margin: 34px 0 0;
   font-size: 13.5px;
   line-height: 1.55;
-  color: #2f3b66;
+  color: color-mix(in srgb, var(--rba-flevoland-blue-d) 80%, black);
 }
 
 .lcp .access svg { color: var(--blue); flex-shrink: 0; margin-top: 1px; }

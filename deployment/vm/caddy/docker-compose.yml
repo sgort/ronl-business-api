@@ -1,0 +1,33 @@
+name: caddy-proxy
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    # #415: OPERATON_PUBLIC_READER_AUTH (base64 of publicReader:<password>),
+    # read by operaton-engine-rest.caddy. The file lives only on the VM.
+    # Changing it needs `docker compose up -d` (a recreate), not a reload.
+    env_file: ./caddy.env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./operaton-engine-rest.caddy:/etc/caddy/operaton-engine-rest.caddy:ro
+      - ./static:/srv/static
+      - caddy_data:/data
+      - caddy_config:/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - npm-network
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  npm-network:
+    external: true
+

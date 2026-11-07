@@ -6,11 +6,11 @@
    and stay local until that is settled (#374). */
 
 .lcp-single {
-  --tint:  color-mix(in oklch, var(--color-primary) 9%, #fff);
-  --ink:   #0f172a;
+  --tint:  color-mix(in oklch, var(--color-primary) 9%, var(--rba-paper));
+  --ink:   var(--rba-ink-strong);
   --text:  var(--rba-ink);
-  --muted: #5b6472;
-  --line:  #e3e8ef;
+  --muted: var(--rba-ink-3);
+  --line:  var(--rba-rule-2);
   --pink:  var(--rba-flevoland-pink);
   --blue:  var(--rba-flevoland-blue);
 
@@ -18,7 +18,7 @@
   font-family: "Inter", -apple-system, "Segoe UI", sans-serif;
   color: var(--text);
   /* A tenant may set its own page background (theme.background). */
-  background: var(--color-background, #f6f8fb);
+  background: var(--color-background, var(--rba-bg));
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -210,7 +210,7 @@
 .lcp-single .shot-body { display: grid; grid-template-columns: 118px minmax(0, 1fr); min-height: 300px; }
 
 .lcp-single .shot-nav {
-  background: #f8fafc;
+  background: var(--rba-bg);
   border-right: 1px solid var(--line);
   padding: 14px 10px;
   display: flex;
@@ -226,7 +226,7 @@
   font-size: 9px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #98a1af;
+  color: var(--rba-ink-4);
   padding: 10px 8px 4px;
 }
 
@@ -284,12 +284,12 @@
   font-weight: 600;
   padding: 3px 7px;
   border-radius: 4px;
-  background: #eef2f7;
-  color: #475263;
+  background: var(--rba-bg);
+  color: var(--rba-ink-2);
   white-space: nowrap;
 }
 
-.lcp-single .chip.late { background: #fde7f1; color: #b0005a; }
+.lcp-single .chip.late { background: color-mix(in srgb, var(--rba-flevoland-pink) 9%, white); color: color-mix(in srgb, var(--rba-flevoland-pink) 76%, black); }
 .lcp-single .chip.mine { background: var(--tint); color: var(--color-primary-dark); }
 
 /* ── Three points ─────────────────────────────────────────── */

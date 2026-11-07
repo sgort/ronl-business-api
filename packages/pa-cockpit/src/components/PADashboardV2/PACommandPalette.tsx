@@ -3,14 +3,14 @@
  *
  * Searches static sections (from modes.config) plus all dossiers (data-driven).
  * Selecting an item switches to the owning mode and sets the active section.
- * Mirrors the caseworker CommandPalette in behaviour, but shares none of its
- * CSS: every class here is `.pac-palette*`, fully defined in the
- * "Command palette (⌘K)" block of dashboard-pa.css, including the inner
- * .label, .mode, .pal-empty and .pal-hint. It depends on no caseworker
- * stylesheet, which is what lets it render correctly in packages/pa-demo —
- * a workspace that never loads dashboard-v2.css at all. An earlier version
- * of this comment claimed it reused `.cwd-v2-palette*` "kept global"; that
- * was never true and implied a dependency the demo could not satisfy.
+ * Mirrors the caseworker CommandPalette in behaviour. Its classes are its own
+ * (`.pac-palette*`, including the inner .label, .mode, .pal-empty and
+ * .pal-hint); the declarations it shares with `.cwd-v2-palette*` are written
+ * once, with both selectors, in packages/shared/styles/v2-chrome.css (#374
+ * item 4), and PA's own are in the "Command palette (⌘K)" block of
+ * dashboard-pa.css. It depends on no caseworker stylesheet, which is what
+ * lets it render correctly in packages/pa-demo — a workspace that never loads
+ * dashboard-v2.css at all; pa-demo imports v2-chrome.css itself.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';

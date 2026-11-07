@@ -828,7 +828,10 @@ export default function RegelSimulatie({ user }: { user: KeycloakUser | null }) 
                           {e.isRFI && (
                             <span
                               className="f-type"
-                              style={{ background: 'var(--v2-amber)', color: '#5a4a00' }}
+                              style={{
+                                background: 'var(--rba-warn-fill)',
+                                color: 'var(--rba-on-warn-fill)',
+                              }}
                             >
                               ⓘ info
                             </span>

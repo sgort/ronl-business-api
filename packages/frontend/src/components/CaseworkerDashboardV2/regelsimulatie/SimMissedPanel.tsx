@@ -114,7 +114,7 @@ export default function SimMissedPanel({ result, day }: { result: SimResult; day
         >
           <MtSeg
             bg="var(--v2-chrome)"
-            color="#fff"
+            color="var(--rba-ink-inverse)"
             label="ingediend"
             l={0}
             r={L(subEnd)}
@@ -123,7 +123,7 @@ export default function SimMissedPanel({ result, day }: { result: SimResult; day
           />
           <MtSeg
             bg={PROC}
-            color="#fff"
+            color="var(--rba-ink-inverse)"
             label="behandeling"
             l={L(subEnd)}
             r={100}
@@ -153,7 +153,7 @@ export default function SimMissedPanel({ result, day }: { result: SimResult; day
                 height: 32,
                 borderRadius: 16,
                 background: accent,
-                color: '#fff',
+                color: 'var(--rba-ink-inverse)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -173,7 +173,7 @@ export default function SimMissedPanel({ result, day }: { result: SimResult; day
                   inset: -4,
                   border: '2px solid var(--v2-amber)',
                   borderRadius: 14,
-                  boxShadow: '0 0 0 4px rgba(229,183,0,.28)',
+                  boxShadow: '0 0 0 4px color-mix(in srgb, var(--v2-amber) 28%, transparent)',
                   pointerEvents: 'none',
                 }}
               />
@@ -182,8 +182,8 @@ export default function SimMissedPanel({ result, day }: { result: SimResult; day
                   position: 'absolute',
                   top: -12,
                   left: 14,
-                  background: 'var(--v2-amber)',
-                  color: '#5a4a00',
+                  background: 'var(--rba-warn-fill)',
+                  color: 'var(--rba-on-warn-fill)',
                   fontSize: 10.5,
                   fontWeight: 700,
                   padding: '2px 8px',
@@ -226,7 +226,7 @@ export default function SimMissedPanel({ result, day }: { result: SimResult; day
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#fff',
+                    color: 'var(--rba-ink-inverse)',
                     fontSize: 10.5,
                     fontWeight: 600,
                     whiteSpace: 'nowrap',
@@ -270,7 +270,12 @@ export default function SimMissedPanel({ result, day }: { result: SimResult; day
             }}
           >
             <span
-              style={{ fontSize: 10, color: '#fff', fontFamily: 'var(--v2-mono)', fontWeight: 600 }}
+              style={{
+                fontSize: 10,
+                color: 'var(--rba-ink-inverse)',
+                fontFamily: 'var(--v2-mono)',
+                fontWeight: 600,
+              }}
             >
               ↳ budget naar succesvol beroep{a.beroepDisplacerId ? ' #' + a.beroepDisplacerId : ''}
             </span>
@@ -307,11 +312,12 @@ export default function SimMissedPanel({ result, day }: { result: SimResult; day
 
   const tag = (app: SimApp) => {
     if (app.missedDueToRFI && app.missedDueToBeroep) {
-      return { t: 'RFI + beroep', bg: 'var(--sim-hold, #7c3aed)', c: '#fff' };
+      return { t: 'RFI + beroep', bg: 'var(--sim-hold, #7c3aed)', c: 'var(--rba-ink-inverse)' };
     }
     if (app.missedDueToBeroep)
-      return { t: 'door beroep', bg: 'var(--sim-hold, #7c3aed)', c: '#fff' };
-    if (app.missedDueToRFI) return { t: 'door verschuiving', bg: 'var(--v2-overdue)', c: '#fff' };
+      return { t: 'door beroep', bg: 'var(--sim-hold, #7c3aed)', c: 'var(--rba-ink-inverse)' };
+    if (app.missedDueToRFI)
+      return { t: 'door verschuiving', bg: 'var(--v2-overdue)', c: 'var(--rba-ink-inverse)' };
     return { t: 'budget op', bg: 'var(--v2-rule-2)', c: 'var(--v2-ink-3)' };
   };
 
@@ -330,8 +336,8 @@ export default function SimMissedPanel({ result, day }: { result: SimResult; day
         cursor: 'pointer',
         border: 'none',
         borderLeft: key === 'rfi' ? 'none' : '1px solid var(--v2-rule-2)',
-        background: mode === key ? col : '#fff',
-        color: mode === key ? '#fff' : 'var(--v2-ink-2)',
+        background: mode === key ? col : 'var(--rba-paper)',
+        color: mode === key ? 'var(--rba-ink-inverse)' : 'var(--v2-ink-2)',
       }}
     >
       {label} ({count})
@@ -527,10 +533,10 @@ export default function SimMissedPanel({ result, day }: { result: SimResult; day
                       fontSize: 11,
                       padding: '3px 8px',
                       borderRadius: 7,
-                      border: '1px solid ' + (active ? 'var(--v2-amber)' : bcol),
-                      background: active ? 'var(--v2-amber)' : '#fff',
+                      border: '1px solid ' + (active ? 'var(--rba-warn-fill)' : bcol),
+                      background: active ? 'var(--rba-warn-fill)' : 'var(--rba-paper)',
                       color: active
-                        ? '#5a4a00'
+                        ? 'var(--rba-on-warn-fill)'
                         : x.missedDueToBeroep
                           ? 'var(--sim-hold, #7c3aed)'
                           : x.missedDueToRFI

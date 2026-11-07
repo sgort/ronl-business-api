@@ -1,6 +1,6 @@
 {
   "name": "@ronl/frontend",
-  "version": "2026.10.4",
+  "version": "2026.11.0",
   "description": "Municipality portal (MijnOmgeving) with identity provider selection",
   "type": "module",
   "scripts": {
@@ -36,6 +36,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/typography": "^0.5.19",
     "@testing-library/jest-dom": "^6.9.1",

@@ -21,10 +21,13 @@
 #
 # Optional overrides (env vars):
 #   OPERATON_URL   engine REST base (default: http://localhost:8081/engine-rest)
+#   OPERATON_USERNAME, OPERATON_PASSWORD   engine login, an operaton-admin
+#                  account (default demo/demo, the local stack; #415)
 #   RIP_KEYS       comma-separated process-definition keys
 #                  (default: every RipR* key deployed on the engine, discovered)
 #
-# ACC: OPERATON_URL=https://operaton.open-regels.nl/engine-rest bash scripts/rip-purge-instances.sh
+# ACC: OPERATON_URL=https://operaton.open-regels.nl/engine-rest \
+#        OPERATON_USERNAME=<admin> OPERATON_PASSWORD=<password> bash scripts/rip-purge-instances.sh
 # Think twice before doing that — ACC history is not yours alone.
 #
 # Note on Windows: python opens stdout in text mode, so a bare print() emits
@@ -35,6 +38,24 @@
 set -uo pipefail
 
 OPERATON_URL="${OPERATON_URL:-http://localhost:8081/engine-rest}"
+# The engine requires a login (#415). Every call to ${OPERATON_URL} goes through
+# ocurl. A local engine defaults to the stack's demo/demo; a remote one (ACC,
+# PROD) needs an operaton-admin account in OPERATON_USERNAME and
+# OPERATON_PASSWORD, and the script refuses to guess: demo/demo against the VM
+# is a failed login on every call, and Operaton locks an account after ten.
+if [ -z "${OPERATON_USERNAME:-}" ] || [ -z "${OPERATON_PASSWORD:-}" ]; then
+  case "$OPERATON_URL" in
+    http://localhost:* | http://localhost/* | http://127.0.0.1:* | http://127.0.0.1/*)
+      OPERATON_USERNAME=demo
+      OPERATON_PASSWORD=demo
+      ;;
+    *)
+      echo "OPERATON_USERNAME and OPERATON_PASSWORD are required for $OPERATON_URL (only a local engine defaults to demo/demo)" >&2
+      exit 2
+      ;;
+  esac
+fi
+ocurl() { curl -u "${OPERATON_USERNAME}:${OPERATON_PASSWORD}" "$@"; }
 # Discovered from the engine rather than listed. A hardcoded default lagged the
 # ladder twice -- once at R2.3 and again at R5.1 -- and each time the failure
 # was silent in the worst way: the script reported "Clean." having left the
@@ -64,13 +85,13 @@ KEYS_JSON=$(printf '%s' "$RIP_KEYS" | "$PY_BIN" -c \
 
 PY_IDS="import sys,json;sys.stdout.reconfigure(newline='');[print(i['id']) for i in json.load(sys.stdin)]"
 
-if ! curl -sf -o /dev/null "$OPERATON_URL/version"; then
+if ! ocurl -sf -o /dev/null "$OPERATON_URL/version"; then
   echo "Operaton not reachable at $OPERATON_URL" >&2
   exit 1
 fi
 
 if [ -z "$RIP_KEYS" ]; then
-  RIP_KEYS=$(curl -s "$OPERATON_URL/process-definition?latestVersion=true" | "$PY_BIN" -c \
+  RIP_KEYS=$(ocurl -s "$OPERATON_URL/process-definition?latestVersion=true" | "$PY_BIN" -c \
     "import sys,json;print(','.join(sorted(d['key'] for d in json.load(sys.stdin) if d['key'].startswith('RipR'))))")
   if [ -z "$RIP_KEYS" ]; then
     echo "No RipR* process definitions deployed on $OPERATON_URL -- nothing to purge." >&2
@@ -79,13 +100,13 @@ if [ -z "$RIP_KEYS" ]; then
 fi
 
 query_ids() { # $1 = '' for runtime, 'history/' for history
-  curl -s -X POST "$OPERATON_URL/${1}process-instance" \
+  ocurl -s -X POST "$OPERATON_URL/${1}process-instance" \
     -H 'Content-Type: application/json' \
     -d "{\"processDefinitionKeyIn\":$KEYS_JSON}" | "$PY_BIN" -c "$PY_IDS"
 }
 
 count() { # $1 = '' | 'history/', $2 = key
-  curl -s -X POST "$OPERATON_URL/${1}process-instance/count" \
+  ocurl -s -X POST "$OPERATON_URL/${1}process-instance/count" \
     -H 'Content-Type: application/json' -d "{\"processDefinitionKey\":\"$2\"}" |
     "$PY_BIN" -c "import sys,json;print(json.load(sys.stdin)['count'])"
 }
@@ -94,7 +115,7 @@ count() { # $1 = '' | 'history/', $2 = key
 # delete loop that swallows a 500 leaves you believing the engine is clean.
 del() { # $1 = url, $2 = label
   local code
-  code=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$1")
+  code=$(ocurl -s -o /dev/null -w '%{http_code}' -X DELETE "$1")
   case "$code" in
     200|204) echo "  ok      $2" ;;
     404)     echo "  gone    $2 (already absent)" ;;
@@ -152,7 +173,7 @@ done
 
 echo
 echo "== still deployed, untouched =="
-curl -s "$OPERATON_URL/process-definition?latestVersion=true" | "$PY_BIN" -c \
+ocurl -s "$OPERATON_URL/process-definition?latestVersion=true" | "$PY_BIN" -c \
   "import sys,json;[print('  ',d['key'],'tenant='+str(d['tenantId'])) for d in json.load(sys.stdin)]"
 
 if [ "$FAILURES" -gt 0 ] || [ "$REMAINING" -gt 0 ]; then

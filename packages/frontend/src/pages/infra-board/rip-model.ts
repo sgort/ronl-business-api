@@ -22,9 +22,9 @@ export { STATUS, type StatusKey } from '../../components/process/status';
 
 export type HealthKey = 'groen' | 'geel' | 'rood';
 export const HEALTH: Record<HealthKey, { label: string; color: string }> = {
-  groen: { label: 'Op schema', color: '#3fa535' },
-  geel: { label: 'Aandacht', color: '#e5b700' },
-  rood: { label: 'Risico', color: '#b0103c' },
+  groen: { label: 'Op schema', color: 'var(--rba-ok)' },
+  geel: { label: 'Aandacht', color: 'var(--rba-warn)' },
+  rood: { label: 'Risico', color: 'var(--rba-bad)' },
 };
 
 export interface RoleDef {

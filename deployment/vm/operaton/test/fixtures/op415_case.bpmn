@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- #415 test fixture: a "case" with a waiting user task, whose data must stay closed. -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:operaton="http://operaton.org/schema/1.0/bpmn"
+                  id="op415_case_definitions" targetNamespace="https://open-regels.nl/op415">
+  <bpmn:process id="op415_case" name="op415 case" isExecutable="true" operaton:historyTimeToLive="P1D">
+    <bpmn:startEvent id="op415_start" />
+    <bpmn:sequenceFlow id="op415_f1" sourceRef="op415_start" targetRef="op415_task" />
+    <bpmn:userTask id="op415_task" name="Review" />
+    <bpmn:sequenceFlow id="op415_f2" sourceRef="op415_task" targetRef="op415_end" />
+    <bpmn:endEvent id="op415_end" />
+  </bpmn:process>
+</bpmn:definitions>

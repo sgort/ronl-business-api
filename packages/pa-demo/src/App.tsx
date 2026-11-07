@@ -17,7 +17,14 @@
  * dashboard-pa.css and dossierbeheer.css, and demo-overrides.css must come
  * after them — both of its rule blocks win on cascade order at equal
  * specificity rather than with !important. See that file's own header.
+ *
+ * The shared v2 chrome comes first of all (#374 item 4): the rules PA-Cockpit
+ * and Caseworker V2 have in common, which dashboard-pa.css, dossierbeheer.css
+ * (imported by a cockpit component, so also by the line below it) and
+ * demo-overrides.css build on. Its only other import is in the frontend's
+ * App.tsx; css-tokens.test.ts checks both.
  */
+import '@ronl/shared/styles/v2-chrome.css';
 import { PADashboardV2 } from '@ronl/pa-cockpit';
 import { DemoRoleProvider } from './demo/DemoRoleContext';
 import { demoCockpitHost } from './demo/pa-cockpit-host';

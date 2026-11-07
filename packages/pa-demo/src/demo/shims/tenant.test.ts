@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initializeTenantTheme } from './tenant';
+import { initializeTenantTheme, TENANT_MARKER_ENABLED } from './tenant';
 
 // packages/frontend/public/tenants.json, not this package's copy: pa-demo
 // no longer keeps a copy of tenants.json (it was 18 KB of internal multi-tenant
@@ -27,10 +27,10 @@ describe('demo tenant shim', () => {
     await initializeTenantTheme();
     const style = document.documentElement.style;
     expect(style.getPropertyValue('--color-primary')).toBe('#0046ad');
-    expect(style.getPropertyValue('--color-primary-dark')).toBe('#134F7D');
+    expect(style.getPropertyValue('--color-primary-dark')).toBe('#003a8e');
     expect(style.getPropertyValue('--color-primary-light')).toBe('#4A8FC0');
     expect(style.getPropertyValue('--color-secondary')).toBe('#e70077');
-    expect(style.getPropertyValue('--color-accent')).toBe('#F5A623');
+    expect(style.getPropertyValue('--color-accent')).toBe('#fec612');
   });
 
   it("resolves to true so the cockpit shell's .then() chain runs", async () => {
@@ -53,5 +53,30 @@ describe('demo tenant shim', () => {
     expect(style.getPropertyValue('--color-primary-light')).toBe(theme.primaryLight);
     expect(style.getPropertyValue('--color-secondary')).toBe(theme.secondary);
     expect(style.getPropertyValue('--color-accent')).toBe(theme.accent);
+  });
+
+  it("follows the frontend's tenant marker switch (#374)", () => {
+    const service = readFileSync(
+      path.resolve(frontendPublicDir, '../src/services/tenant.ts'),
+      'utf8'
+    );
+    const frontend = /export const TENANT_MARKER_ENABLED = (true|false);/.exec(service);
+    expect(frontend).not.toBeNull();
+    expect(TENANT_MARKER_ENABLED).toBe(frontend?.[1] === 'true');
+  });
+
+  it('marks the tenant on <html> only when the marker is on', async () => {
+    delete document.documentElement.dataset.tenant;
+    await initializeTenantTheme();
+    expect(document.documentElement.dataset.tenant).toBe(
+      TENANT_MARKER_ENABLED ? 'flevoland' : undefined
+    );
+  });
+
+  it('sets data-tenant="flevoland" with the marker on, and removes it with the marker off', async () => {
+    await initializeTenantTheme(undefined, true);
+    expect(document.documentElement.dataset.tenant).toBe('flevoland');
+    await initializeTenantTheme(undefined, false);
+    expect(document.documentElement.dataset.tenant).toBeUndefined();
   });
 });

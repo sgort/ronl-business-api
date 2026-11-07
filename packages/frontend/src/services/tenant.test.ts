@@ -9,6 +9,7 @@ import {
   initializeTenantTheme,
   loadTenantConfigs,
   RESERVED_TENANT_IDS,
+  TENANT_MARKER_ENABLED,
   resolveLandingTenant,
   type TenantConfig,
 } from './tenant';
@@ -58,6 +59,7 @@ describe('tenant service', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    delete document.documentElement.dataset.tenant;
   });
 
   describe('loadTenantConfigs', () => {
@@ -257,6 +259,38 @@ describe('tenant service', () => {
 
       expect(document.documentElement.style.getPropertyValue('--color-background')).toBe('');
     });
+    // The tenant marker (#374): data-tenant on <html> lets the stylesheets
+    // switch colours for one tenant. Off until the last PR of step 1.
+    it('sets data-tenant when the marker is enabled', () => {
+      applyTenantTheme(utrechtConfig.theme, 'utrecht', true);
+
+      expect(document.documentElement.dataset.tenant).toBe('utrecht');
+    });
+
+    it('replaces data-tenant on a switch', () => {
+      applyTenantTheme(utrechtConfig.theme, 'utrecht', true);
+      applyTenantTheme(utrechtConfig.theme, 'flevoland', true);
+
+      expect(document.documentElement.dataset.tenant).toBe('flevoland');
+    });
+
+    it('removes data-tenant when a theme comes without an id', () => {
+      applyTenantTheme(utrechtConfig.theme, 'utrecht', true);
+      applyTenantTheme(utrechtConfig.theme, undefined, true);
+
+      expect(document.documentElement.dataset.tenant).toBeUndefined();
+    });
+
+    it('the marker is on', () => {
+      expect(TENANT_MARKER_ENABLED).toBe(true);
+    });
+
+    it('sets no data-tenant with the marker off', () => {
+      document.documentElement.dataset.tenant = 'stale';
+      applyTenantTheme(utrechtConfig.theme, 'utrecht', false);
+
+      expect(document.documentElement.dataset.tenant).toBeUndefined();
+    });
   });
 
   // The real tenants.json, so a typo in Heusden's entry fails here rather than
@@ -288,6 +322,31 @@ describe('tenant service', () => {
   });
 
   describe('initializeTenantTheme', () => {
+    it('marks the tenant it applies', async () => {
+      mockFetchOnce({ tenants: { utrecht: utrechtConfig }, default: 'utrecht' });
+      await loadTenantConfigs();
+
+      await initializeTenantTheme('utrecht');
+
+      expect(document.documentElement.dataset.tenant).toBe('utrecht');
+    });
+
+    // An unknown or disabled tenant changes nothing: the previous theme stays,
+    // and so does its marker, so the page never shows one tenant's --color-*
+    // with another's (or no) data-tenant colours.
+    it('keeps the previous theme and its marker together for an unknown tenant', async () => {
+      mockFetchOnce({ tenants: { utrecht: utrechtConfig }, default: 'utrecht' });
+      await loadTenantConfigs();
+      await initializeTenantTheme('utrecht');
+
+      expect(await initializeTenantTheme('nowhere')).toBe(false);
+
+      expect(document.documentElement.dataset.tenant).toBe('utrecht');
+      expect(document.documentElement.style.getPropertyValue('--color-primary')).toBe(
+        utrechtConfig.theme.primary
+      );
+    });
+
     it('applies the theme and returns true for an enabled tenant already in cache', async () => {
       mockFetchOnce({ tenants: { utrecht: utrechtConfig }, default: 'utrecht' });
       await loadTenantConfigs();

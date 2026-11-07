@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { loginAsMedewerker } from './helpers/auth';
 import { recordPendingCleanup } from './helpers/operaton-cleanup';
 import { watchForRateLimit } from './helpers/rate-limit';
-import { OPERATON_URL, targetLabel } from './helpers/target';
+import { OPERATON_URL, operatonFetch, targetLabel } from './helpers/target';
 
 /**
  * RIP fase 1 (R2.1) end to end — start the phase, work every task, reach
@@ -331,7 +331,9 @@ const OPERATON = OPERATON_URL;
  * sure the instance it creates is the only one it could possibly pick.
  */
 async function activeR21Instances(): Promise<Array<{ id: string; businessKey: string | null }>> {
-  const res = await fetch(`${OPERATON}/process-instance?processDefinitionKey=RipR21Process`);
+  const res = await operatonFetch(
+    `${OPERATON}/process-instance?processDefinitionKey=RipR21Process`
+  );
   if (!res.ok) throw new Error(`Operaton returned ${res.status} listing R2.1 instances`);
   return (await res.json()) as Array<{ id: string; businessKey: string | null }>;
 }
@@ -346,7 +348,7 @@ async function activeR21Instances(): Promise<Array<{ id: string; businessKey: st
  * evidence read as evidence of completion.
  */
 async function instanceFinished(instanceId: string): Promise<boolean> {
-  const res = await fetch(`${OPERATON}/history/process-instance/${instanceId}`);
+  const res = await operatonFetch(`${OPERATON}/history/process-instance/${instanceId}`);
   if (!res.ok) return false;
   return ((await res.json()) as { state?: string }).state === 'COMPLETED';
 }
@@ -365,7 +367,7 @@ async function nextStep(instanceId: string, timeoutMs = 90_000): Promise<'task' 
   for (;;) {
     // A task first: if one exists there is work to do regardless of anything
     // else the engine reports.
-    const tasks = await fetch(`${OPERATON}/task/count?processInstanceId=${instanceId}`);
+    const tasks = await operatonFetch(`${OPERATON}/task/count?processInstanceId=${instanceId}`);
     if (tasks.ok && ((await tasks.json()) as { count: number }).count > 0) return 'task';
     if (await instanceFinished(instanceId)) return 'done';
     if (Date.now() > deadline) {
@@ -415,7 +417,7 @@ async function deleteInstance(id: string): Promise<void> {
 async function del(url: string, what: string, expected: number[]): Promise<void> {
   let res: Response;
   try {
-    res = await fetch(url, { method: 'DELETE' });
+    res = await operatonFetch(url, { method: 'DELETE' });
   } catch (err) {
     console.warn(
       `[rip-r21-journey] ${what} cleanup could not reach the engine: ${(err as Error).message}. ` +
@@ -745,7 +747,7 @@ test.describe('RIP fase 1 (R2.1)', () => {
     // a process that had not finished. The real fault was invisible.
     if (!finished) {
       const stillRunning = !(await instanceFinished(instanceId!));
-      const open = await fetch(`${OPERATON}/task?processInstanceId=${instanceId}`)
+      const open = await operatonFetch(`${OPERATON}/task?processInstanceId=${instanceId}`)
         .then((r) => (r.ok ? (r.json() as Promise<Array<{ name: string }>>) : []))
         .catch(() => []);
       throw new Error(

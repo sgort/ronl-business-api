@@ -153,9 +153,9 @@ export default function SectionRouter({
 
   // Fallback for ids we don't yet route.
   return (
-    <div style={{ padding: '24px 0', color: '#6b7280' }}>
+    <div style={{ padding: '24px 0', color: 'var(--rba-ink-3)' }}>
       <p style={{ fontSize: 14 }}>
-        Sectie <code style={{ background: '#f3f4f6', padding: '2px 6px' }}>{sectionId}</code>{' '}
+        Sectie <code style={{ background: 'var(--rba-bg)', padding: '2px 6px' }}>{sectionId}</code>{' '}
         bestaat in de oude dashboard maar is nog niet aangesloten op V2.
       </p>
     </div>

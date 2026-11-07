@@ -1,0 +1,352 @@
+/*
+ * Copied verbatim from Flevoland IT's flevoland-base.css, v0.2.0 (12-10-2026):
+ * the file header and section 1 (design tokens). Loaded through
+ * ../tokens.css, which repoints our --rba-* tokens at these for the
+ * Flevoland tenant (#374). Do not edit by hand: diff a new delivery against
+ * this file. The rest of the delivery is in ./base.css.
+ */
+
+/* ==========================================================================
+   Provincie Flevoland, basis-stylesheet
+   Opgebouwd volgens de architectuur en naamgevingsconventies van
+   NL Design System (https://nldesignsystem.nl)
+
+   Versie:   0.2.0 (concept)
+   Datum:    12-10-2026
+   Wijziging 0.2.0: kleuren en fonts overgenomen uit de intranet-CSS
+                    (embrace) van Provincie Flevoland.
+
+   OPBOUW VAN DIT BESTAND
+   --------------------------------------------------------------------------
+   0. Gebruik en uitgangspunten
+      0a. Bron van kleuren en fonts
+      0b. Bewuste afwijkingen van het intranet (toegankelijkheid)
+      0c. Webfonts laden
+   1. Design tokens (:root)
+      1a. Brand tokens (ruwe kleurwaarden, paletten)
+      1b. Systeemkleuren (semantische tokens, verwijzen naar 1a)
+      1c. Typografie
+      1d. Spacing
+      1e. Overige tokens (randen, schaduw, focus, maten, beweging)
+   2. Base styles (reset en standaarden voor HTML-elementen)
+   3. NL Design System component mapping (voorbeeld: Button)
+   4. Gebruikersvoorkeuren (reduced motion, forced colors)
+
+   0. GEBRUIK EN UITGANGSPUNTEN
+   --------------------------------------------------------------------------
+   - Laad dit bestand NA eventuele NL Design System component-CSS, of laad
+     het ervoor: de base styles (sectie 2) gebruiken :where() en hebben dus
+     specificiteit 0. Component-classes zoals .nl-button winnen altijd.
+   - Tokens volgen het NL Design System patroon:
+       --{prefix}-{categorie}-{concept}-{variant}-{eigenschap}
+     bijvoorbeeld --flevoland-color-text-default of
+     --flevoland-typography-font-size-md.
+   - Componenten verwijzen nooit rechtstreeks naar brand tokens (1a), maar
+     altijd naar systeemtokens (1b t/m 1e). Zo kan een palet wijzigen zonder
+     dat componenten aangepast hoeven te worden.
+   - Doelniveau toegankelijkheid: WCAG 2.2 niveau AA.
+     Tekst minimaal 4,5:1 contrast, UI-elementen en focus minimaal 3:1,
+     klikdoelen minimaal 44 x 44 px, regelhoogte minimaal 1,5.
+
+   0a. BRON VAN KLEUREN EN FONTS
+   --------------------------------------------------------------------------
+   Kleuren en fonts komen uit de intranet-stylesheet. Belangrijkste waarden:
+     #0046ad  primair blauw (links, knoppen, actieve menu-items)
+     #0052cc  blauw bij hover van knoppen
+     #003a8e  donkerblauw (link-hover, focusrand, skiplink)
+     #0c1c47  donker navy (tekstkleur body)
+     #fec612  geel accent (notificatiebalk, knoppen in zijkolommen)
+     #424242  koppen
+     #f8f8f8  achtergrond van de pagina
+     Grijzen  Material-reeks #fafafa t/m #212121
+     Status   fout #c62100, succes #207815, waarschuwing #85531a,
+              info #236791, met bijbehorende lichte achtergronden
+     Fonts    "Fira Sans" voor tekst en koppen, "Roboto" voor oudere widgets
+   In het intranet komt geen groene merkkleur voor. Groen wordt hier daarom
+   alleen als statuskleur (succes) gebruikt; geel is de accentkleur.
+   Alleen waar dat in het commentaar staat, is een waarde afgeleid in plaats
+   van overgenomen.
+
+   0b. BEWUSTE AFWIJKINGEN VAN HET INTRANET
+   --------------------------------------------------------------------------
+   - Randen van invoervelden: intranet #dddddd (1,4:1) haalt WCAG 1.4.11
+     niet. Hier #757575 (4,6:1).
+   - Links in lopende tekst: intranet onderstreept pas bij hover. Blauw en
+     navy verschillen te weinig (2,0:1) om alleen op kleur te leunen
+     (WCAG 1.4.1). Hier zijn links daarom altijd onderstreept.
+   - Lettergrootte: intranet zet html op 10px en body op 14px. Een vaste
+     px-waarde op html negeert de lettergrootte die de gebruiker in de
+     browser instelt (WCAG 1.4.4). Hier blijft de root op de
+     browserinstelling en is lopende tekst 18px (1,125rem).
+   - Focus: intranet declareert drie focuskleuren na elkaar (#003a8e,
+     #0052cc, #1473ff). Hier is #003a8e gekozen, de kleur met het hoogste
+     contrast (10,5:1 op wit), ook gebruikt voor de skiplink.
+
+   0c. WEBFONTS LADEN
+   --------------------------------------------------------------------------
+   Fira Sans (SIL Open Font License) mag vrij worden gebruikt en zelf
+   gehost. In de intranet-CSS staat geen @font-face voor Fira Sans, alleen
+   voor Roboto (/Content/Fonts/). Host de woff2-bestanden zelf, bijvoorbeeld
+   onder /fonts/fira-sans/, en zet het pad hieronder goed. Laad alleen de
+   gewichten die de tokens gebruiken: 400, 500, 600 en 700.
+   Zelf hosten heeft de voorkeur boven Google Fonts (privacy, AVG).
+   Bestanden ophalen:
+     https://fonts.google.com/specimen/Fira+Sans (download, daarna zelf hosten)
+     https://fontsource.org/fonts/fira-sans (npm: @fontsource/fira-sans)
+   Ter info: www.flevoland.nl laadt Fira Sans 400 en 500 nu rechtstreeks
+   via fonts.googleapis.com.
+   ========================================================================== */
+
+/* ==========================================================================
+   1. DESIGN TOKENS
+   ========================================================================== */
+
+:root {
+
+  /* ------------------------------------------------------------------------
+     1a. BRAND TOKENS (palet)
+     Ruwe waarden uit de intranet-CSS. Gebruik deze niet direct in
+     componenten, maar via de semantische tokens in 1b.
+     Contrast in commentaar is gemeten op wit (#ffffff).
+     ------------------------------------------------------------------------ */
+
+  /* Flevoland blauw */
+  --flevoland-color-blue-50:  #f5f8fc;   /* = #0046ad op 4% (intranet hover)  */
+  --flevoland-color-blue-100: #ebf0f8;   /* = #0046ad op 8% (intranet hover)  */
+  --flevoland-color-blue-200: #ccdaef;   /* = #0046ad op 20% (intranet rand) */
+  --flevoland-color-blue-400: #1473ff;   /* 4,3:1                             */
+  --flevoland-color-blue-500: #0052cc;   /* 6,8:1, hover van knoppen          */
+  --flevoland-color-blue-600: #0046ad;   /* 8,5:1, primaire merkkleur         */
+  --flevoland-color-blue-700: #003a8e;   /* 10,5:1, link-hover en focus       */
+  --flevoland-color-blue-900: #0c1c47;   /* 16,5:1, navy tekstkleur           */
+
+  /* Flevoland geel (accent) */
+  --flevoland-color-yellow-500: #fec612; /* 1,6:1, alleen als vlak met donkere
+                                            tekst (#212121 erop: 10,2:1)     */
+
+  /* Neutraal (Material-grijzen uit het intranet) */
+  --flevoland-color-neutral-0:   #ffffff;
+  --flevoland-color-neutral-50:  #fafafa;
+  --flevoland-color-neutral-75:  #f8f8f8;  /* paginagrond intranet            */
+  --flevoland-color-neutral-100: #f5f5f5;
+  --flevoland-color-neutral-200: #eeeeee;
+  --flevoland-color-neutral-300: #e0e0e0;
+  --flevoland-color-neutral-400: #bdbdbd;
+  --flevoland-color-neutral-500: #9e9e9e;  /* 2,7:1, niet voor tekst          */
+  --flevoland-color-neutral-600: #757575;  /* 4,6:1                           */
+  --flevoland-color-neutral-700: #616161;  /* 6,2:1                           */
+  --flevoland-color-neutral-800: #424242;  /* 10,1:1                          */
+  --flevoland-color-neutral-900: #212121;  /* 16,1:1                          */
+
+  /* Statuskleuren (palet) */
+  --flevoland-color-red-50:     #f2dede;
+  --flevoland-color-red-300:    #d59190;   /* decoratief, niet voor tekst     */
+  --flevoland-color-red-700:    #c62100;   /* 5,8:1                           */
+  --flevoland-color-red-800:    #a6413f;   /* 6,1:1                           */
+  --flevoland-color-green-50:   #dff0d8;
+  --flevoland-color-green-300:  #9acb9b;   /* decoratief, niet voor tekst     */
+  --flevoland-color-green-700:  #207815;   /* 5,6:1                           */
+  --flevoland-color-green-800:  #185c10;   /* 8,2:1, afgeleid voor hover      */
+  --flevoland-color-orange-50:  #fcf8e3;
+  --flevoland-color-orange-300: #d3ba8e;   /* decoratief, niet voor tekst     */
+  --flevoland-color-orange-800: #85531a;   /* 6,5:1                           */
+  --flevoland-color-cyan-50:    #d9edf7;
+  --flevoland-color-cyan-300:   #9fcadf;   /* decoratief, niet voor tekst     */
+  --flevoland-color-cyan-700:   #236791;   /* 6,1:1                           */
+  --flevoland-color-purple-700: #5b2c83;   /* 9,9:1, eigen toevoeging voor
+                                              bezochte links                */
+
+
+  /* ------------------------------------------------------------------------
+     1b. SYSTEEMKLEUREN (semantische tokens)
+     Dit zijn de tokens die componenten en base styles gebruiken.
+     ------------------------------------------------------------------------ */
+
+  /* Merk */
+  --flevoland-color-brand-primary:            var(--flevoland-color-blue-600);
+  --flevoland-color-brand-primary-hover:      var(--flevoland-color-blue-500);
+  --flevoland-color-brand-primary-active:     var(--flevoland-color-blue-700);
+  --flevoland-color-brand-primary-subtle:     var(--flevoland-color-blue-100);
+  --flevoland-color-brand-accent:             var(--flevoland-color-yellow-500);
+
+  /* Achtergronden */
+  --flevoland-color-background-document:      var(--flevoland-color-neutral-75);
+  --flevoland-color-background-surface:       var(--flevoland-color-neutral-0);
+  --flevoland-color-background-subtle:        var(--flevoland-color-neutral-100);
+  --flevoland-color-background-muted:         var(--flevoland-color-neutral-200);
+  --flevoland-color-background-inverse:       var(--flevoland-color-blue-900);
+  --flevoland-color-background-disabled:      var(--flevoland-color-neutral-100);
+
+  /* Tekst */
+  --flevoland-color-text-default:             var(--flevoland-color-blue-900);
+  --flevoland-color-text-heading:             var(--flevoland-color-neutral-800);
+  --flevoland-color-text-subtle:              var(--flevoland-color-neutral-700);
+  --flevoland-color-text-inverse:             var(--flevoland-color-neutral-0);
+  --flevoland-color-text-on-brand:            var(--flevoland-color-neutral-0);
+  --flevoland-color-text-on-accent:           var(--flevoland-color-neutral-900);
+  --flevoland-color-text-disabled:            var(--flevoland-color-neutral-600);
+
+  /* Links */
+  --flevoland-color-link-default:             var(--flevoland-color-blue-600);
+  --flevoland-color-link-hover:               var(--flevoland-color-blue-700);
+  --flevoland-color-link-active:              var(--flevoland-color-blue-700);
+  --flevoland-color-link-visited:             var(--flevoland-color-purple-700);
+
+  /* Randen (UI-randen minimaal 3:1 tegen de achtergrond) */
+  --flevoland-color-border-default:           var(--flevoland-color-neutral-600);
+  --flevoland-color-border-subtle:            var(--flevoland-color-neutral-300);
+  --flevoland-color-border-strong:            var(--flevoland-color-neutral-900);
+  --flevoland-color-border-hover:             var(--flevoland-color-blue-600);
+  --flevoland-color-border-disabled:          var(--flevoland-color-neutral-300);
+
+  /* Focus */
+  --flevoland-color-focus-outline:            var(--flevoland-color-blue-700);
+  --flevoland-color-focus-outline-inverse:    var(--flevoland-color-neutral-0);
+
+  /* Status: fout / negatief */
+  --flevoland-color-status-error-text:        var(--flevoland-color-red-700);
+  --flevoland-color-status-error-background:  var(--flevoland-color-red-50);
+  --flevoland-color-status-error-border:      var(--flevoland-color-red-700);
+  --flevoland-color-status-error-hover:       var(--flevoland-color-red-800);
+  /* Tekst OP de lichtrode achtergrond: #c62100 haalt daar 4,49:1 en net
+     geen 4,5:1. Het intranet gebruikt hier zelf #a6413f voor links. */
+  --flevoland-color-status-error-text-on-background: var(--flevoland-color-red-800);
+
+  /* Status: succes / positief */
+  --flevoland-color-status-success-text:       var(--flevoland-color-green-700);
+  --flevoland-color-status-success-background: var(--flevoland-color-green-50);
+  --flevoland-color-status-success-border:     var(--flevoland-color-green-700);
+  --flevoland-color-status-success-hover:      var(--flevoland-color-green-800);
+
+  /* Status: waarschuwing */
+  --flevoland-color-status-warning-text:       var(--flevoland-color-orange-800);
+  --flevoland-color-status-warning-background: var(--flevoland-color-orange-50);
+  --flevoland-color-status-warning-border:     var(--flevoland-color-orange-300);
+
+  /* Status: informatie */
+  --flevoland-color-status-info-text:          var(--flevoland-color-cyan-700);
+  --flevoland-color-status-info-background:    var(--flevoland-color-cyan-50);
+  --flevoland-color-status-info-border:        var(--flevoland-color-cyan-300);
+
+  /* Selectie van tekst */
+  --flevoland-color-selection-background:      var(--flevoland-color-blue-200);
+  --flevoland-color-selection-text:            var(--flevoland-color-blue-900);
+
+
+  /* ------------------------------------------------------------------------
+     1c. TYPOGRAFIE
+     Fonts uit het intranet. Lettergroottes in rem, zodat tekst meeschaalt
+     met de browserinstelling van de gebruiker (WCAG 1.4.4).
+     ------------------------------------------------------------------------ */
+
+  /* Fonts (stack zoals in het intranet) */
+  --flevoland-typography-font-family-base:
+    "Fira Sans", Helvetica, Arial, sans-serif, "Segoe UI Emoji";
+  --flevoland-typography-font-family-heading: var(--flevoland-typography-font-family-base);
+  /* Roboto wordt op het intranet alleen in oudere widgets gebruikt.
+     Beschikbaar voor uitzonderingen, niet gebruikt in de base styles. */
+  --flevoland-typography-font-family-secondary:
+    "Roboto", Helvetica, Arial, sans-serif;
+  --flevoland-typography-font-family-monospace:
+    ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Lettergroottes (basis 1rem = 16px in de meeste browsers).
+     Ter vergelijking, het intranet: body 14px, h1 26px, h2 22px, h3 18px.
+     Voor een publieke website is 18px lopende tekst beter leesbaar. */
+  --flevoland-typography-font-size-xs:   0.875rem;   /* 14px */
+  --flevoland-typography-font-size-sm:   1rem;       /* 16px */
+  --flevoland-typography-font-size-md:   1.125rem;   /* 18px, lopende tekst */
+  --flevoland-typography-font-size-lg:   1.25rem;    /* 20px */
+  --flevoland-typography-font-size-xl:   1.5rem;     /* 24px */
+  --flevoland-typography-font-size-2xl:  1.875rem;   /* 30px */
+  --flevoland-typography-font-size-3xl:  2.25rem;    /* 36px */
+  --flevoland-typography-font-size-4xl:  2.75rem;    /* 44px */
+
+  /* Lettergewichten */
+  --flevoland-typography-font-weight-regular:  400;
+  --flevoland-typography-font-weight-medium:   500;
+  --flevoland-typography-font-weight-semibold: 600;
+  --flevoland-typography-font-weight-bold:     700;
+
+  /* Semantische gewichten, zoals op het intranet */
+  --flevoland-typography-font-weight-heading:  var(--flevoland-typography-font-weight-semibold);
+  --flevoland-typography-font-weight-control:  var(--flevoland-typography-font-weight-medium);
+
+  /* Regelhoogtes (lopende tekst minimaal 1,5, zie WCAG 1.4.12) */
+  --flevoland-typography-line-height-tight:   1.2;
+  --flevoland-typography-line-height-heading: 1.3;
+  --flevoland-typography-line-height-base:    1.6;
+
+  /* Maximale regellengte voor leesbaarheid */
+  --flevoland-typography-measure: 70ch;
+
+  /* Koppen: per niveau gebundeld, naar NL DS heading-tokens */
+  --flevoland-heading-1-font-size: var(--flevoland-typography-font-size-4xl);
+  --flevoland-heading-2-font-size: var(--flevoland-typography-font-size-3xl);
+  --flevoland-heading-3-font-size: var(--flevoland-typography-font-size-2xl);
+  --flevoland-heading-4-font-size: var(--flevoland-typography-font-size-xl);
+  --flevoland-heading-5-font-size: var(--flevoland-typography-font-size-lg);
+  --flevoland-heading-6-font-size: var(--flevoland-typography-font-size-md);
+
+
+  /* ------------------------------------------------------------------------
+     1d. SPACING
+     Schaal op basis van 4px. Gebruik "block" voor verticale ruimte
+     (boven/onder) en "inline" voor horizontale ruimte, net als NL DS.
+     ------------------------------------------------------------------------ */
+
+  --flevoland-space-0:    0;
+  --flevoland-space-3xs:  0.125rem;  /*  2px */
+  --flevoland-space-2xs:  0.25rem;   /*  4px */
+  --flevoland-space-xs:   0.5rem;    /*  8px */
+  --flevoland-space-sm:   0.75rem;   /* 12px */
+  --flevoland-space-md:   1rem;      /* 16px */
+  --flevoland-space-lg:   1.5rem;    /* 24px */
+  --flevoland-space-xl:   2rem;      /* 32px */
+  --flevoland-space-2xl:  3rem;      /* 48px */
+  --flevoland-space-3xl:  4rem;      /* 64px */
+
+  /* Semantische afstanden */
+  --flevoland-space-block-paragraph:  var(--flevoland-space-md);
+  --flevoland-space-block-heading:    var(--flevoland-space-lg);
+  --flevoland-space-block-section:    var(--flevoland-space-2xl);
+  --flevoland-space-inline-gutter:    var(--flevoland-space-md);
+  --flevoland-space-control-block:    var(--flevoland-space-sm);
+  --flevoland-space-control-inline:   var(--flevoland-space-lg);
+
+
+  /* ------------------------------------------------------------------------
+     1e. OVERIGE TOKENS
+     ------------------------------------------------------------------------ */
+
+  /* Randen */
+  --flevoland-border-width-thin:   1px;
+  --flevoland-border-width-medium: 2px;
+  --flevoland-border-width-thick:  4px;
+  --flevoland-border-radius-sm:    2px;
+  --flevoland-border-radius-md:    4px;
+  --flevoland-border-radius-lg:    8px;
+  --flevoland-border-radius-round: 999px;
+  --flevoland-border-radius-control: var(--flevoland-border-radius-sm); /* intranet: 2px */
+
+  /* Schaduw (uit het intranet: knoppen en kaarten) */
+  --flevoland-shadow-raised:  0 1px 4px rgba(0, 0, 0, 0.15);
+  --flevoland-shadow-pressed: 0 1px 5px rgba(0, 0, 0, 0.3);
+  --flevoland-shadow-overlay: 0 5px 5px rgba(0, 0, 0, 0.1);
+
+  /* Focus (WCAG 2.4.7 en 2.4.11/2.4.13) */
+  --flevoland-focus-outline-width:  3px;
+  --flevoland-focus-outline-style:  solid;
+  --flevoland-focus-outline-offset: 2px;
+
+  /* Minimale maat van klikdoelen (WCAG 2.5.8, aanbevolen 44px) */
+  --flevoland-size-target-min: 44px;
+
+  /* Layout */
+  --flevoland-size-container-max: 75rem;  /* 1200px */
+
+  /* Beweging */
+  --flevoland-motion-duration-fast:   120ms;
+  --flevoland-motion-duration-base:   200ms;
+  --flevoland-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+}

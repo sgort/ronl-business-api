@@ -83,7 +83,14 @@ export default function CuratieSpecSection() {
           </p>
         )}
         {runState === 'error' && (
-          <p style={{ fontSize: 12, color: '#dc2626', margin: 0, fontFamily: 'var(--pac-mono)' }}>
+          <p
+            style={{
+              fontSize: 12,
+              color: 'var(--rba-bad-ink-4)',
+              margin: 0,
+              fontFamily: 'var(--pac-mono)',
+            }}
+          >
             ✗ Kon de cycle niet starten. Controleer of je bent ingelogd als public-affairs
             gebruiker.
           </p>

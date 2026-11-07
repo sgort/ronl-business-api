@@ -452,6 +452,8 @@ const PRODUCTION_ENV = {
   NODE_ENV: 'production',
   DATABASE_URL: 'postgresql://u:p@db.test:5432/audit',
   OPERATON_BASE_URL: 'https://op.test/engine-rest',
+  OPERATON_USERNAME: 'rbaBackendProd',
+  OPERATON_PASSWORD: 'secret',
 };
 
 describe('validateConfig', () => {
@@ -484,6 +486,19 @@ describe('validateConfig', () => {
     expect(() => loadConfig(rest)).toThrow(/OPERATON_BASE_URL is required in production/);
   });
 
+  it('rejects a production start without Operaton credentials (#415)', () => {
+    // The engine requires a login: without these the backend, its worker and
+    // the AI assistant would all fail later, in the background.
+    const { OPERATON_USERNAME: _u, ...noUser } = PRODUCTION_ENV;
+    expect(() => loadConfig(noUser)).toThrow(/OPERATON_USERNAME is required in production/);
+    const { OPERATON_PASSWORD: _p, ...noPassword } = PRODUCTION_ENV;
+    expect(() => loadConfig(noPassword)).toThrow(/OPERATON_PASSWORD is required in production/);
+  });
+
+  it('lets development start without Operaton credentials', () => {
+    expect(loadConfig().operaton.username).toBeUndefined();
+  });
+
   it('rejects any environment without an Anthropic API key', () => {
     expect(() => loadInvalidConfig()).toThrow(/ANTHROPIC_API_KEY is required/);
   });
@@ -509,6 +524,8 @@ describe('validateConfig', () => {
 
     expect(message).toContain('DATABASE_URL is required in production');
     expect(message).toContain('OPERATON_BASE_URL is required in production');
+    expect(message).toContain('OPERATON_USERNAME is required in production');
+    expect(message).toContain('OPERATON_PASSWORD is required in production');
     expect(message).toContain('ANTHROPIC_API_KEY is required');
   });
 });
