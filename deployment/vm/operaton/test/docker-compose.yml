@@ -15,6 +15,10 @@
 # a tenant by design, so every public rule is visible to publicReader;
 # tenant-scoped definitions are not, which this check asserts.
 #
+# OPERATON_CORS=true runs the engine with its own CORS on, as the VM engine had
+# until rollout step 6: Caddy must then still send exactly one
+# Access-Control-Allow-Origin on the public paths.
+#
 # run.example.enabled=false: the built-in invoice example seeds demo tasks on an
 # EMPTY database in @PostDeploy, which fails with authorization on (NPE, "task"
 # is null) and stops the engine. On a database that already holds the example
@@ -32,7 +36,7 @@ services:
       JAVA_OPTS: >-
         -Doperaton.bpm.run.auth.enabled=true
         -Doperaton.bpm.authorization.enabled=true
-        -Doperaton.bpm.run.cors.enabled=false
+        -Doperaton.bpm.run.cors.enabled=${OPERATON_CORS:-false}
         -Doperaton.bpm.run.example.enabled=false
     ports:
       - '8091:8080'

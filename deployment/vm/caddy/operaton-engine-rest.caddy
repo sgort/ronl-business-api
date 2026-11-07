@@ -55,6 +55,9 @@ handle @public_read {
 	reverse_proxy {$OPERATON_UPSTREAM:172.18.0.10:8080} {
 		header_up Host {host}
 		header_up Authorization "Basic {$OPERATON_PUBLIC_READER_AUTH}"
+		# The engine's own CORS header, if it sends one: Caddy sets the single
+		# Access-Control-Allow-Origin above; a second copy makes browsers reject both.
+		header_down -Access-Control-Allow-Origin
 		header_down -Access-Control-Allow-Credentials
 	}
 }
@@ -64,6 +67,9 @@ handle @public_evaluate {
 	reverse_proxy {$OPERATON_UPSTREAM:172.18.0.10:8080} {
 		header_up Host {host}
 		header_up Authorization "Basic {$OPERATON_PUBLIC_READER_AUTH}"
+		# The engine's own CORS header, if it sends one: Caddy sets the single
+		# Access-Control-Allow-Origin above; a second copy makes browsers reject both.
+		header_down -Access-Control-Allow-Origin
 		header_down -Access-Control-Allow-Credentials
 	}
 }
