@@ -98,35 +98,57 @@ does not check. Step 1 has been running since 7 November 2026 (#424).
    (`fix/operaton-basic-auth`). Both backends then refuse to start on ACC or PROD without the settings from step 3,
    so step 3 comes first. Credentials are now sent, and still ignored.
 
-5. **Apply the Caddy allowlist**, while the engine's login is still off. Operaton ignores the injected
-   header until step 6, so the public rules never answer 401 in between. Create `caddy.env` next to Caddy's compose
-   file (never committed). `-w0` matters: GNU `base64` wraps at 76 characters, and a wrapped value means wrong
-   credentials on every anonymous call, which locks `publicReader` within seconds of step 6.
+5. **Apply the Caddy allowlist**, while the engine's login is still off. Operaton ignores the injected header
+   until step 6, so the public rules never answer 401 in between. Recreating Caddy **briefly interrupts every site
+   on the VM** (Keycloak, Nextcloud, CPRMV, Skosmos), not only Operaton, so pick a quiet moment.
+
+   In Caddy's directory on the VM, first create `caddy.env` (never committed). Replace `<password>` with
+   publicReader's password from step 2. `-w0` matters: GNU `base64` wraps at 76 characters, and a wrapped value
+   means wrong credentials on every anonymous call, which locks `publicReader` within seconds of step 6.
 
    ```sh
-   printf 'OPERATON_PUBLIC_READER_AUTH=%s
+   cd ~/caddy
+   printf 'OPERATON_PUBLIC_READER_AUTH=%s\n' "$(printf '%s' 'publicReader:<password>' | base64 -w0)" > caddy.env
    ```
 
-' "$(printf '%s' 'publicReader:<password>' | base64 -w0)" > caddy.env
-wc -l < caddy.env # expected: 1
-sed 's/^OPERATON_PUBLIC_READER_AUTH=//' caddy.env | base64 -d; echo # expected: publicReader:<password>
+   Check it. The first command must print `1`, the second `publicReader:<password>`:
 
-````
+   ```sh
+   wc -l < caddy.env
+   sed 's/^OPERATON_PUBLIC_READER_AUTH=//' caddy.env | base64 -d; echo
+   ```
 
-Copy `Caddyfile`, `operaton-engine-rest.caddy` and `docker-compose.yml` into place, then `docker compose up -d`.
-A new `env_file` needs a recreate, as a reload does not read it. **Recreating Caddy briefly interrupts every site
-on the VM** (Keycloak, Nextcloud, CPRMV, Skosmos), not only Operaton, so pick a quiet moment.
+   Then copy the three files from your checkout of this repository to the VM, and recreate the container there. A
+   reload is not enough: only a recreate reads a new `env_file`.
 
-6. **Switch on the login.** Check that the colleagues' accounts are in `operaton-admin`. Copy
-`prod/docker-compose.yml` into place, remove `OPERATON_TAG` from the VM's `.env` (the tag is now in the file),
-then `docker compose up -d`. Brief engine outage. The engine starts normally on this existing database; the
-invoice example only fails on an empty one. **Right away**, check that Caddy's injected login works:
+   ```sh
+   # on your laptop, in the repository checkout (<vm> = your ssh host for the VM)
+   scp deployment/vm/caddy/Caddyfile deployment/vm/caddy/operaton-engine-rest.caddy \
+       deployment/vm/caddy/docker-compose.yml <vm>:~/caddy/
 
-```sh
-curl -s -o /dev/null -w '%{http_code}
-' https://operaton.open-regels.nl/engine-rest/deployment/count
-# expected: 200. Anything else: undo step 6 at once (rollback below), before publicReader is locked
-````
+   # on the VM
+   cd ~/caddy && docker compose up -d
+   docker logs caddy --tail 20   # no "error" lines
+   ```
+
+6. **Switch on the login.** First check that the colleagues' accounts are in `operaton-admin` (step 2 did this).
+   Then copy `prod/docker-compose.yml` from this repository's `deployment/vm/operaton/` over the VM's copy, remove
+   the `OPERATON_TAG=` line from the VM's `.env` next to it (the tag is now in the compose file), and recreate the
+   engine. Brief engine outage. The engine starts normally on this existing database; the invoice example only
+   fails on an empty one.
+
+   ```sh
+   docker compose up -d                 # in the VM's Operaton directory
+   docker logs operaton --tail 20       # look for "Started OperatonApp"
+   ```
+
+   **Right away**, check that Caddy's injected login works:
+
+   ```sh
+   curl -s -o /dev/null -w '%{http_code}\n' https://operaton.open-regels.nl/engine-rest/deployment/count
+   ```
+
+   Expected: `200`. Anything else: undo step 6 at once (see Rollback), before `publicReader` is locked.
 
 7. **Verify from outside.**
 
