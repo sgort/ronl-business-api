@@ -16,16 +16,20 @@ in dozens of forms by hand.
 
 All three talk to a **running local stack**. None of them will start it for you.
 
-| Needs           | Default                             | Override                       |
-| --------------- | ----------------------------------- | ------------------------------ |
-| Operaton engine | `http://localhost:8081/engine-rest` | `OPERATON_URL`                 |
-| RBA backend     | `http://localhost:3002`             | `BACKEND_URL`                  |
-| Keycloak        | `http://localhost:8080`             | `KEYCLOAK_URL`                 |
-| Realm           | `ronl`                              | `KEYCLOAK_REALM`               |
-| User            | `test-infra-flevoland` / `test123`  | `START_USER`, `START_PASSWORD` |
-| Tenant          | `flevoland`                         | `TENANT`                       |
+| Needs           | Default                             | Override                                 |
+| --------------- | ----------------------------------- | ---------------------------------------- |
+| Operaton engine | `http://localhost:8081/engine-rest` | `OPERATON_URL`                           |
+| Operaton login  | `demo` / `demo`                     | `OPERATON_USERNAME`, `OPERATON_PASSWORD` |
+| RBA backend     | `http://localhost:3002`             | `BACKEND_URL`                            |
+| Keycloak        | `http://localhost:8080`             | `KEYCLOAK_URL`                           |
+| Realm           | `ronl`                              | `KEYCLOAK_REALM`                         |
+| User            | `test-infra-flevoland` / `test123`  | `START_USER`, `START_PASSWORD`           |
+| Tenant          | `flevoland`                         | `TENANT`                                 |
 
 Also needs `curl`, `jq` and `python` on `PATH`.
+
+The engine requires a login since #415. Against ACC or PROD, pass an account in
+`operaton-admin` as `OPERATON_USERNAME` and `OPERATON_PASSWORD`.
 
 A phase must be **deployed on the engine** and **present in the phase
 catalogue** (`packages/shared/src/rip-phases.ts`) before the board will show it.
@@ -314,7 +318,7 @@ bash scripts/rip-phase-walkthrough.sh <phase> --business-key <key>
 When a new phase is deployed via LDE:
 
 1. Read the key off the engine rather than assuming it:
-   `curl -s "$OPERATON_URL/process-definition?latestVersion=true"`
+   `curl -s -u "$OPERATON_USERNAME:$OPERATON_PASSWORD" "$OPERATON_URL/process-definition?latestVersion=true"`
 2. Add one line to `packages/shared/src/rip-phases.ts`.
 3. Update the catalogue test: remove the code from `UNMODELLED_CODES`, add an
    assertion, and if it was the `withoutKey` fixture move that to the next phase

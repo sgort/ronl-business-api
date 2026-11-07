@@ -1,4 +1,4 @@
-import { isLocalTarget, OPERATON_URL, targetLabel } from './target';
+import { isLocalTarget, OPERATON_URL, targetLabel, operatonFetch } from './target';
 
 export interface RequiredProcess {
   processDefinitionKey: string;
@@ -107,7 +107,7 @@ export async function verifyRequiredProcesses(): Promise<string[]> {
   const keys = REQUIRED_PROCESSES.map((p) => p.processDefinitionKey).join(',');
   let deployed: Array<{ key: string; tenantId: string | null }>;
   try {
-    const res = await fetch(
+    const res = await operatonFetch(
       `${OPERATON_URL}/process-definition?keysIn=${encodeURIComponent(keys)}&latestVersion=true`
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -199,7 +199,7 @@ export async function verifyRequiredDecisions(): Promise<string[]> {
   const keys = REQUIRED_DECISIONS.join(',');
   let deployed: Array<{ key: string; tenantId: string | null }>;
   try {
-    const res = await fetch(
+    const res = await operatonFetch(
       `${OPERATON_URL}/decision-definition?keysIn=${encodeURIComponent(keys)}&latestVersion=true`
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

@@ -38,6 +38,25 @@ export const KEYCLOAK_URL = resolve('KEYCLOAK_URL');
 export const LDE_URL = resolve('LDE_URL');
 export const OPERATON_URL = resolve('OPERATON_URL');
 
+/**
+ * The engine requires a login (#415): every direct call the suite makes to
+ * OPERATON_URL goes through operatonFetch. Defaults to the local stack's
+ * demo/demo; against ACC or PROD pass an operaton-admin account:
+ *
+ *   OPERATON_USERNAME=... OPERATON_PASSWORD=... npm run test:e2e --workspace=@ronl/frontend
+ */
+const OPERATON_USERNAME = process.env.OPERATON_USERNAME?.trim() || 'demo';
+const OPERATON_PASSWORD = process.env.OPERATON_PASSWORD ?? 'demo';
+
+export function operatonFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set(
+    'Authorization',
+    `Basic ${Buffer.from(`${OPERATON_USERNAME}:${OPERATON_PASSWORD}`).toString('base64')}`
+  );
+  return fetch(url, { ...init, headers });
+}
+
 const isLoopback = (url: string) => /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(url);
 
 /**
