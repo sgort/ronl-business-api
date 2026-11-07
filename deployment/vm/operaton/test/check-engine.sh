@@ -120,7 +120,7 @@ check "publicReader cannot start a case" 403 "$(req "$PR_USER" "$PR_PASS" POST /
 # ---------------------------------------------------------------- service account
 check "service account counts cases" 200 "$(req "$SVC_USER" "$SVC_PASS" GET /process-instance/count)"
 if [ "$(count_of)" -ge 1 ] 2>/dev/null; then echo "PASS    ... count >= 1"; else echo "FAIL    ... count >= 1 (got $(count_of))"; failures=$((failures + 1)); fi
-check "service account sees the flevoland definition" 200 "$(req "$SVC_USER" "$SVC_PASS" GET '/process-definition?tenantIdIn=flevoland')"
+check "service account sees the flevoland definition" 200 "$(req "$SVC_USER" "$SVC_PASS" GET '/process-definition?key=op415_case&tenantIdIn=flevoland')"
 check "  ... 1 result" 1 "$(json_items)"
 
 echo
