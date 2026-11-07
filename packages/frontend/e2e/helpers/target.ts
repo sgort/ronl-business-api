@@ -40,24 +40,32 @@ export const OPERATON_URL = resolve('OPERATON_URL');
 
 /**
  * The engine requires a login (#415): every direct call the suite makes to
- * OPERATON_URL goes through operatonFetch. Defaults to the local stack's
- * demo/demo; against ACC or PROD pass an operaton-admin account:
+ * OPERATON_URL goes through operatonFetch. A local engine defaults to the
+ * stack's demo/demo. A remote one (ACC, PROD) needs an operaton-admin account,
+ * and refuses to guess: sending demo/demo to the VM, where demo has a different
+ * password, is a failed login on every call, and Operaton locks an account
+ * after ten (#425).
  *
  *   OPERATON_USERNAME=... OPERATON_PASSWORD=... npm run test:e2e --workspace=@ronl/frontend
  */
-const OPERATON_USERNAME = process.env.OPERATON_USERNAME?.trim() || 'demo';
-const OPERATON_PASSWORD = process.env.OPERATON_PASSWORD ?? 'demo';
+const isLoopback = (url: string) => /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(url);
+
+function operatonCredentials(): string {
+  const username = process.env.OPERATON_USERNAME?.trim();
+  const password = process.env.OPERATON_PASSWORD;
+  if (username && password) return `${username}:${password}`;
+  if (isLoopback(OPERATON_URL)) return 'demo:demo';
+  throw new Error(
+    `OPERATON_USERNAME and OPERATON_PASSWORD are required for ${OPERATON_URL}: ` +
+      'the engine requires a login, and only a local engine defaults to demo/demo.'
+  );
+}
 
 export function operatonFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
-  headers.set(
-    'Authorization',
-    `Basic ${Buffer.from(`${OPERATON_USERNAME}:${OPERATON_PASSWORD}`).toString('base64')}`
-  );
+  headers.set('Authorization', `Basic ${Buffer.from(operatonCredentials()).toString('base64')}`);
   return fetch(url, { ...init, headers });
 }
-
-const isLoopback = (url: string) => /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(url);
 
 /**
  * Local means the fixture bundle from linked-data-explorer/e2e-fixtures is

@@ -20,6 +20,10 @@ Since #415 the engine's REST API requires a login, except for reading the rules:
 Design: `docs/superpowers/specs/2026-11-06-operaton-engine-rest-auth-design.md`. Plan:
 `docs/superpowers/plans/2026-11-07-operaton-engine-rest-auth.md`.
 
+**Remaining exposure after #415:** linked-data-explorer's deploy routes (`/v1/dmns/deploy`, `/drd/deploy`,
+`/process/deploy`) are anonymous and deploy to this engine with that backend's `operaton-admin` login. Who may
+call them is linked-data-explorer#163.
+
 ## Accounts
 
 | Account                           | Group            | Used by                                            |
@@ -38,7 +42,7 @@ Account IDs are camelCase: Operaton rejects dashes (`[a-zA-Z0-9]+`). Passwords n
 
 ## Rollout (#415)
 
-Every step before 5 is harmless while authentication is still off: Operaton ignores an `Authorization` header it
+Every step before 6 is harmless while authentication is still off: Operaton ignores an `Authorization` header it
 does not check. Step 1 has been running since 7 November 2026 (#424).
 
 1. **Find every caller.** Caddy logs `/engine-rest` for 7 days:
@@ -75,18 +79,36 @@ does not check. Step 1 has been running since 7 November 2026 (#424).
 4. **Merge the code**, and promote it to PROD: the RBA #415 pull request and the linked-data-explorer one
    (`fix/operaton-basic-auth`). Both backends then refuse to start on ACC or PROD without the settings from step 3,
    so step 3 comes first. Credentials are now sent, and still ignored.
-5. **Switch on the login.** Check the colleagues' accounts are in `operaton-admin`. Copy `prod/docker-compose.yml`
-   into place, remove `OPERATON_TAG` from the VM's `.env` (the tag is now in the file), then
-   `docker compose up -d`. Brief engine outage. The engine starts normally on this existing database; the invoice
-   example only fails on an empty one.
-6. **Apply the Caddy allowlist.** Create `caddy.env` next to Caddy's compose file (never committed):
+
+5. **Apply the Caddy allowlist**, while the engine's login is still off. Operaton ignores the injected
+   header until step 6, so the public rules never answer 401 in between. Create `caddy.env` next to Caddy's compose
+   file (never committed). `-w0` matters: GNU `base64` wraps at 76 characters, and a wrapped value means wrong
+   credentials on every anonymous call, which locks `publicReader` within seconds of step 6.
 
    ```sh
-   printf 'OPERATON_PUBLIC_READER_AUTH=%s\n' "$(printf '%s' 'publicReader:<password>' | base64)" > caddy.env
+   printf 'OPERATON_PUBLIC_READER_AUTH=%s
    ```
 
-   Copy `Caddyfile`, `operaton-engine-rest.caddy` and `docker-compose.yml` into place, then `docker compose up -d`.
-   A new `env_file` needs a recreate; a reload does not read it.
+' "$(printf '%s' 'publicReader:<password>' | base64 -w0)" > caddy.env
+wc -l < caddy.env # expected: 1
+sed 's/^OPERATON_PUBLIC_READER_AUTH=//' caddy.env | base64 -d; echo # expected: publicReader:<password>
+
+````
+
+Copy `Caddyfile`, `operaton-engine-rest.caddy` and `docker-compose.yml` into place, then `docker compose up -d`.
+A new `env_file` needs a recreate, as a reload does not read it. **Recreating Caddy briefly interrupts every site
+on the VM** (Keycloak, Nextcloud, CPRMV, Skosmos), not only Operaton, so pick a quiet moment.
+
+6. **Switch on the login.** Check that the colleagues' accounts are in `operaton-admin`. Copy
+`prod/docker-compose.yml` into place, remove `OPERATON_TAG` from the VM's `.env` (the tag is now in the file),
+then `docker compose up -d`. Brief engine outage. The engine starts normally on this existing database; the
+invoice example only fails on an empty one. **Right away**, check that Caddy's injected login works:
+
+```sh
+curl -s -o /dev/null -w '%{http_code}
+' https://operaton.open-regels.nl/engine-rest/deployment/count
+# expected: 200. Anything else: undo step 6 at once (rollback below), before publicReader is locked
+````
 
 7. **Verify from outside.**
 
@@ -107,5 +129,6 @@ does not check. Step 1 has been running since 7 November 2026 (#424).
 8. **Remove the temporary access log**: delete its block from `Caddyfile`, reload Caddy, and delete the log
    (`docker exec caddy rm /data/logs/operaton-engine-rest.log`).
 
-**Rollback.** Step 5: set `-Doperaton.bpm.run.auth.enabled=false` and `-Doperaton.bpm.authorization.enabled=false`,
-then `docker compose up -d`. Step 6: restore the previous `Caddyfile` and reload. Steps 1 to 4 can stay in place.
+**Rollback.** Step 6: set `-Doperaton.bpm.run.auth.enabled=false` and `-Doperaton.bpm.authorization.enabled=false`,
+then `docker compose up -d`. Step 5: restore the previous `Caddyfile` and reload. Steps 1 to 4 can stay in place.
+If `publicReader` was locked, unlock it in the Admin app (see Accounts).

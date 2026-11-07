@@ -26,7 +26,8 @@
 #   RIP_KEYS       comma-separated process-definition keys
 #                  (default: every RipR* key deployed on the engine, discovered)
 #
-# ACC: OPERATON_URL=https://operaton.open-regels.nl/engine-rest \n#        OPERATON_USERNAME=<admin> OPERATON_PASSWORD=<password> bash scripts/rip-purge-instances.sh
+# ACC: OPERATON_URL=https://operaton.open-regels.nl/engine-rest \
+#        OPERATON_USERNAME=<admin> OPERATON_PASSWORD=<password> bash scripts/rip-purge-instances.sh
 # Think twice before doing that — ACC history is not yours alone.
 #
 # Note on Windows: python opens stdout in text mode, so a bare print() emits
@@ -37,11 +38,23 @@
 set -uo pipefail
 
 OPERATON_URL="${OPERATON_URL:-http://localhost:8081/engine-rest}"
-# The engine requires a login (#415). Defaults to the local stack's demo/demo;
-# against ACC or PROD pass an operaton-admin account in OPERATON_USERNAME and
-# OPERATON_PASSWORD. Every call to ${OPERATON_URL} goes through ocurl.
-OPERATON_USERNAME="${OPERATON_USERNAME:-demo}"
-OPERATON_PASSWORD="${OPERATON_PASSWORD:-demo}"
+# The engine requires a login (#415). Every call to ${OPERATON_URL} goes through
+# ocurl. A local engine defaults to the stack's demo/demo; a remote one (ACC,
+# PROD) needs an operaton-admin account in OPERATON_USERNAME and
+# OPERATON_PASSWORD, and the script refuses to guess: demo/demo against the VM
+# is a failed login on every call, and Operaton locks an account after ten.
+if [ -z "${OPERATON_USERNAME:-}" ] || [ -z "${OPERATON_PASSWORD:-}" ]; then
+  case "$OPERATON_URL" in
+    http://localhost:* | http://localhost/* | http://127.0.0.1:* | http://127.0.0.1/*)
+      OPERATON_USERNAME=demo
+      OPERATON_PASSWORD=demo
+      ;;
+    *)
+      echo "OPERATON_USERNAME and OPERATON_PASSWORD are required for $OPERATON_URL (only a local engine defaults to demo/demo)" >&2
+      exit 2
+      ;;
+  esac
+fi
 ocurl() { curl -u "${OPERATON_USERNAME}:${OPERATON_PASSWORD}" "$@"; }
 # Discovered from the engine rather than listed. A hardcoded default lagged the
 # ladder twice -- once at R2.3 and again at R5.1 -- and each time the failure
