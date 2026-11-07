@@ -112,6 +112,186 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.11.1',
+      status: 'Released',
+      date: '7 nov 2026',
+      scope: ['backend', 'ci'],
+      commits: [
+        {
+          sha: 'eedcffb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'One Access-Control-Allow-Origin on Operaton’s public paths',
+          details: [
+            'After rollout step 5 the VM answered a public path with `Access-Control-Allow-Origin` twice: Caddy’s own, and the engine’s, whose CORS stayed on until step 6. Browsers reject a doubled value, so a cross-origin call to a public rule would fail. The public routes now strip the engine’s copy before Caddy sets its single `*`, as the other engine-rest routes already did.',
+            'The test harness can run the engine with its own CORS on (`OPERATON_CORS=true`), and `check-allowlist.sh` checks for exactly one header on a public GET and a public evaluate: 2 failing with the engine’s CORS on before the fix, 57/57 after, with it on and off (#430).',
+          ],
+        },
+        {
+          sha: 'aa5adcb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Values in Operaton URL paths are encoded, plus review fixes for the engine login',
+          details: [
+            'Every value placed in an Operaton URL path goes through `engineSegment()` (`encodeURIComponent`, `:` kept for definition IDs, `.` and `..` refused) — 39 interpolations in `operaton.service.ts`. The backend calls the engine as an operaton-admin account and Express has already decoded route parameters, so a key like `../../process-instance?x=` would otherwise reach any engine endpoint with admin rights. `GET /v1/decision/:key` used a bare fetch without credentials; it now uses `operatonService.getDecisionDefinition()`.',
+            'The e2e helpers and the RIP scripts default to demo/demo only for a local engine and stop with a message elsewhere, instead of locking the operators’ demo account with wrong passwords. Runbook: `base64 -w0` (a wrapped value would lock publicReader), the Caddy allowlist before the engine login so the public rules never answer 401, an immediate check after the login, a warning that recreating Caddy interrupts every site on the VM, and LDE’s anonymous deploy routes named as the remaining exposure (linked-data-explorer#163).',
+          ],
+        },
+        {
+          sha: 'b97f095',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The e2e suite and the RIP scripts send the Operaton login',
+          details: [
+            'The engine now requires a login, so the suite’s own Operaton calls were refused (global setup: “Could not query Operaton … HTTP 401”). `operatonFetch()` in `e2e/helpers/target.ts` adds basic auth from `OPERATON_USERNAME`/`OPERATON_PASSWORD`, and every direct call goes through it: the required-process checks, task lookups, cleanup, and the process-view and R2.1 specs.',
+            'The RIP walkthrough, R2.1-to-approval and purge scripts route every engine call through `ocurl()` with the same variables; calls to the backend and Keycloak are unchanged. The full local e2e suite passes as before: 56 passed, 5 skipped.',
+          ],
+        },
+        {
+          sha: '55ee89f',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'The local Operaton requires a login, with accounts provisioned like the VM',
+          details: [
+            'The local engine (2.1.5) gets the same settings as the VM: REST authentication, authorization checks and its own CORS off, plus the invoice example off, which fails to start on an empty database with authorization on. The `operaton-accounts` one-shot runs `provision-accounts.sh` on every up, creating rbaBackend, ldeBackend and publicReader with local-only passwords. `.env.example` uses rbaBackend.',
+            '`check-engine.sh` narrows its tenant check to the fixture key, so it also passes on an engine holding real tenant-scoped definitions; it passes 22/22 against the local engine.',
+          ],
+        },
+        {
+          sha: 'fb91dbc',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'The external-task worker sends Operaton credentials, and production requires them',
+          details: [
+            'The worker posted fetchAndLock, complete and failure with bare axios and no credentials, so it would stop working once Operaton’s engine-rest requires a login — the VM’s new access log showed exactly that. `operatonBasicAuth()` gives every direct axios call the configured `OPERATON_USERNAME`/`OPERATON_PASSWORD`.',
+            '`validateConfig` now refuses a production start (ACC and PROD both run `NODE_ENV=production`) without `OPERATON_USERNAME` and `OPERATON_PASSWORD`, so a missing credential stops the deploy instead of failing later in the background.',
+          ],
+        },
+        {
+          sha: 'aaa0c1b',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Caddy keeps Operaton’s rules public and closes the rest of engine-rest',
+          details: [
+            '`operaton-engine-rest.caddy`, imported into the operaton.open-regels.nl block, forwards reading definitions, their XML, deployments and resource data, and evaluating a decision as the read-only publicReader when the caller sends no credentials. Every other `/engine-rest` request is forwarded unchanged, so Operaton answers 401 without the caller’s own credentials. CORS (`*`, no credentials) only on the public paths; the old handles that answered every OPTIONS and put CORS with credentials on all of engine-rest are gone.',
+            'Caddy reads publicReader’s header from `caddy.env` (VM-only, gitignored) through `env_file`. The test harness runs Caddy 2.10.2, as on the VM, with the same import; `check-allowlist.sh` proves 55 rules, including path tricks, kept caller credentials and CORS.',
+          ],
+        },
+        {
+          sha: '74dc225',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Operaton pinned to 1.0.0, with its login and permission checks switched on',
+          details: [
+            'The VM runs 1.0.0 (`latest` was pulled once; its digest is Docker Hub’s 1.0.0), so the compose file now names it instead of `${OPERATON_TAG}`. `JAVA_OPTS` adds the settings proven on 1.0.0 by the test harness: REST authentication, authorization checks, and the engine’s own CORS off (replacing `-Doperaton.cors.enabled=false`, which is not a real key). Applied by hand in rollout step 5.',
+          ],
+        },
+        {
+          sha: '48ddae9',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Operaton account provisioning and its 1.0.0 test harness',
+          details: [
+            '`provision-accounts.sh` creates, idempotently, the service accounts in operaton-admin, adds existing users to it by ID given at run time, and creates publicReader with READ on process, decision and decision-requirements definitions and deployments plus CREATE_INSTANCE on decision definitions. POSIX sh and curl only; nothing secret or personal in the file. Account IDs are camelCase because Operaton rejects dashes.',
+            'The test harness runs Operaton 1.0.0 with REST authentication, authorization checks and its own CORS off; the tenant check stays on, as DMNs are untenanted. `check-engine.sh` proves 22 rules: anonymous callers are refused, publicReader reads and evaluates the rules but sees no cases and changes nothing, and service accounts keep full access.',
+          ],
+        },
+        {
+          sha: '5691b88',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Temporary access log for Operaton’s engine-rest',
+          details: [
+            'Rollout step 1 of #415: log every `/engine-rest` request on operaton.open-regels.nl for 7 days, so no caller is missed before the engine requires a login. JSON to `/data/logs/operaton-engine-rest.log` in the caddy container; other paths are skipped and Authorization is redacted. Removed again in rollout step 8 (#424).',
+          ],
+        },
+        {
+          sha: '0997ab0',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'The VM copies lose an extra directory level',
+          details: [
+            'The copy from the VM landed one level too deep, as `deployment/vm/caddy/caddy/` and `deployment/vm/operaton/prod/prod/`. The files move up one level, unchanged.',
+          ],
+        },
+        {
+          sha: '6ec7f29',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'The Caddy and Operaton configuration copied from the VM',
+          details: [
+            'The files as they are on the VM, as the starting point for closing Operaton’s engine REST API: the Caddy directory (Caddyfile, its two dated backups, docker-compose.yml, README, LICENSE and the static security.txt files) and Operaton’s prod docker-compose.yml. Operaton’s `.env` stays out through the existing `deployment/vm/**/.env` ignore rule. The previous `deployment/vm/caddy/Caddyfile` is kept as `caddy.bkp/Caddyfile` for comparison.',
+          ],
+        },
+        {
+          sha: '368a131',
+          author: 'renovate[bot]',
+          type: 'ci',
+          subject: 'GitHub Actions: setup-node 7.1.0, upload-artifact 7.0.2, zizmor-action 0.8.0',
+          details: ['Digest-pinned bumps across the workflows (#390).'],
+        },
+        {
+          sha: '5557b03',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'prettier 3.9.10',
+          details: ['Renovate update of the root devDependency (#419).'],
+        },
+        {
+          sha: '5d3f310',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'alpine 3.24.3 in the local stack',
+          details: ['Digest-pinned image in the root `docker-compose.yml` (#418).'],
+        },
+        {
+          sha: '4ffe975',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'follow-redirects 1.16.2 (GHSA-mrwp-f3q8-3g9p)',
+          details: [
+            'follow-redirects 1.16.0–1.16.1 discards cross-realm `sensitiveHeaders` arrays, so custom credentials can follow a redirect to another host. It reaches production through axios in `@ronl/backend`, and was the high advisory failing the daily dependency audit on acc (#410).',
+            '1.16.2 was published on 2026-10-25, inside the 14-day min-release-age cooldown; `.npmrc` allows an urgent security fix to skip it on the command line. Lockfile-only change, edited to the single entry; the integrity hash matches the registry (#417).',
+          ],
+        },
+        {
+          sha: 'ea32cd5',
+          author: 'Datafluisteraar',
+          type: 'other',
+          subject: 'Licensed under the EUPL v. 1.2',
+          details: [
+            'The European Union Public Licence v. 1.2 added to the project as `LICENSE` (#416).',
+          ],
+        },
+        {
+          sha: '5d704e9',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'concurrently 10.0.6',
+          details: ['Development only (#393).'],
+        },
+        {
+          sha: 'a43520e',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: '@testing-library/user-event 14.6.8',
+          details: ['Test-only devDependency of `packages/pa-cockpit` (#392).'],
+        },
+        {
+          sha: 'c28e69b',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'Keycloak’s postgres image pinned by digest',
+          details: [
+            '`postgres:16-alpine` pinned to `721873c` in the ACC and PROD Keycloak compose files (#314).',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.11.0',
       status: 'Released',
       date: '3 nov 2026',
