@@ -54,6 +54,20 @@
     "lastName": "e2e",
     "requiredActions": []
   },
+  "testAuthorUser": {
+    "username": "test-author-flevoland",
+    "enabled": true,
+    "email": "test-author@flevoland.invalid",
+    "emailVerified": true,
+    "firstName": "Test",
+    "lastName": "Auteur",
+    "attributes": {
+      "municipality": ["flevoland"],
+      "organisation_type": ["province"],
+      "assurance_level": ["hoog"]
+    },
+    "requiredActions": []
+  },
   "mappers": [
     {
       "name": "realm_roles",
