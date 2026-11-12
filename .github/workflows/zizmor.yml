@@ -54,7 +54,7 @@ jobs:
         # would then run on whatever Node the runner defaulted to.
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24.22.1'
+          node-version: '24.22.2'
       - name: Run zizmor
         uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
         with:
@@ -316,7 +316,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24.22.1"
+          node-version: "24.22.2"
       - name: Test the lockfile diff
         # Tested where it runs, like promotion-targets.test.mjs.
         run: node scripts/lockfile-diff.test.mjs

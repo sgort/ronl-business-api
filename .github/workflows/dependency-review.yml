@@ -45,7 +45,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # An exact literal, like dependency-audit.yml; Renovate maintains it.
-          node-version: '24.22.1'
+          node-version: '24.22.2'
 
       - name: Test the review script
         run: node scripts/dependency-review.test.mjs
