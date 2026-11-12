@@ -207,12 +207,9 @@ function CaseworkerDashboardV2Shell() {
           </span>
         </div>
 
-        <button
-          type="button"
-          className="v2-search"
-          onClick={() => setPaletteOpen(true)}
-          aria-label="Snel navigeren"
-        >
+        {/* No aria-label: the accessible name must contain the visible text
+            (WCAG 2.5.3 Label in Name), as on the Infra-board and Woo. */}
+        <button type="button" className="v2-search" onClick={() => setPaletteOpen(true)}>
           <span>🔍</span>
           <span style={{ flex: 1, textAlign: 'left' }}>Spring naar een sectie…</span>
           <span className="v2-key">⌘K</span>

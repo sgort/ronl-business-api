@@ -277,7 +277,8 @@ describe('PADashboardV2', () => {
     render(<PADashboardV2 host={testHost} />);
 
     expect(screen.queryByTestId('palette')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Snel navigeren' }));
+    // Found by its visible text: the accessible name must contain it (WCAG 2.5.3).
+    await user.click(screen.getByRole('button', { name: /Spring naar een dossier of sectie…/ }));
     expect(screen.getByTestId('palette')).toBeInTheDocument();
   });
 
