@@ -1,0 +1,109 @@
+{
+  "role": {
+    "name": "lde-author",
+    "description": "May change the shared library of the Linked Data Explorer and ttl-editor: save, delete, deploy and publish (linked-data-explorer #163)"
+  },
+  "publicClients": [
+    {
+      "clientId": "linked-data-explorer",
+      "originVar": "LDE_ORIGIN",
+      "name": "Linked Data Explorer",
+      "description": "Sign-in for the Linked Data Explorer frontend (linked-data-explorer #163)"
+    },
+    {
+      "clientId": "ttl-editor",
+      "originVar": "TTL_ORIGIN",
+      "name": "ttl-editor",
+      "description": "Sign-in for the ttl-editor (linked-data-explorer #163)"
+    }
+  ],
+  "publicClientDefaults": {
+    "enabled": true,
+    "protocol": "openid-connect",
+    "publicClient": true,
+    "standardFlowEnabled": true,
+    "directAccessGrantsEnabled": false,
+    "implicitFlowEnabled": false,
+    "serviceAccountsEnabled": false,
+    "frontchannelLogout": true,
+    "fullScopeAllowed": true,
+    "attributes": {
+      "pkce.code.challenge.method": "S256"
+    }
+  },
+  "e2eClient": {
+    "clientId": "lde-e2e",
+    "name": "LDE e2e fixtures",
+    "description": "Password grant for the lde-e2e account in automated tests; never on production (linked-data-explorer #163)",
+    "enabled": true,
+    "protocol": "openid-connect",
+    "publicClient": false,
+    "clientAuthenticatorType": "client-secret",
+    "standardFlowEnabled": false,
+    "directAccessGrantsEnabled": true,
+    "implicitFlowEnabled": false,
+    "serviceAccountsEnabled": false,
+    "fullScopeAllowed": true
+  },
+  "e2eUser": {
+    "username": "lde-e2e",
+    "enabled": true,
+    "email": "lde-e2e@open-regels.invalid",
+    "emailVerified": true,
+    "firstName": "LDE",
+    "lastName": "e2e",
+    "requiredActions": []
+  },
+  "testAuthorUser": {
+    "username": "test-author-flevoland",
+    "enabled": true,
+    "email": "test-author@flevoland.invalid",
+    "emailVerified": true,
+    "firstName": "Test",
+    "lastName": "Auteur",
+    "attributes": {
+      "municipality": ["flevoland"],
+      "organisation_type": ["province"],
+      "assurance_level": ["hoog"]
+    },
+    "requiredActions": []
+  },
+  "mappers": [
+    {
+      "name": "realm_roles",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-realm-role-mapper",
+      "config": {
+        "claim.name": "realm_access.roles",
+        "jsonType.label": "String",
+        "multivalued": "true",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "userinfo.token.claim": "true"
+      }
+    },
+    {
+      "name": "username",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-attribute-mapper",
+      "config": {
+        "user.attribute": "username",
+        "claim.name": "preferred_username",
+        "jsonType.label": "String",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "userinfo.token.claim": "true"
+      }
+    },
+    {
+      "name": "full name",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-full-name-mapper",
+      "config": {
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "userinfo.token.claim": "true"
+      }
+    }
+  ]
+}
