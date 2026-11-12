@@ -1,6 +1,6 @@
 {
   "name": "@ronl/pa-cockpit",
-  "version": "2026.11.0",
+  "version": "2026.11.2",
   "description": "The PA-Cockpit UI, shared by the caseworker app and the public demo",
   "private": true,
   "type": "module",
@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@ronl/shared": "*",
-    "axios": "^1.20.0",
+    "axios": "^1.21.0",
     "react-markdown": "^10.1.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1"
@@ -38,14 +38,14 @@
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "@vitejs/plugin-react": "^5.2.0",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.12",
     "eslint": "^8.57.1",
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.4.5",
     "jsdom": "^29.1.1",
     "typescript": "^5.9.3",
-    "vite": "^6.4.3",
-    "vitest": "^4.1.11"
+    "vite": "^6.4.5",
+    "vitest": "^4.1.12"
   },
   "license": "EUPL-1.2"
 }

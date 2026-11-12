@@ -67,7 +67,16 @@ test.describe('Accessibility — axe-core, one scan per page type', () => {
     await page.evaluate(() => sessionStorage.setItem('selected_idp', 'medewerker'));
     // The app redirects towards Keycloak before 'load': only wait for the commit.
     await page.goto('/auth', { waitUntil: 'commit' });
-    await page.getByText('Verbinding maken...').waitFor({ timeout: 15_000 });
+    // Not locator.waitFor: since Playwright 1.64 it waits for the pending
+    // authorize navigation, which the 204 above never lets finish. A page
+    // function is not held up by it, and neither is the axe scan.
+    await page.waitForFunction(
+      () => document.body.innerText.includes('Verbinding maken...'),
+      null,
+      {
+        timeout: 15_000,
+      }
+    );
     await expectNoNewViolations(page, 'sign-in screen', testInfo);
   });
 
