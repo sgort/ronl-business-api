@@ -112,6 +112,104 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.11.2',
+      status: 'Released',
+      date: '12 nov 2026',
+      scope: ['frontend', 'backend', 'pa-demo', 'ci'],
+      commits: [
+        {
+          sha: 'a123503',
+          author: 'renovate[bot]',
+          type: 'fix',
+          subject: 'axios ^1.21.0 in pa-cockpit',
+          details: [
+            'The declared range follows what the lockfile already installs: the lock file maintenance below moved axios to 1.21.0. pa-cockpit is compiled into the frontend and the PA demo, so both carry it (#441).',
+          ],
+        },
+        {
+          sha: '65f402f',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'Lock file maintenance: 129 updates, no downgrades',
+          details: [
+            'All locks refreshed under the 14-day release-age rule. 53 of the updates are runtime, among them express 5.3.0, @modelcontextprotocol/sdk 1.32.2, axios 1.21.0, jose 6.2.13, pg 8.23.1, qs 6.16.2, hono 4.13.14 and the bpmn-io, codemirror and micromark packages. Five runtime packages are new, pulled in by those updates: temporal-polyfill, temporal-spec and temporal-utils, @codemirror/streamparser and micromark-util-edit-map. bser and fb-watchman moved from Apache-2.0 to MIT.',
+            'The lockfile review found no downgrades, so the break-glass versions from the October advisory refresh held (#387).',
+          ],
+        },
+        {
+          sha: 'ad50627',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'curl 8.23.0 in the local compose',
+          details: [
+            '`curlimages/curl` 8.22.0 to 8.23.0, digest-pinned; local development only (#439).',
+          ],
+        },
+        {
+          sha: '2e90f49',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'vite ^6.4.5 in pa-cockpit',
+          details: ['Development only; rollup moves from 4.63.4 to 4.65.1 with it (#420).'],
+        },
+        {
+          sha: '2ba78fa',
+          author: 'renovate[bot]',
+          type: 'ci',
+          subject: 'Node 24.22.2 in the tooling workflows',
+          details: [
+            'The dependency-audit, dependency-review, sbom and zizmor workflows move from 24.22.1 to 24.22.2. It bundles the same npm 11.19.1, so the release SBOM is still generated with that npm (#438).',
+          ],
+        },
+        {
+          sha: '568b23f',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'The VM’s Operaton 1.0.0 is pinned by digest',
+          details: [
+            '`deployment/vm/operaton/prod/docker-compose.yml` names the image the VM already runs, `1.0.0@sha256:74659f07…`, so a re-pull cannot move it. The upgrade off 1.0.0 stays with #423; the Renovate pull requests for 1.1.5 and 2.2.0 were closed in its favour (#427).',
+          ],
+        },
+        {
+          sha: '2549feb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'keycloak-js can frame Keycloak’s third-party-cookie check',
+          details: [
+            'The Keycloak sites’ header snippet set `X-Frame-Options: SAMEORIGIN` on every response, including `/realms/*/protocol/openid-connect/3p-cookies/*`, which Keycloak serves frameable on purpose and keycloak-js loads in a hidden frame before every silent check-sso. Blocked, the Linked Data Explorer and the ttl-editor could not pick up a session after the sign-in popup or on reload.',
+            'SAMEORIGIN stays everywhere else; Caddy removes it on those paths only. Validated with `caddy adapt` (caddy:2-alpine) (#437, linked-data-explorer#163).',
+          ],
+        },
+        {
+          sha: '810ecd6',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'vitest 4.1.12 in pa-cockpit',
+          details: ['Development only (#421).'],
+        },
+        {
+          sha: '57f3943',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: '`--with-test-author` adds a Flevoland test account holding lde-author',
+          details: [
+            '`test-author-flevoland` is an employee test account for trying the author path in the LDE and the ttl-editor by hand. Its password comes from `TEST_AUTHOR_PASSWORD` (prompted) and is never stored in the repo; like `--with-e2e`, the option is refused on production. The user upsert is now one function shared by both accounts (#435).',
+          ],
+        },
+        {
+          sha: 'b74db31',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'A Keycloak script for the LDE and ttl-editor clients and the lde-author role',
+          details: [
+            '`scripts/keycloak-add-lde-clients.sh` adds the realm role lde-author and the public PKCE clients linked-data-explorer and ttl-editor, each with its own realm_roles, username and full name mappers. With `--with-e2e` it adds the confidential client lde-e2e and a user lde-e2e holding the role, refused on production.',
+            'Idempotent create-or-update with `--dry-run`, in the pattern of `keycloak-add-entra-idp.sh`; the realm import file is not changed (#435, linked-data-explorer#163).',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.11.1',
       status: 'Released',
       date: '7 nov 2026',
