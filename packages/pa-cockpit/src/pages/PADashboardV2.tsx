@@ -530,12 +530,9 @@ function PADashboardV2Inner({ host }: { host: PaCockpitHost }) {
             </span>
           </div>
 
-          <button
-            type="button"
-            className="pac-search"
-            onClick={() => setPaletteOpen(true)}
-            aria-label="Snel navigeren"
-          >
+          {/* No aria-label: the accessible name must contain the visible text
+              (WCAG 2.5.3 Label in Name). */}
+          <button type="button" className="pac-search" onClick={() => setPaletteOpen(true)}>
             <span>🔍</span>
             <span style={{ flex: 1, textAlign: 'left' }}>Spring naar een dossier of sectie…</span>
             <span className="pac-key">⌘K</span>

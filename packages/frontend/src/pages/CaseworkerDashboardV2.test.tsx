@@ -145,7 +145,8 @@ describe('CaseworkerDashboardV2', () => {
     render(<CaseworkerDashboardV2 />);
 
     expect(screen.queryByTestId('palette')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Snel navigeren' }));
+    // Found by its visible text: the accessible name must contain it (WCAG 2.5.3).
+    await user.click(screen.getByRole('button', { name: /Spring naar een sectie…/ }));
     expect(screen.getByTestId('palette')).toBeInTheDocument();
   });
 });
