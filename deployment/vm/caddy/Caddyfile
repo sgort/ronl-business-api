@@ -16,6 +16,15 @@
 	header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 	header X-Content-Type-Options "nosniff"
 	header X-Frame-Options "SAMEORIGIN"
+	# Except Keycloak's third-party-cookie check: keycloak-js loads these two
+	# pages in a hidden frame from the app's origin before every silent
+	# check-sso, and Keycloak serves them frameable on purpose (they have no
+	# UI). With SAMEORIGIN they were blocked, so the Linked Data Explorer and
+	# ttl-editor could not pick up a session after the sign-in popup or on
+	# reload (linked-data-explorer #163). A deletion is deferred by Caddy until
+	# the response is written, so it wins over the line above.
+	@kc_3p_cookies path /realms/*/protocol/openid-connect/3p-cookies/*
+	header @kc_3p_cookies -X-Frame-Options
 	header X-XSS-Protection "1; mode=block"
 	header Referrer-Policy "strict-origin-when-cross-origin"
 	header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=()"
