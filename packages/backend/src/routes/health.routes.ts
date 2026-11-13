@@ -6,6 +6,7 @@ import { createLogger } from '@utils/logger';
 import packageJson from '../../package.json';
 import { buildInfo } from '@utils/build-info';
 import { sendProblem } from '@utils/problem';
+import { brpHealthCheck } from '@services/brp-upstream';
 
 const router = express.Router();
 const logger = createLogger('health-routes');
@@ -16,6 +17,13 @@ const logger = createLogger('health-routes');
  */
 router.get('/', async (req, res) => {
   const startTime = Date.now();
+
+  // Started first and awaited last: the probe can take up to its 5 s timeout,
+  // and it should not add that to the checks that decide the status.
+  const brpProbe = brpHealthCheck().catch((err: unknown) => ({
+    status: 'down' as const,
+    error: err instanceof Error ? err.message : String(err),
+  }));
 
   try {
     // Check Operaton
@@ -57,6 +65,15 @@ router.get('/', async (req, res) => {
       error: err instanceof Error ? err.message : String(err),
     }));
 
+    // The BRP upstream is optional in the same sense as the cache: reported,
+    // excluded from `allUp`. It is a mock hosted outside Azure that only the
+    // citizen timeline uses, and a 503 here would fail every deploy's
+    // verification over it. Reporting it is the point: on 13 November 2026 its
+    // certificate stopped matching its hostname and the timeline went blank
+    // on ACC and PROD while this endpoint said "healthy". brpHealthCheck()
+    // never rejects; the catch above is the same guard the cache gets.
+    const brp = await brpProbe;
+
     // Overall status
     const allUp = operatonHealth.status === 'up' && keycloakHealth.status === 'up';
     const overallStatus = allUp ? 'healthy' : 'degraded';
@@ -78,12 +95,14 @@ router.get('/', async (req, res) => {
         keycloak: keycloakHealth,
         operaton: operatonHealth,
         cache,
+        brp,
       },
     };
 
     logger.info('Health check completed', {
       status: overallStatus,
       cache: cache.status,
+      brp: brp.status,
       duration: healthData.duration,
     });
 

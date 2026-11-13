@@ -110,6 +110,49 @@ describe('POST /v1/brp/personen', () => {
     });
   });
 
+  it('502 BRP_UPSTREAM_UNREACHABLE when the TLS handshake fails, naming the cause in the log only', async () => {
+    // The 13 November 2026 outage: the upstream's proxy served a certificate for
+    // another host. axios rejects with no response, which used to become a bare 500.
+    const tlsMessage =
+      "Hostname/IP does not match certificate's altnames: Host: brp-api-mock.open-regels.nl.";
+    mockPost.mockRejectedValue(
+      Object.assign(new Error(tlsMessage), {
+        isAxiosError: true,
+        code: 'ERR_TLS_CERT_ALTNAME_INVALID',
+      })
+    );
+
+    const res = await auth(request(app).post('/v1/brp/personen')).send({});
+
+    expect(res.status).toBe(502);
+    expectToMatchOperation(res, 'post', '/brp/personen');
+    expect(res.body.code).toBe('BRP_UPSTREAM_UNREACHABLE');
+    expect(res.body.detail).toBe('The BRP API could not be reached');
+    expect(JSON.stringify(res.body)).not.toContain('altnames');
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'BRP API request failed',
+      expect.objectContaining({ transportError: 'ERR_TLS_CERT_ALTNAME_INVALID' })
+    );
+    expect(mockAuditLog).toHaveBeenCalledWith(expect.anything(), 'brp.personen.fetch', 'error', {
+      error: tlsMessage,
+    });
+  });
+
+  it('502 BRP_UPSTREAM_UNREACHABLE on a timeout or DNS failure too', async () => {
+    for (const code of ['ECONNABORTED', 'ENOTFOUND']) {
+      mockPost.mockRejectedValueOnce(Object.assign(new Error(code), { isAxiosError: true, code }));
+
+      const res = await auth(request(app).post('/v1/brp/personen')).send({});
+
+      expect(res.status).toBe(502);
+      expect(res.body.code).toBe('BRP_UPSTREAM_UNREACHABLE');
+      expect(mockLogger.error).toHaveBeenLastCalledWith(
+        'BRP API request failed',
+        expect.objectContaining({ transportError: code })
+      );
+    }
+  });
+
   it('falls back to 500 for a non-axios error', async () => {
     mockPost.mockRejectedValue(new Error('network'));
 

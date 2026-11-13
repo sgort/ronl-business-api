@@ -4,11 +4,10 @@ import jwtMiddleware from '../auth/jwt.middleware';
 import { auditLog } from '../middleware/audit.middleware';
 import { createLogger } from '../utils/logger';
 import { sendProblem } from '../utils/problem';
+import { BRP_API_BASE_URL, transportErrorCode } from '../services/brp-upstream';
 
 const router = express.Router();
 const logger = createLogger('brp-routes');
-
-const BRP_API_BASE_URL = 'https://brp-api-mock.open-regels.nl/haalcentraal/api/brp';
 
 /**
  * POST /v1/brp/personen
@@ -78,15 +77,34 @@ router.post('/personen', jwtMiddleware, async (req: Request, res: Response) => {
       data: response.data,
     });
   } catch (error) {
+    // An axios error WITHOUT a response never reached the upstream's HTTP
+    // layer: DNS, TCP, the TLS handshake or the timeout failed. That used to
+    // fall through to a bare 500, which is how a certificate the upstream's
+    // proxy stopped presenting (ERR_TLS_CERT_ALTNAME_INVALID, 13 November
+    // 2026) blanked the citizen timeline on ACC and PROD with nothing in the
+    // response to say why. It is a gateway failure, so: 502 with its own code,
+    // and the transport error code in the log. Not in the response body --
+    // the client cannot act on it and it describes infrastructure.
+    const unreachable = axios.isAxiosError(error) && !error.response;
+
     logger.error('BRP API request failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
       userId: req.user?.userId,
       upstreamStatus: axios.isAxiosError(error) ? error.response?.status : undefined,
+      ...(unreachable ? { transportError: transportErrorCode(error) } : {}),
     });
 
     auditLog(req, 'brp.personen.fetch', 'error', {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
+
+    if (unreachable) {
+      return sendProblem(res, req, {
+        status: 502,
+        code: 'BRP_UPSTREAM_UNREACHABLE',
+        detail: 'The BRP API could not be reached',
+      });
+    }
 
     const statusCode = axios.isAxiosError(error) ? error.response?.status || 500 : 500;
     const message = axios.isAxiosError(error)

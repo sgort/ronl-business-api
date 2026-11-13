@@ -1,0 +1,114 @@
+name: Upstream certificates
+
+# Checks, daily, the TLS certificate of each upstream this API depends on but
+# does not host (scripts/check-upstream-certs.mjs, HOSTS): that it validates
+# for its hostname and does not expire within 14 days.
+#
+# On 13 November 2026 the BRP mock's reverse proxy served a certificate for
+# another host. Every handshake from the backend failed, the citizen timeline
+# went blank on ACC and PROD, and nothing here noticed until someone opened the
+# page. /v1/health reports the upstream since; this reaches a person first.
+on:
+  schedule:
+    # 05:41 UTC, daily. Off the hour, like the daily audit, because GitHub
+    # queues scheduled workflows at the top of it.
+    - cron: '41 5 * * *'
+  workflow_dispatch:
+  # So a change to the check is exercised before it is merged. The issue step
+  # is skipped on a pull request; see its `if:`.
+  pull_request:
+    paths:
+      - '.github/workflows/upstream-certs.yml'
+      - 'scripts/check-upstream-certs.mjs'
+      - 'scripts/check-upstream-certs.test.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Not "audit": that is zizmor.yml's required check, and required checks
+  # match by name (see dependency-audit.yml).
+  upstream-certs:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # To open, update and close the tracking issue below. A scheduled run
+      # that only fails a job reports to an Actions page nobody opens.
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # An exact literal, like dependency-audit.yml; Renovate maintains it.
+          node-version: '24.22.2'
+
+      - name: Test the check script
+        run: node scripts/check-upstream-certs.test.mjs
+
+      - name: Check the certificates
+        id: certs
+        env:
+          CERT_REPORT_FILE: ${{ runner.temp }}/certs.md
+        run: |
+          rc=0
+          node scripts/check-upstream-certs.mjs || rc=$?
+          # 0 every certificate fine, 1 one is not. Anything else means the
+          # check could not run, which is not a clean result either.
+          if [ "$rc" -gt 1 ]; then rc=2; fi
+          echo "status=$rc" >> "$GITHUB_OUTPUT"
+
+      - name: Open, update or close the tracking issue
+        if: ${{ always() && github.event_name != 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS: ${{ steps.certs.outputs.status }}
+          TITLE: 'Upstream TLS certificate invalid or expiring'
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPORT: ${{ runner.temp }}/certs.md
+        run: |
+          existing=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number,title \
+            --jq "[.[] | select(.title == \"$TITLE\")] | .[0].number // empty")
+          {
+            echo "Opened by the daily upstream certificate check on $(date -u '+%Y-%m-%d %H:%M UTC')."
+            echo
+            echo "It fails when a certificate does not validate for its hostname, or expires within 14 days."
+            echo "A failing upstream shows as \`down\` under \`dependencies\` in \`/v1/health\`; for the BRP mock,"
+            echo "the citizen timeline is blank until it is fixed."
+            echo
+            cat "$REPORT" 2>/dev/null || echo '_The check produced no report; see the run._'
+            echo
+            echo "Run: $RUN_URL"
+          } > body.md
+          if [ "${STATUS:-2}" = "0" ]; then
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "Every upstream certificate is valid as of $(date -u '+%Y-%m-%d'), with at least 14 days left. Closing. Run: $RUN_URL"
+              gh issue close "$existing"
+              echo "Closed #$existing"
+            else
+              echo "Clean, and no open issue to close."
+            fi
+          else
+            if [ -n "$existing" ]; then
+              gh issue edit "$existing" --body-file body.md
+              echo "Updated #$existing"
+            else
+              gh issue create --title "$TITLE" --body-file body.md --label bug --label prod-impact
+              echo "Opened a new issue"
+            fi
+          fi
+
+      # The expression goes through env rather than into the run block, the
+      # shape zizmor asks for.
+      - name: Fail when a certificate is invalid or expiring
+        if: ${{ always() }}
+        env:
+          STATUS: ${{ steps.certs.outputs.status }}
+        run: exit "${STATUS:-2}"
