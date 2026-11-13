@@ -182,10 +182,12 @@ paths:
       tags: [Health]
       summary: Service health and dependency latency
       description: |
-        Reports the running build and the reachability of Operaton, Keycloak
-        and the cache.
+        Reports the running build and the reachability of Operaton, Keycloak,
+        the cache and the BRP upstream.
 
-        Answers **503** when any dependency is down: problem details, with the
+        The cache and the BRP upstream are **optional**: reported, but a down
+        one leaves the status `healthy`. Answers **503** when Operaton or
+        Keycloak is down: problem details, with the
         same report, `status: degraded`, under the `data` extension member.
       security: []
       responses:
@@ -5974,7 +5976,20 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
-          description: The upstream could not be reached (`BRP_API_ERROR`).
+          description: The handler failed on something other than the upstream (`BRP_API_ERROR`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/BrpProblem' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '502':
+          description: |
+            The upstream could not be reached at all (`BRP_UPSTREAM_UNREACHABLE`):
+            DNS, the connection, the TLS handshake or the timeout failed, so no
+            HTTP answer came back. The cause is logged, not returned. Also the
+            status of a `502` the upstream's own gateway answered, which is
+            forwarded as `BRP_API_ERROR`.
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/BrpProblem' }
@@ -6481,6 +6496,15 @@ components:
                   $ref: '#/components/schemas/DependencyStatus'
                 cache:
                   $ref: '#/components/schemas/DependencyStatus'
+                brp:
+                  description: |
+                    The BRP Haal Centraal upstream behind `/brp/personen`. A
+                    HEAD on its root: any HTTP answer below 500 is `up`. When
+                    `down`, `error` names the transport failure, for example
+                    `ERR_TLS_CERT_ALTNAME_INVALID`. Optional: never makes the
+                    report `degraded`.
+                  allOf:
+                    - $ref: '#/components/schemas/DependencyStatus'
 
     Problem:
       type: object
@@ -7494,14 +7518,15 @@ components:
 
     BrpProblem:
       description: |
-        Problem details, always `BRP_API_ERROR`. When the upstream rejected the
-        query, a `details` extension member carries its own validation report.
-        No other error in this API has that member.
+        Problem details: `BRP_API_ERROR` when the upstream answered with an
+        error, `BRP_UPSTREAM_UNREACHABLE` when it could not be reached. When
+        the upstream rejected the query, a `details` extension member carries
+        its own validation report. No other error in this API has that member.
       allOf:
         - $ref: '#/components/schemas/Problem'
         - type: object
           properties:
-            code: { const: BRP_API_ERROR }
+            code: { enum: [BRP_API_ERROR, BRP_UPSTREAM_UNREACHABLE] }
             details:
               type: object
               description: "The upstream's report, typically `{ invalidParams: [...] }`."

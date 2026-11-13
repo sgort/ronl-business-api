@@ -39,16 +39,16 @@ carries commits that already passed every check on `acc`.
 
 ## Pinned
 
-**43 `uses:` references across 14 workflows, all 43 digest-pinned.** Verified on
-10 October 2026, when `dependency-review.yml` added one `checkout` and one
-`setup-node` (sgort/linked-data-explorer#250) — by `npm run check-supply-chain`, which
+**45 `uses:` references across 15 workflows, all 45 digest-pinned.** Verified on
+13 November 2026, when `upstream-certs.yml` added one `checkout` and one
+`setup-node` (#446) — by `npm run check-supply-chain`, which
 blocks the `audit` job, so this headline cannot drift from the workflows without
 failing a merge.
 
 | Dependency                          | Pin                                                 | Version           | Maintained by                                                                                 |
 | ----------------------------------- | --------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------- |
-| `actions/checkout` (×15)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
-| `actions/setup-node` (×13)          | `949feb2413d6458794dcd2491c4babbbce0c15c1`          | v7.1.0            | Renovate                                                                                      |
+| `actions/checkout` (×16)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
+| `actions/setup-node` (×14)          | `949feb2413d6458794dcd2491c4babbbce0c15c1`          | v7.1.0            | Renovate                                                                                      |
 | `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                                  |
 | `actions/upload-artifact` (×3)      | `cf430e030ddbb5b0abf93d22962f4752f3646cd9`          | v7.0.2            | Renovate                                                                                      |
 | `azure/login` (×2)                  | `a641126d1b8aa4d1fa005f4f92df94a3a4c4c906`          | v3.1.0            | Renovate                                                                                      |
@@ -159,6 +159,25 @@ licence and whether its repository is archived. It installs nothing.
 
 The same criteria are applied when a dependency is added: the `lockfile-review`
 comment lists each new **direct** dependency with a checklist of them.
+
+## Upstream certificates, daily
+
+An upstream this API depends on but does not host can break without a commit
+anywhere. On 13 November 2026 the BRP mock's reverse proxy served a certificate
+for another host; every handshake failed with `ERR_TLS_CERT_ALTNAME_INVALID`,
+the citizen timeline went blank on ACC and PROD, and nothing reported it (#446).
+
+`.github/workflows/upstream-certs.yml` runs at 05:41 UTC daily, and on demand.
+`scripts/check-upstream-certs.mjs` opens a TLS connection to each host in its
+`HOSTS` list and reads the certificate. It sends no request.
+
+|                     |                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------- |
+| Job / check context | `upstream-certs` — not `audit`, for the same reason as the daily audit           |
+| Fails on            | a certificate that does not validate for its hostname, or expires within 14 days |
+| Where it reports    | the run's step summary, and one tracking issue it opens, updates and closes      |
+| Hosts               | `brp-api-mock.open-regels.nl`; add any other upstream served from outside Azure  |
+| Node                | an exact literal, like the daily audit                                           |
 
 ## Exceptions
 
@@ -477,7 +496,7 @@ Pinning the file is not the same as pinning the branch that runs it.
 The Pinned table is the only part of this document a machine reads.
 `scripts/check-supply-chain.mjs` runs in the `audit` job and compares it with
 the workflows — digests, versions, the `(×N)` multiplicities, and the
-`43 uses: references across 14 workflows` headline — then resolves every digest
+`45 uses: references across 15 workflows` headline — then resolves every digest
 against the GitHub API to confirm it is the version its comment claims. Run it
 by hand with `npm run check-supply-chain`; `--offline` skips the API and checks
 format and register agreement only.

@@ -26,6 +26,13 @@ jest.mock('../pa-monitoring/pa-cache', () => ({
   ...jest.requireActual('../pa-monitoring/pa-cache'),
   cacheHealth: jest.fn(),
 }));
+// The BRP probe has its own unit tests (brp-upstream.test.ts); here only its
+// place in the report matters, and it must not consume the fetch mock that
+// stands in for Keycloak.
+jest.mock('@services/brp-upstream', () => ({
+  ...jest.requireActual('@services/brp-upstream'),
+  brpHealthCheck: jest.fn(),
+}));
 
 import express from 'express';
 import request from 'supertest';
@@ -34,9 +41,11 @@ import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import healthRouter from './health.routes';
 import { operatonService } from '@services/operaton.service';
 import { cacheHealth } from '../pa-monitoring/pa-cache';
+import { brpHealthCheck } from '@services/brp-upstream';
 
 const opHealth = (operatonService as unknown as { healthCheck: jest.Mock }).healthCheck;
 const mockCacheHealth = cacheHealth as jest.Mock;
+const mockBrpHealth = brpHealthCheck as jest.Mock;
 
 // versionMiddleware is app-wide in index.ts, not in the router, so a test
 // app mounting the router alone answers without API-Version -- which
@@ -53,6 +62,7 @@ beforeAll(() => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockCacheHealth.mockResolvedValue({ status: 'up' });
+  mockBrpHealth.mockResolvedValue({ status: 'up', latency: 12 });
 });
 
 describe('GET /v1/health', () => {
@@ -243,6 +253,60 @@ describe('GET /v1/health — the PA cache', () => {
     expect(res.status).toBe(200);
     expectToMatchOperation(res, 'get', '/health');
     expect(res.body.data.dependencies.cache.status).toBe('down');
+  });
+});
+
+describe('GET /v1/health — the BRP upstream', () => {
+  it('reports the BRP upstream alongside the other dependencies', async () => {
+    opHealth.mockResolvedValue({ status: 'up' });
+    mockFetch.mockResolvedValue({ ok: true, status: 200 });
+
+    const res = await request(app).get('/v1/health');
+
+    expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/health');
+    expect(res.body.data.dependencies.brp).toEqual({ status: 'up', latency: 12 });
+  });
+
+  it('stays healthy when the BRP upstream is down, and names why', async () => {
+    // 13 November 2026: the mock's certificate stopped matching its hostname,
+    // the citizen timeline went blank, and this endpoint said nothing. Optional
+    // like the cache -- a 503 would fail deploy verification over a mock --
+    // but visible.
+    opHealth.mockResolvedValue({ status: 'up' });
+    mockFetch.mockResolvedValue({ ok: true, status: 200 });
+    mockBrpHealth.mockResolvedValue({ status: 'down', error: 'ERR_TLS_CERT_ALTNAME_INVALID' });
+
+    const res = await request(app).get('/v1/health');
+
+    expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/health');
+    expect(res.body.data.status).toBe('healthy');
+    expect(res.body.data.dependencies.brp).toEqual({
+      status: 'down',
+      error: 'ERR_TLS_CERT_ALTNAME_INVALID',
+    });
+  });
+
+  it('does not 503 the health check when the BRP probe itself throws', async () => {
+    opHealth.mockResolvedValue({ status: 'up' });
+    mockFetch.mockResolvedValue({ ok: true, status: 200 });
+    mockBrpHealth.mockRejectedValueOnce(new Error('probe exploded'));
+
+    const res = await request(app).get('/v1/health');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.dependencies.brp).toEqual({ status: 'down', error: 'probe exploded' });
+  });
+
+  it('survives a BRP probe that rejects with a non-Error', async () => {
+    opHealth.mockResolvedValue({ status: 'up' });
+    mockFetch.mockResolvedValue({ ok: true, status: 200 });
+    mockBrpHealth.mockRejectedValueOnce('boom');
+
+    const res = await request(app).get('/v1/health');
+
+    expect(res.body.data.dependencies.brp).toEqual({ status: 'down', error: 'boom' });
   });
 });
 
