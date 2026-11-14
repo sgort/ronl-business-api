@@ -1,6 +1,6 @@
 {
   "name": "@ronl/pa-cockpit",
-  "version": "2026.11.2",
+  "version": "2026.11.3",
   "description": "The PA-Cockpit UI, shared by the caseworker app and the public demo",
   "private": true,
   "type": "module",
