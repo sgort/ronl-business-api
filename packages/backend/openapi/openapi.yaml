@@ -1289,7 +1289,19 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/TenantMismatch'
+          description: |
+            Refused for one of two reasons, told apart by `code`:
+
+            - `TENANT_MISMATCH`: the process is deployed under another
+              organisation than the caller may start for (see
+              TenantMismatch).
+            - `NOT_CANDIDATE_STARTER`: the process declares candidate
+              starter groups (`camunda:candidateStarterGroups`) and none of
+              them is one of the caller's roles. A process that declares none
+              is not refused for this reason.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
         '409':
           $ref: '#/components/responses/AmbiguousDeployment'
         '500':
@@ -1300,6 +1312,52 @@ paths:
             `error.instance` before #216; `instance` is now the request path.)
           $ref: '#/components/responses/Error'
 
+  /process/startable:
+    get:
+      operationId: getStartableProcesses
+      tags: [Process]
+      summary: The processes the caller may start
+      description: |
+        The latest definitions of the caller's tenant and the untenanted ones
+        that declare a candidate starter group (`camunda:candidateStarterGroups`)
+        among the caller's roles. `hasStartForm` says whether the client shows
+        the process's start form first, or starts it directly and the first
+        task appears in the task list. Each key is resolved
+        the way `POST /process/{key}/start` resolves it, so nothing listed is
+        refused there; a key deployed under several organisations is left out.
+        Staff only.
+      responses:
+        '200':
+          description: The processes, sorted by name.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [key, name, hasStartForm]
+                      properties:
+                        key: { type: string, description: 'Process definition key.' }
+                        name: { type: string, description: 'Process name, or the key when it has none.' }
+                        hasStartForm: { type: boolean, description: 'Whether a start event of the process itself has a form.' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is a citizen (`FORBIDDEN`).
+          $ref: '#/components/responses/Error'
+        '503':
+          description: Operaton could not be asked (`SERVICES_UNAVAILABLE`).
+          $ref: '#/components/responses/Error'
   /process/available:
     get:
       operationId: getAvailableCitizenServices

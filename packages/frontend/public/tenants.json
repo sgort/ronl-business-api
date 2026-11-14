@@ -451,6 +451,11 @@
         ],
         "projects": [
           {
+            "id": "proces-starten",
+            "label": "Proces starten",
+            "isPublic": false
+          },
+          {
             "id": "taken",
             "label": "Taken",
             "isPublic": false

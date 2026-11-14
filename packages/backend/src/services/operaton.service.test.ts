@@ -2475,3 +2475,85 @@ describe('besluitUitkomst', () => {
     expect(besluitUitkomst(values)).toBe(expected);
   });
 });
+
+describe('candidate starters', () => {
+  const xml = (key: string, processAttrs: string, start = '<bpmn:startEvent id="S" />') => ({
+    data: {
+      bpmn20Xml: `<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn"><bpmn:process id="${key}" ${processAttrs}>${start}</bpmn:process></bpmn:definitions>`,
+    },
+  });
+
+  describe('getStarterGroups', () => {
+    it("reads the groups of the definition the tenant's key resolves to", async () => {
+      routeGet([
+        ['/process-definition/key/Bulk/tenant-id/bes', { data: { id: 'Bulk:2:bbb' } }],
+        [
+          '/process-definition/Bulk:2:bbb/xml',
+          xml('Bulk', 'camunda:candidateStarterGroups="caseworker"'),
+        ],
+      ]);
+      await expect(svc.getStarterGroups('Bulk', 'bes')).resolves.toEqual(['caseworker']);
+    });
+
+    it('is null for a process that declares none', async () => {
+      routeGet([
+        ['/process-definition/key/Plain', { data: { id: 'Plain:1:aaa' } }],
+        ['/process-definition/Plain:1:aaa/xml', xml('Plain', '')],
+      ]);
+      await expect(svc.getStarterGroups('Plain')).resolves.toBeNull();
+    });
+
+    it('rejects when the definition cannot be read', async () => {
+      mockClient.get.mockRejectedValue(new Error('engine down'));
+      await expect(svc.getStarterGroups('Bulk', 'bes')).rejects.toThrow();
+    });
+  });
+
+  describe('listStartCandidates', () => {
+    it('asks for the latest definitions of the tenant and the untenanted ones', async () => {
+      routeGet([['/process-definition', { data: [] }]]);
+      await svc.listStartCandidates('bes');
+      expect(mockClient.get).toHaveBeenCalledWith('/process-definition', {
+        params: {
+          latestVersion: true,
+          tenantIdIn: 'bes',
+          includeProcessDefinitionsWithoutTenantId: true,
+        },
+      });
+    });
+
+    it('maps each definition to its key, name, tenant, starter groups and start form', async () => {
+      routeGet([
+        [
+          '/process-definition',
+          {
+            data: [
+              { id: 'Bulk:2:bbb', key: 'Bulk', name: 'Bulkbeoordeling', tenantId: 'bes' },
+              { id: 'Shared:1:sss', key: 'Shared', name: null, tenantId: null },
+            ],
+          },
+        ],
+        [
+          '/process-definition/Bulk:2:bbb/xml',
+          xml(
+            'Bulk',
+            'camunda:candidateStarterGroups="caseworker"',
+            '<bpmn:startEvent id="S" camunda:formRef="bulk-input" />'
+          ),
+        ],
+        ['/process-definition/Shared:1:sss/xml', xml('Shared', '')],
+      ]);
+
+      await expect(svc.listStartCandidates('bes')).resolves.toEqual([
+        {
+          key: 'Bulk',
+          name: 'Bulkbeoordeling',
+          tenantId: 'bes',
+          starterGroups: ['caseworker'],
+          hasStartForm: true,
+        },
+        { key: 'Shared', name: 'Shared', tenantId: null, starterGroups: null, hasStartForm: false },
+      ]);
+    });
+  });
+});
