@@ -6,6 +6,7 @@ import SingleBoardLanding from './SingleBoardLanding';
 import { BOARDS } from '../../pages/login-choice/boards.config';
 import { SINGLE_BOARD_COPY } from '../../pages/login-choice/single-board.copy';
 import type { OrganisationType, TenantConfig } from '../../services/tenant';
+import tenantsJson from '../../../public/tenants.json';
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 vi.mock('react-router-dom', () => ({ useNavigate: () => mockNavigate }));
@@ -231,5 +232,98 @@ describe('SingleBoardLanding', () => {
     await user.click(screen.getByRole('button', { name: 'Changelog' }));
 
     expect(screen.getByText('changelog-open')).toBeInTheDocument();
+  });
+
+  describe('copy overrides and the citizen section', () => {
+    // The real entry, so the test follows what /bes actually ships.
+    // Through unknown: other entries' contact objects predate TenantContact's shape.
+    const bes = (tenantsJson as unknown as { tenants: Record<string, TenantConfig> }).tenants.bes;
+    const citizenRegion = () =>
+      screen.getByRole('region', { name: 'Regel uw zaken met het openbaar lichaam online.' });
+
+    it('a copy override wins over the organisation-type copy', () => {
+      render(<SingleBoardLanding tenant={bes} board={caseworker} />);
+
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'Eén werkvoorraad voor drie eilanden.' })
+      ).toBeInTheDocument();
+      expect(screen.getByText('BON-2026-0412')).toBeInTheDocument();
+    });
+
+    it('a tenant without overrides keeps the organisation-type copy', () => {
+      render(<SingleBoardLanding tenant={makeTenant({ id: 'heusden' })} board={caseworker} />);
+
+      expect(
+        screen.getByRole('heading', { level: 1, name: SINGLE_BOARD_COPY.municipality.title })
+      ).toBeInTheDocument();
+    });
+
+    it('a preview override without nav2 keeps the base nav2', () => {
+      render(<SingleBoardLanding tenant={bes} board={caseworker} />);
+
+      expect(screen.getByText(SINGLE_BOARD_COPY.municipality.preview.nav2)).toBeInTheDocument();
+    });
+
+    it('renders the citizen section only when tenant.citizen is set', () => {
+      const { unmount } = render(<SingleBoardLanding tenant={bes} board={caseworker} />);
+      expect(citizenRegion()).toBeInTheDocument();
+      unmount();
+
+      render(<SingleBoardLanding tenant={makeTenant()} board={caseworker} />);
+      expect(
+        screen.queryByRole('region', { name: 'Regel uw zaken met het openbaar lichaam online.' })
+      ).toBeNull();
+    });
+
+    it('the citizen button starts a DigiD login with the tenant test-citizen hint', async () => {
+      const user = userEvent.setup();
+      render(<SingleBoardLanding tenant={bes} board={caseworker} />);
+
+      await user.click(within(citizenRegion()).getByRole('button', { name: /Inloggen met DigiD/ }));
+
+      expect(sessionStorage.getItem('selected_idp')).toBe('digid');
+      expect(sessionStorage.getItem('username_hint')).toBe('test-citizen-bes');
+      expect(mockNavigate).toHaveBeenCalledWith('/auth');
+    });
+
+    it('greetings carry their lang attribute', () => {
+      render(<SingleBoardLanding tenant={bes} board={caseworker} />);
+
+      expect(screen.getByText('Bon bini')).toHaveAttribute('lang', 'pap');
+      expect(screen.getByText('Welcome')).toHaveAttribute('lang', 'en');
+    });
+
+    it('shows the islands and the services', () => {
+      render(<SingleBoardLanding tenant={bes} board={caseworker} />);
+      const region = citizenRegion();
+
+      for (const name of ['Bonaire', 'Sint Eustatius', 'Saba']) {
+        expect(within(region).getByText(name)).toBeInTheDocument();
+      }
+      for (const title of ['Aanvraag doen', 'Melding maken', 'Status volgen']) {
+        expect(within(region).getByText(title)).toBeInTheDocument();
+      }
+      expect(within(region).getByText(bes.citizen!.note)).toBeInTheDocument();
+    });
+
+    it('renders without greetings or islands', () => {
+      const { greetings: _g, islands: _i, ...rest } = bes.citizen!;
+      render(<SingleBoardLanding tenant={{ ...bes, citizen: rest }} board={caseworker} />);
+      const region = citizenRegion();
+
+      expect(within(region).getByText('Aanvraag doen')).toBeInTheDocument();
+      expect(within(region).getByText(rest.eyebrow)).toBeInTheDocument();
+      // A flag is <img alt="">, which has no img role, so look for the list itself.
+      expect(within(region).queryByRole('list', { name: 'Eilanden' })).toBeNull();
+      expect(within(region).queryByText('Bonaire')).toBeNull();
+      expect(within(region).queryByText('Bon bini')).toBeNull();
+    });
+
+    it('shows greeting markup as text', () => {
+      const citizen = { ...bes.citizen!, greetings: [{ lang: 'en', text: '<b>x</b>' }] };
+      render(<SingleBoardLanding tenant={{ ...bes, citizen }} board={caseworker} />);
+
+      expect(screen.getByText('<b>x</b>')).toBeInTheDocument();
+    });
   });
 });

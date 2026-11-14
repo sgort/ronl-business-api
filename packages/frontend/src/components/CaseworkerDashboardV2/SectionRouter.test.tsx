@@ -74,6 +74,9 @@ vi.mock('../CaseworkerDashboard/AuditSection', () => ({
 vi.mock('../CaseworkerDashboard/CapacityClaimSection', () => ({
   default: () => <div>capacity-claim</div>,
 }));
+vi.mock('./ProcesStartenSection', () => ({
+  default: () => <div>proces-starten-section</div>,
+}));
 vi.mock('../CaseworkerDashboard/BesluitStartSection', () => ({
   default: () => <div>besluit-start-section</div>,
 }));
@@ -134,6 +137,11 @@ const baseProps = {
 };
 
 describe('SectionRouter', () => {
+  it('routes "proces-starten" to the Proces starten section', () => {
+    render(<SectionRouter {...baseProps} sectionId="proces-starten" />);
+    expect(screen.getByText('proces-starten-section')).toBeInTheDocument();
+  });
+
   it('routes "taken" to TakenInbox with the task-count callback', () => {
     const onTaskCountChange = vi.fn();
     render(

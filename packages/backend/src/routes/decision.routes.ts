@@ -6,7 +6,7 @@ import { createLogger } from '@utils/logger';
 import { sendProblem } from '@utils/problem';
 import { auditLog } from '@middleware/audit.middleware';
 import { OperatonVariable } from '@ronl/shared';
-import { inferType } from '@utils/operaton-variables';
+import { toOperatonVariable } from '@utils/operaton-variables';
 
 const router = express.Router();
 const logger = createLogger('decision-routes');
@@ -51,10 +51,7 @@ router.post(
           operatonVariables[varKey] = value as OperatonVariable;
         } else {
           // Otherwise, wrap the value
-          operatonVariables[varKey] = {
-            value,
-            type: inferType(value),
-          };
+          operatonVariables[varKey] = toOperatonVariable(value);
         }
       }
 

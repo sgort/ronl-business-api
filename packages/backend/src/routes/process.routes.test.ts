@@ -57,6 +57,8 @@ jest.mock('@services/operaton.service', () => ({
     getProcessLineage: jest.fn(),
     deleteProcessInstance: jest.fn(),
     resolveDeployedTenant: jest.fn(),
+    getStarterGroups: jest.fn(),
+    listStartCandidates: jest.fn(),
   },
 }));
 jest.mock('@middleware/audit.middleware', () => ({ auditLog: jest.fn() }));
@@ -78,6 +80,7 @@ import { versionMiddleware } from '@middleware/version.middleware';
 import { expectToMatchOperation } from '../openapi/testing/conformance';
 import { AmbiguousDeploymentError } from '@utils/errors';
 import { operatonService } from '@services/operaton.service';
+import { auditLog } from '@middleware/audit.middleware';
 
 const svc = operatonService as unknown as Record<string, jest.Mock>;
 
@@ -97,6 +100,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   // Default: the process is deployed under the caller's own tenant.
   svc.resolveDeployedTenant.mockResolvedValue('flevoland');
+  // Default: the process declares no candidate starter groups.
+  svc.getStarterGroups.mockResolvedValue(null);
   // The access check's own read, following whatever a test sets for the
   // instance's variables (see the describe at the end of this file).
   svc.getAccessVariables.mockImplementation(async (id: string) => {
@@ -106,6 +111,65 @@ beforeEach(() => {
 });
 
 describe('POST /:key/start', () => {
+  describe('candidate starter groups', () => {
+    it('403 NOT_CANDIDATE_STARTER when the process declares groups the user lacks', async () => {
+      svc.getStarterGroups.mockResolvedValue(['hr-medewerker']);
+      const res = await auth(request(app).post('/v1/process/Bulk/start')).send({ variables: {} });
+
+      expect(res.status).toBe(403);
+      expectToMatchOperation(res, 'post', '/process/{key}/start');
+      expect(res.body.code).toBe('NOT_CANDIDATE_STARTER');
+      expect(svc.startProcess).not.toHaveBeenCalled();
+      expect(auditLog).toHaveBeenCalledWith(
+        expect.anything(),
+        'process.start.Bulk',
+        'failure',
+        expect.objectContaining({ reason: 'STARTER_GROUP' })
+      );
+    });
+
+    it('starts when a declared group matches one of the roles', async () => {
+      svc.getStarterGroups.mockResolvedValue(['caseworker']);
+      svc.startProcess.mockResolvedValue({ id: 'pi-s', ended: false });
+      const res = await auth(request(app).post('/v1/process/Bulk/start')).send({ variables: {} });
+
+      expect(res.status).toBe(201);
+    });
+
+    it('starts as before when the process declares none', async () => {
+      svc.startProcess.mockResolvedValue({ id: 'pi-n', ended: false });
+      const res = await auth(request(app).post('/v1/process/Plain/start')).send({ variables: {} });
+
+      expect(res.status).toBe(201);
+    });
+
+    it('reads the groups of the deployment the start resolved to', async () => {
+      svc.startProcess.mockResolvedValue({ id: 'pi-t', ended: false });
+      await auth(request(app).post('/v1/process/Bulk/start')).send({ variables: {} });
+
+      expect(svc.getStarterGroups).toHaveBeenCalledWith('Bulk', 'flevoland');
+    });
+
+    it('without a resolved tenant, checks the definition the start falls back to', async () => {
+      // resolveDeployedTenant answers null for an untenanted key and on a lookup
+      // error; startProcess then tries the caller's tenant before the untenanted
+      // definition, so the check must look the same way.
+      svc.resolveDeployedTenant.mockResolvedValue(null);
+      svc.startProcess.mockResolvedValue({ id: 'pi-u', ended: false });
+      await auth(request(app).post('/v1/process/Bulk/start')).send({ variables: {} });
+
+      expect(svc.getStarterGroups).toHaveBeenCalledWith('Bulk', 'flevoland');
+    });
+
+    it('fails closed when the groups cannot be read', async () => {
+      svc.getStarterGroups.mockRejectedValue(new Error('engine down'));
+      const res = await auth(request(app).post('/v1/process/Bulk/start')).send({ variables: {} });
+
+      expect(res.status).toBeGreaterThanOrEqual(500);
+      expect(svc.startProcess).not.toHaveBeenCalled();
+    });
+  });
+
   it('403 TENANT_MISMATCH when a citizen starts an own-tenant service of another tenant (#344)', async () => {
     svc.resolveDeployedTenant.mockResolvedValue('heusden');
     const res = await auth(request(app).post('/v1/process/AwbShellProcess/start'))
@@ -133,7 +197,7 @@ describe('POST /:key/start', () => {
       amount: { value: 5, type: 'Integer' },
       ratio: { value: 1.5, type: 'Double' },
       note: { value: 'hi', type: 'String' },
-      payload: { value: { a: 1 }, type: 'Json' },
+      payload: { value: '{"a":1}', type: 'Json' },
       empty: { value: null, type: 'Null' },
       municipality: { value: 'flevoland', type: 'String' },
       originTenantId: { value: 'flevoland', type: 'String' },
@@ -295,6 +359,105 @@ describe('POST /:key/start', () => {
     // The engine base URL is `engine`; `instance` is the request path (#216).
     expect(res.body.engine).toBe('http://op');
     expect(res.body.instance).toBe('/v1/process/P/start');
+  });
+});
+
+describe('GET /startable', () => {
+  /** A start candidate as listStartCandidates returns it. */
+  const cand = (over: Record<string, unknown> = {}) => ({
+    key: 'Bulk',
+    name: 'Bulkbeoordeling',
+    tenantId: 'flevoland',
+    starterGroups: ['caseworker'],
+    hasStartForm: true,
+    ...over,
+  });
+  const get = () => auth(request(app).get('/v1/process/startable'));
+
+  it('401 without a token', async () => {
+    expect((await request(app).get('/v1/process/startable')).status).toBe(401);
+  });
+
+  it('403 FORBIDDEN for a citizen', async () => {
+    const res = await get().set('x-test-roles', 'citizen');
+    expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/startable');
+    expect(svc.listStartCandidates).not.toHaveBeenCalled();
+  });
+
+  it("lists a process of the caller's tenant that declares a matching group and has a start form", async () => {
+    svc.listStartCandidates.mockResolvedValue([cand()]);
+    const res = await get();
+
+    expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/process/startable');
+    expect(res.body.data).toEqual([{ key: 'Bulk', name: 'Bulkbeoordeling', hasStartForm: true }]);
+    expect(svc.listStartCandidates).toHaveBeenCalledWith('flevoland');
+    expect(svc.resolveDeployedTenant).toHaveBeenCalledWith('Bulk', 'flevoland');
+  });
+
+  it.each([
+    ['declares no starter groups', { starterGroups: null }],
+    ['declares groups the caller lacks', { starterGroups: ['hr-medewerker'] }],
+  ])('leaves out a process that %s', async (_label, over) => {
+    svc.listStartCandidates.mockResolvedValue([cand(over)]);
+    const res = await get();
+    expect(res.body.data).toEqual([]);
+  });
+
+  it('lists a process without a start form too, flagged, to be started directly', async () => {
+    // Like HR onboarding: the start creates the instance and the first task
+    // appears in Taken; no form is filled in at the start.
+    svc.listStartCandidates.mockResolvedValue([cand({ hasStartForm: false })]);
+    const res = await get();
+    expectToMatchOperation(res, 'get', '/process/startable');
+    expect(res.body.data).toEqual([{ key: 'Bulk', name: 'Bulkbeoordeling', hasStartForm: false }]);
+  });
+
+  it('leaves out a key the start would resolve to another deployment', async () => {
+    svc.listStartCandidates.mockResolvedValue([cand({ tenantId: null })]);
+    svc.resolveDeployedTenant.mockResolvedValue('heusden');
+    const res = await get();
+    expect(res.body.data).toEqual([]);
+  });
+
+  it('leaves out an ambiguously deployed key and lists the rest', async () => {
+    svc.listStartCandidates.mockResolvedValue([
+      cand({ key: 'Twice', name: 'Twee keer' }),
+      cand({ key: 'Once', name: 'Een keer' }),
+    ]);
+    svc.resolveDeployedTenant.mockImplementation(async (key: string) => {
+      if (key === 'Twice') throw new AmbiguousDeploymentError('Twice', ['a', 'b']);
+      return 'flevoland';
+    });
+    const res = await get();
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([{ key: 'Once', name: 'Een keer', hasStartForm: true }]);
+  });
+
+  it("lists a key deployed both untenanted and under the caller's tenant once, the tenant one", async () => {
+    svc.listStartCandidates.mockResolvedValue([
+      cand({ tenantId: null, name: 'Gedeeld' }),
+      cand({ tenantId: 'flevoland', name: 'Eigen' }),
+    ]);
+    const res = await get();
+    expect(res.body.data).toEqual([{ key: 'Bulk', name: 'Eigen', hasStartForm: true }]);
+  });
+
+  it('lists an untenanted process the start would use', async () => {
+    svc.listStartCandidates.mockResolvedValue([cand({ tenantId: null })]);
+    svc.resolveDeployedTenant.mockResolvedValue(null);
+    const res = await get();
+    expect(res.body.data).toEqual([{ key: 'Bulk', name: 'Bulkbeoordeling', hasStartForm: true }]);
+  });
+
+  it('sorts by name', async () => {
+    svc.listStartCandidates.mockResolvedValue([
+      cand({ key: 'Z', name: 'Zorg' }),
+      cand({ key: 'A', name: 'Aanvraag' }),
+    ]);
+    const res = await get();
+    expect(res.body.data.map((p: { key: string }) => p.key)).toEqual(['A', 'Z']);
   });
 });
 
@@ -714,7 +877,7 @@ describe('inferType, via the variables submitted on process start', () => {
           aantal: { value: 3, type: 'Integer' },
           bedrag: { value: 12.5, type: 'Double' },
           toelichting: { value: 'ok', type: 'String' },
-          bijlage: { value: { naam: 'a.pdf' }, type: 'Json' },
+          bijlage: { value: '{"naam":"a.pdf"}', type: 'Json' },
           reden: { value: null, type: 'Null' },
           municipality: { value: 'flevoland', type: 'String' },
           originTenantId: { value: 'flevoland', type: 'String' },

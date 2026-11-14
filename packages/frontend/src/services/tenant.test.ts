@@ -384,4 +384,30 @@ describe('tenant service', () => {
       expect(await initializeTenantTheme('nowhere')).toBe(false);
     });
   });
+
+  describe('the real Caribisch Nederland entry', () => {
+    const real = JSON.parse(readFileSync(resolve(__dirname, '../../public/tenants.json'), 'utf8'));
+
+    beforeEach(async () => {
+      mockFetchOnce(real);
+      await loadTenantConfigs();
+    });
+
+    it('applies its sand background', () => {
+      applyTenantTheme(real.tenants.bes.theme);
+      expect(document.documentElement.style.getPropertyValue('--color-background')).toBe('#f6f3ea');
+    });
+
+    it('resolves /bes and /bes/ as a single-board landing', () => {
+      expect(resolveLandingTenant('/bes', '')).toEqual({
+        kind: 'single',
+        tenant: expect.objectContaining({ id: 'bes' }),
+      });
+      expect(resolveLandingTenant('/bes/', '').kind).toBe('single');
+    });
+
+    it('redirects /BES to /bes', () => {
+      expect(resolveLandingTenant('/BES', '')).toEqual({ kind: 'redirect', to: '/bes' });
+    });
+  });
 });

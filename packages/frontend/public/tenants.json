@@ -278,6 +278,201 @@
         ]
       }
     },
+    "bes": {
+      "id": "bes",
+      "name": "BES",
+      "displayName": "Caribisch Nederland",
+      "organisationType": "municipality",
+      "enabled": true,
+      "boards": ["caseworker"],
+      "logo": {
+        "src": "/tenants/bes/logo.png",
+        "shape": "wide",
+        "height": 52
+      },
+      "share": {
+        "title": "Eén werkvoorraad voor drie eilanden",
+        "description": "Aanvragen en meldingen van Bonaire, Sint Eustatius en Saba behandelen in één werkomgeving. Log in als medewerker, of als inwoner met DigiD."
+      },
+      "theme": {
+        "primary": "#012a87",
+        "primaryDark": "#011c5c",
+        "primaryLight": "#3a64c8",
+        "secondary": "#dc171d",
+        "accent": "#f9d90f",
+        "background": "#f6f3ea"
+      },
+      "copy": {
+        "title": "Eén werkvoorraad voor drie eilanden.",
+        "lede": "Behandel aanvragen en meldingen van Bonaire, Sint Eustatius en Saba vanuit één dashboard: taken, termijnen en dossiers per zaak — met een assistent die meekijkt bij de toetsing.",
+        "preview": {
+          "kpis": [
+            ["11", "open taken"],
+            ["2", "termijn < 2 dagen", true],
+            ["5", "wacht op aanvrager"]
+          ],
+          "rows": [
+            [
+              "Inschrijving PIVA — vestiging vanuit Nederland",
+              "BON-2026-0412",
+              "Termijn verloopt",
+              "late",
+              "2 dgn"
+            ],
+            ["Aanvraag reisdocument", "EUX-2026-0087", "Mijn taak", "mine", "4 dgn"],
+            ["Bouwvergunning — woning Windwardside", "SAB-2026-0053", "Toetsing", "", "8 dgn"],
+            [
+              "Melding openbare ruimte — straatverlichting",
+              "BON-2026-0398",
+              "Advies gevraagd",
+              "",
+              "11 dgn"
+            ]
+          ]
+        },
+        "points": [
+          [
+            "Werkvoorraad",
+            "Zaken van Bonaire, Sint Eustatius en Saba in één lijst, gesorteerd op termijn. Het zaaknummer laat zien van welk eiland een zaak komt."
+          ],
+          [
+            "Zaakdossier",
+            "Aanvraag, documenten, correspondentie en besluiten per zaak bij elkaar — zonder te zoeken in losse systemen."
+          ],
+          [
+            "Assistent",
+            "Toetst een aanvraag op volledigheid en de geldende regels, en legt uit waarom. U beslist."
+          ]
+        ]
+      },
+      "citizen": {
+        "eyebrow": "Voor inwoners",
+        "greetings": [
+          {
+            "lang": "pap",
+            "text": "Bon bini"
+          },
+          {
+            "lang": "en",
+            "text": "Welcome"
+          },
+          {
+            "lang": "nl",
+            "text": "Welkom"
+          }
+        ],
+        "title": "Regel uw zaken met het openbaar lichaam online.",
+        "lede": "Woont u op Bonaire, Sint Eustatius of Saba? Log in met DigiD om een aanvraag te doen, iets te melden of te zien hoe het met uw aanvraag staat.",
+        "islands": [
+          {
+            "name": "Bonaire",
+            "flag": "/tenants/bes/flags/bonaire.svg"
+          },
+          {
+            "name": "Sint Eustatius",
+            "flag": "/tenants/bes/flags/sint-eustatius.svg"
+          },
+          {
+            "name": "Saba",
+            "flag": "/tenants/bes/flags/saba.svg"
+          }
+        ],
+        "services": [
+          {
+            "icon": "doc",
+            "title": "Aanvraag doen",
+            "body": "Een vergunning, subsidie of ander product aanvragen."
+          },
+          {
+            "icon": "pin",
+            "title": "Melding maken",
+            "body": "Iets in de openbare ruimte doorgeven, zoals een kapotte lantaarnpaal."
+          },
+          {
+            "icon": "clock",
+            "title": "Status volgen",
+            "body": "Zien waar uw aanvraag is en wat de volgende stap is."
+          }
+        ],
+        "cta": "Inloggen met DigiD",
+        "note": "Met uw DigiD en burgerservicenummer (BSN)"
+      },
+      "contact": {
+        "phone": "",
+        "email": "",
+        "address": "",
+        "postalCode": "",
+        "city": ""
+      },
+      "leftPanelSections": {
+        "home": [
+          {
+            "id": "nieuws",
+            "label": "Nieuws",
+            "isPublic": true
+          },
+          {
+            "id": "berichten",
+            "label": "Berichten",
+            "isPublic": true
+          },
+          {
+            "id": "regelcatalogus",
+            "label": "Regelcatalogus",
+            "isPublic": true
+          },
+          {
+            "id": "procesbibliotheek",
+            "label": "Procesbibliotheek",
+            "isPublic": true
+          }
+        ],
+        "personal-info": [
+          {
+            "id": "profiel",
+            "label": "Profiel",
+            "isPublic": false
+          },
+          {
+            "id": "rollen",
+            "label": "Rollen & rechten",
+            "isPublic": false
+          },
+          {
+            "id": "hr-onboarding",
+            "label": "Medewerker onboarden",
+            "isPublic": false
+          },
+          {
+            "id": "onboarding-archief",
+            "label": "Afgeronde onboardingen",
+            "isPublic": false
+          }
+        ],
+        "projects": [
+          {
+            "id": "proces-starten",
+            "label": "Proces starten",
+            "isPublic": false
+          },
+          {
+            "id": "taken",
+            "label": "Taken",
+            "isPublic": false
+          },
+          {
+            "id": "actief",
+            "label": "Actieve zaken",
+            "isPublic": false
+          },
+          {
+            "id": "archief",
+            "label": "Archief",
+            "isPublic": false
+          }
+        ]
+      }
+    },
     "rotterdam": {
       "id": "rotterdam",
       "name": "Rotterdam",

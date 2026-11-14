@@ -29,3 +29,16 @@ export function inferType(value: unknown): OperatonVariable['type'] {
       return 'String';
   }
 }
+
+/**
+ * Wrap a plain JavaScript value in Operaton's `{ value, type }` envelope.
+ *
+ * A `Json` variable's value is serialised to a string: Operaton refuses any
+ * other value for that type ("Must provide 'null' or String value for value of
+ * SerializableValue type 'Json'"). Sending the object itself is what made a
+ * form-js dynamic list, which submits an array of row objects, fail to save.
+ */
+export function toOperatonVariable(value: unknown): OperatonVariable {
+  const type = inferType(value);
+  return { value: type === 'Json' ? JSON.stringify(value) : value, type };
+}

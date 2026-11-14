@@ -22,7 +22,8 @@ import { AmbiguousDeploymentError } from '@utils/errors';
 import { auditLog } from '@middleware/audit.middleware';
 import { config } from '@utils/config';
 import { OperatonVariable } from '@ronl/shared';
-import { inferType } from '@utils/operaton-variables';
+import { toOperatonVariable } from '@utils/operaton-variables';
+import { mayStart } from '@utils/starter-groups';
 
 const router = express.Router();
 const logger = createLogger('process-routes');
@@ -79,10 +80,7 @@ router.post(
       // Transform variables to Operaton format
       const operatonVariables: Record<string, OperatonVariable> = {};
       for (const [varKey, value] of Object.entries(variables)) {
-        operatonVariables[varKey] = {
-          value,
-          type: inferType(value),
-        };
+        operatonVariables[varKey] = toOperatonVariable(value);
       }
 
       // AwbZorgtoeslagProcess: coerce variable types that the DRD expects as Double
@@ -122,6 +120,30 @@ router.post(
         });
         return denyTenant(req, res, { processKey: key, deployedTenant });
       }
+
+      // Who may start it, as the model declares (camunda:candidateStarterGroups).
+      // A process that declares none is open to whoever the tenant rule lets in,
+      // as before; one that does is refused to anyone outside those groups, so
+      // the API cannot start what the start list would not show. The tenant
+      // mirrors startProcess (resolved tenant, else the caller's, falling back
+      // to the untenanted definition), so the check reads the definition the
+      // start will run, also when resolveDeployedTenant answered null.
+      const starterGroups = await operatonService.getStarterGroups(
+        key,
+        deployedTenant ?? req.user.tenantId
+      );
+      if (!mayStart(req.user.roles ?? [], starterGroups)) {
+        auditLog(req, `process.start.${key}`, 'failure', {
+          reason: 'STARTER_GROUP',
+          starterGroups,
+        });
+        return sendProblem(res, req, {
+          status: 403,
+          code: 'NOT_CANDIDATE_STARTER',
+          detail: 'U mag dit proces niet starten.',
+        });
+      }
+
       operatonVariables.municipality = { value: startTenant.municipality, type: 'String' };
       operatonVariables.originTenantId = { value: startTenant.originTenantId, type: 'String' };
 
@@ -215,6 +237,68 @@ router.post(
 /**
  * Routing order - literal single-segment route, always before :param routes first
  */
+
+/**
+ * GET /v1/process/startable
+ * The processes the signed-in member of staff may start: the latest of their
+ * tenant's and the untenanted definitions that declare a candidate starter
+ * group among the caller's roles. `hasStartForm` tells the client whether to
+ * show the start form first or to start directly, the first task then
+ * appearing under Taken (as HR onboarding does). Each key is resolved
+ * the way POST /:key/start resolves it, so nothing listed is refused there; a
+ * key deployed ambiguously is left out. Staff only.
+ */
+router.get('/startable', async (req, res) => {
+  if (!req.user) {
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
+  }
+  if (isCitizen(req.user)) {
+    return sendProblem(res, req, {
+      status: 403,
+      code: 'FORBIDDEN',
+      detail: 'Citizens start processes through their own services',
+    });
+  }
+  const user = req.user;
+
+  try {
+    const roles = user.roles ?? [];
+    const candidates = (await operatonService.listStartCandidates(user.tenantId)).filter(
+      (c) => c.starterGroups !== null && mayStart(roles, c.starterGroups)
+    );
+
+    const listed = new Map<string, { key: string; name: string; hasStartForm: boolean }>();
+    for (const key of new Set(candidates.map((c) => c.key))) {
+      let deployedTenant: string | null;
+      try {
+        deployedTenant = await operatonService.resolveDeployedTenant(key, user.tenantId);
+      } catch (error) {
+        if (error instanceof AmbiguousDeploymentError) continue;
+        throw error;
+      }
+      if (!resolveStartTenant(user, deployedTenant, key).allowed) continue;
+      const match = candidates.find((c) => c.key === key && c.tenantId === deployedTenant);
+      if (match) listed.set(key, { key, name: match.name, hasStartForm: match.hasStartForm });
+    }
+
+    const data = [...listed.values()].sort((a, b) => a.name.localeCompare(b.name, 'nl'));
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('Failed to list startable processes', {
+      tenantId: user.tenantId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    sendProblem(res, req, {
+      status: 503,
+      code: 'SERVICES_UNAVAILABLE',
+      detail: 'The processes you may start could not be determined',
+    });
+  }
+});
 
 /**
  * GET /v1/process/available
