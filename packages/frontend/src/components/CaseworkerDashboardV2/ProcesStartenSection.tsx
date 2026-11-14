@@ -120,27 +120,31 @@ export default function ProcesStartenSection() {
         <p className="text-sm text-gray-500">Er zijn geen processen die u kunt starten.</p>
       ) : (
         <ul className="divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white">
-          {processes.map((p) => (
-            <li key={p.key} className="flex items-center justify-between gap-4 px-5 py-4">
-              <span className="text-sm font-medium text-gray-800">{p.name}</span>
-              {/* Every row reads "Start process"; the accessible name adds which. */}
-              <button
-                type="button"
-                aria-label={`Start process: ${p.name}`}
-                disabled={starting !== null}
-                className="shrink-0 px-4 py-2 text-sm font-medium text-white rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: 'var(--color-primary)' }}
-                onClick={() => {
-                  setStarted(null);
-                  setFailure(null);
-                  if (p.hasStartForm) setChosen(p);
-                  else void startDirectly(p);
-                }}
-              >
-                {starting === p.key ? 'Bezig…' : 'Start process'}
-              </button>
-            </li>
-          ))}
+          {processes.map((p) => {
+            const label = starting === p.key ? 'Bezig…' : 'Start proces';
+            return (
+              <li key={p.key} className="flex items-center justify-between gap-4 px-5 py-4">
+                <span className="text-sm font-medium text-gray-800">{p.name}</span>
+                {/* Every row reads the same; the accessible name adds which process.
+                  It starts with the visible text, "Bezig…" included (WCAG 2.5.3). */}
+                <button
+                  type="button"
+                  aria-label={`${label}: ${p.name}`}
+                  disabled={starting !== null}
+                  className="shrink-0 px-4 py-2 text-sm font-medium text-white rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                  onClick={() => {
+                    setStarted(null);
+                    setFailure(null);
+                    if (p.hasStartForm) setChosen(p);
+                    else void startDirectly(p);
+                  }}
+                >
+                  {label}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

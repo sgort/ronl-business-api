@@ -59,6 +59,12 @@ CREATE INDEX idx_audit_logs_action ON audit_logs(action);
 CREATE INDEX idx_audit_logs_request_id ON audit_logs(request_id);
 
 -- Tenants table
+--
+-- Read by nothing. Tenants are defined in packages/frontend/public/tenants.json
+-- (typed by TenantConfig in packages/frontend/src/services/tenant.ts), and the
+-- backend takes a user's tenant from the municipality claim on the token. The
+-- seed below is a historical sample, not the list of tenants: heusden and bes,
+-- for instance, are deliberately not in it (#354, #433).
 CREATE TABLE IF NOT EXISTS tenants (
     id SERIAL PRIMARY KEY,
     tenant_id VARCHAR(255) UNIQUE NOT NULL,

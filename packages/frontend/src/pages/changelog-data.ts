@@ -112,6 +112,69 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.11.4',
+      status: 'Released',
+      date: '14 nov 2026',
+      scope: ['frontend', 'backend', 'ci'],
+      commits: [
+        {
+          sha: 'aaeb7b5',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'History reads keep Object variables deserialised, and the Keycloak guard fails closed on bash 3.2',
+          details: [
+            'The first fix for Json values (7f6fe20) read every history variable without deserialising, which also turned Java-serialised Object variables into base64 text: decision results such as completenessResult and svbResult, shown by the archive, the decision documents and the M2M historic-variables route. getHistoryVariables now does what getProcessVariables does: read deserialised, and only when that holds a Json variable, read again as text and parse those values, matched by row id. The variable hints read only names and types and deserialise nothing. Checked on ACC: completenessResult on an ended Flevoland instance comes back as an object.',
+            'keycloak-add-lde-clients.sh lowercased the host with ${h,,}, which bash 3.2 (macOS) does not support; the host came out empty and the production guard let the test accounts through. It now uses tr, and refuses the test accounts when no host can be read, so it fails closed.',
+          ],
+        },
+        {
+          sha: 'a3a4db6',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject:
+            'Caddy 2.11.9 pinned on the VM and in the #415 harness, the temporary engine-rest log removed, and stale comments and links corrected',
+          details: [
+            "The VM's Caddy floated on caddy:2-alpine, Caddy 2.11.9 today, while the #415 harness proved the engine-rest allowlist on 2.10.2. Both now pin caddy:2.11.9-alpine by tag and digest; the harness passed on 2.11.9 with the engine's CORS off and on. The temporary engine-rest access log from #415's rollout is gone from the Caddyfile. SECURITY-PIPELINE.md says which VM images are pinned and why, and names #325 as an open risk with the decision for option B (#433, #354).",
+            'The Operaton prod compose and the a11y baseline no longer carry stale comments, the eDOCS go-live links point to the current page, the unused @ronl/shared tenant types are removed, and the tenants seed says the table is read by nothing (#445, #354).',
+          ],
+        },
+        {
+          sha: 'ffbc109',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject:
+            'The stylelint rule tests run in CI, the Keycloak production guard reads the host name, and lockfile-only promotions deploy everything',
+          details: [
+            'test:stylelint ran in no workflow or hook, so the custom rba/selector-root-class rule could break with every check green. It now runs in the required audit job, after its npm ci (#433).',
+            'keycloak-add-lde-clients.sh recognised production only by its exact URL; it now compares the host name whatever the URL also carries (scheme, credentials, port, path, query, trailing dot, letter case), tested by keycloak-add-lde-clients.test.mjs (#445). promotion-targets.sh deployed only the backend on a lockfile-only promotion; frontend, pa-demo and public-site now follow the lockfile as their ACC filters do, tested by promotion-targets.test.mjs. Both new tests run in audit (#354).',
+          ],
+        },
+        {
+          sha: '35799e1',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject:
+            'Changelog: b34c098 moved to 2026.11.2, where it shipped, and two figures corrected',
+          details: [
+            'b34c098 (#444) landed after the 2026.11.2 bump and reached production with that release, but was listed under 2026.11.3; it now heads the 2026.11.2 entry. This edits released entries on purpose, decided by the owner, to make the record match what shipped. The 2026.11.2 lock maintenance line names the nested MCP SDK versions correctly, and the v2026.11.0 entry says the ⌘K hint is to be fixed in #405, which is still open (#453, #445, #433).',
+          ],
+        },
+        {
+          sha: '7f6fe20',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Ended instances return Json variables as data, formKey start forms count, and the button reads "Start proces"',
+          details: [
+            "A deserialised Json variable comes back from Operaton as Spin's internal node rather than its data, so an ended instance's dynamic list read as an empty object. All ten history variable reads now go through getHistoryVariables, which turns Json values from their text into data (aaeb7b5 keeps the other types deserialised). A malformed Json value no longer fails a read: it is kept as its text and logged.",
+            'A start form attached with camunda:formKey now counts as a start form, so Proces starten opens the form viewer instead of starting the process blind; OpenAPI describes hasStartForm accordingly. The row button reads "Start proces", and its accessible name always starts with the visible text, "Bezig…" included (WCAG 2.5.3) (#453).',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.11.3',
       status: 'Released',
       date: '14 nov 2026',
@@ -227,17 +290,6 @@ export const changelog: Changelog = {
             'POST /v1/brp/personen now answers 502 BRP_UPSTREAM_UNREACHABLE for a transport error and logs its code. /v1/health reports the upstream under dependencies.brp through a HEAD probe, optional so it never degrades the report. A new daily workflow, upstream-certs.yml, fails when a certificate does not validate for its host or expires within 14 days, and opens, updates or closes a tracking issue (#446).',
           ],
         },
-        {
-          sha: 'b34c098',
-          author: 'Steven Gort',
-          type: 'fix',
-          subject:
-            '⌘K buttons keep their visible text in the accessible name; the sign-in scan survives Playwright 1.64',
-          details: [
-            'axe-core 4.14.0 enables label-content-name-mismatch. It flagged the ⌘K button in Caseworker v2 and PA-Cockpit, whose aria-label "Snel navigeren" replaced the visible text (WCAG 2.5.3 Label in Name). The aria-label is gone, as on the Infra-board and Woo.',
-            "Playwright 1.64 makes locator.waitFor wait for a pending navigation, and the sign-in scan answers Keycloak's authorize navigation with 204, which never finishes. It now waits with page.waitForFunction.",
-          ],
-        },
       ],
     },
     {
@@ -247,6 +299,18 @@ export const changelog: Changelog = {
       date: '12 nov 2026',
       scope: ['frontend', 'backend', 'pa-demo', 'ci'],
       commits: [
+        {
+          sha: 'b34c098',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            '⌘K buttons keep their visible text in the accessible name; the sign-in scan survives Playwright 1.64 (#444)',
+          details: [
+            'axe-core 4.14.0 enables label-content-name-mismatch. It flagged the ⌘K button in Caseworker v2 and PA-Cockpit, whose aria-label "Snel navigeren" replaced the visible text (WCAG 2.5.3 Label in Name). The aria-label is gone, as on the Infra-board and Woo.',
+            "Playwright 1.64 makes locator.waitFor wait for a pending navigation, and the sign-in scan answers Keycloak's authorize navigation with 204, which never finishes. It now waits with page.waitForFunction.",
+            'It landed after this release was cut and reached production with its promotion (#443), so it is listed here, where it shipped, rather than under 2026.11.3.',
+          ],
+        },
         {
           sha: 'a123503',
           author: 'renovate[bot]',
@@ -262,7 +326,7 @@ export const changelog: Changelog = {
           type: 'chore',
           subject: 'Lock file maintenance: 129 updates, no downgrades',
           details: [
-            'All locks refreshed under the 14-day release-age rule. 53 of the updates are runtime, among them express 5.3.0, @modelcontextprotocol/sdk 1.32.2, axios 1.21.0, jose 6.2.13, pg 8.23.1, qs 6.16.2, hono 4.13.14 and the bpmn-io, codemirror and micromark packages. Five runtime packages are new, pulled in by those updates: temporal-polyfill, temporal-spec and temporal-utils, @codemirror/streamparser and micromark-util-edit-map. bser and fb-watchman moved from Apache-2.0 to MIT.',
+            "All locks refreshed under the 14-day release-age rule. 53 of the updates are runtime, among them @modelcontextprotocol/sdk 1.32.2 with its own nested express 5.3.0 and jose 6.2.14 (the backend's own express stays 4.22.3), axios 1.21.0, pg 8.23.1, qs 6.16.2, hono 4.13.14 and the bpmn-io, codemirror and micromark packages. Five runtime packages are new, pulled in by those updates: temporal-polyfill, temporal-spec and temporal-utils, @codemirror/streamparser and micromark-util-edit-map. bser and fb-watchman moved from Apache-2.0 to MIT.",
             'The lockfile review found no downgrades, so the break-glass versions from the October advisory refresh held (#387).',
           ],
         },
@@ -541,7 +605,7 @@ export const changelog: Changelog = {
           subject: 'Accessibility checks with axe-core, one scan per page type',
           details: [
             'The frontend E2E suite scans ten page types with axe-core 4.13, WCAG 2.0–2.2 at levels A and AA: the landing page, the sign-in screen, three Keycloak form variants, and the Caseworker V2, Infra-board, Woo and PA-Cockpit dashboards, plus Caseworker V2 for Heusden as the other-tenant check. A critical or serious violation fails unless it is listed in `e2e/a11y-baseline.ts`, and a baseline entry that no longer occurs fails too, so a fix shrinks the list. The full axe result of every page is attached to the Playwright report.',
-            'The baseline is a "before" picture for step 2 of the Flevoland look: the ⌘K search hint on every dashboard (fixed in #405) and two contrast issues for tenants other than Flevoland (#412). The run against ACC also found the PA-Cockpit score total (`.pac-total b`) in Flevoland pink at 4.23:1 on the grey background; it now uses the darker accent, 6.13:1 (#409).',
+            'The baseline is a "before" picture for step 2 of the Flevoland look: the ⌘K search hint on every dashboard (to be fixed in #405) and two contrast issues for tenants other than Flevoland (#412). The run against ACC also found the PA-Cockpit score total (`.pac-total b`) in Flevoland pink at 4.23:1 on the grey background; it now uses the darker accent, 6.13:1 (#409).',
           ],
         },
         {

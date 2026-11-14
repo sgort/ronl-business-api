@@ -41,10 +41,12 @@ services:
     ports:
       - '8091:8080'
 
-  # Caddy as on the VM (2.10.2), in front of the engine on host port 8090,
-  # importing the very file the VM imports.
+  # Caddy as on the VM, in front of the engine on host port 8090, importing the
+  # very file the VM imports. Same tag and digest as deployment/vm/caddy's
+  # compose file: the allowlist is proven on the version the VM runs. Moved from
+  # 2.10.2 to 2.11.9 together, 14 November 2026 (#433).
   caddy:
-    image: caddy:2.10.2-alpine
+    image: caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
     container_name: op415-caddy
     depends_on:
       - operaton

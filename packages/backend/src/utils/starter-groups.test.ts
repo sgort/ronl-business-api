@@ -60,6 +60,45 @@ describe('hasStartForm', () => {
   });
 });
 
+describe('hasStartForm with camunda:formKey', () => {
+  // A start form can also be attached with formKey. Missing it made Proces
+  // starten start the process blind, with no variables (#453).
+  it('counts a Camunda Forms formKey', () => {
+    expect(
+      hasStartForm(
+        bpmn(
+          '',
+          '<bpmn:startEvent id="S" camunda:formKey="camunda-forms:deployment:intake.form" />'
+        ),
+        'P'
+      )
+    ).toBe(true);
+  });
+
+  it('counts an embedded formKey too, so the viewer explains instead of starting blind', () => {
+    expect(
+      hasStartForm(
+        bpmn('', '<bpmn:startEvent id="S" camunda:formKey="embedded:app:forms/x.html" />'),
+        'P'
+      )
+    ).toBe(true);
+  });
+
+  it('ignores an empty formKey', () => {
+    expect(hasStartForm(bpmn('', '<bpmn:startEvent id="S" camunda:formKey=" " />'), 'P')).toBe(
+      false
+    );
+  });
+
+  it('ignores a formKey inside a subprocess', () => {
+    const body = `<bpmn:startEvent id="S" />
+      <bpmn:subProcess id="Sub">
+        <bpmn:startEvent id="SubStart" camunda:formKey="camunda-forms:deployment:inner.form" />
+      </bpmn:subProcess>`;
+    expect(hasStartForm(bpmn('', body), 'P')).toBe(false);
+  });
+});
+
 describe('mayStart', () => {
   it('allows anyone when the process declares no starter groups', () => {
     expect(mayStart(['caseworker'], null)).toBe(true);

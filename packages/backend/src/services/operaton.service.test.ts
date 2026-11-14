@@ -2557,3 +2557,157 @@ describe('candidate starters', () => {
     });
   });
 });
+
+describe('Json values in history reads', () => {
+  // A deserialised Json variable comes back as Spin's internal node
+  // ({dataFormatName, nodeType, ...}) rather than its data. History reads stay
+  // deserialised, so Java-serialised Object variables (decision results such
+  // as svbResult) keep arriving as objects, and only Json variables are read
+  // again as text and parsed, matched by row id (#453).
+  const rows = [{ kenmerk: 'Geval 1', persoonWoontInBES: true }];
+  const spinNode = { dataFormatName: 'application/json', nodeType: 'ARRAY', value: false };
+  const svbMap = { recht: true, bedrag: 120 };
+
+  /** Answers a history read by its mode: deserialised rows, or the raw text rows. */
+  const historyReads = (deserialised: unknown[], raw: unknown[]) =>
+    mockClient.get.mockImplementation(
+      (url: string, opts?: { params?: Record<string, unknown> }) => {
+        if (!String(url).startsWith('/history/variable-instance'))
+          return Promise.reject(new Error(`unexpected GET ${url}`));
+        return Promise.resolve({
+          data: opts?.params?.deserializeValues === false ? raw : deserialised,
+        });
+      }
+    );
+
+  const jsonRow = (value: unknown) => ({ id: 'v1', name: 'gevallen', type: 'Json', value });
+  const objectRow = (value: unknown) => ({ id: 'v2', name: 'svbResult', type: 'Object', value });
+  const longRow = { id: 'v3', name: 'aantal', type: 'Long', value: 1 };
+
+  it('returns a Json variable as its data and keeps an Object variable deserialised', async () => {
+    historyReads(
+      [jsonRow(spinNode), objectRow(svbMap), longRow],
+      [jsonRow(JSON.stringify(rows)), objectRow('rO0ABXNyABFqYXZh'), longRow]
+    );
+
+    await expect(svc.getHistoricVariables('pi')).resolves.toEqual({
+      gevallen: rows,
+      svbResult: svbMap,
+      aantal: 1,
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/history/variable-instance', {
+      params: { processInstanceId: 'pi', deserializeValues: true },
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/history/variable-instance', {
+      params: { processInstanceId: 'pi', deserializeValues: false },
+    });
+  });
+
+  it('reads once, deserialised, when there is no Json variable', async () => {
+    historyReads([objectRow(svbMap), longRow], []);
+
+    await expect(svc.getHistoricVariables('pi')).resolves.toEqual({ svbResult: svbMap, aantal: 1 });
+    expect(mockClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('matches each Json text to its row by id, whatever order the second read returns', async () => {
+    const other = [{ kenmerk: 'Geval 9' }];
+    historyReads(
+      [jsonRow(spinNode), { ...jsonRow(spinNode), id: 'v9', name: 'ander' }],
+      [
+        { ...jsonRow(JSON.stringify(other)), id: 'v9', name: 'ander' },
+        jsonRow(JSON.stringify(rows)),
+      ]
+    );
+
+    await expect(svc.getHistoricVariables('pi')).resolves.toEqual({ gevallen: rows, ander: other });
+  });
+
+  it('keeps a malformed Json value as its text and returns the rest', async () => {
+    historyReads([jsonRow(spinNode), longRow], [jsonRow('{not json'), longRow]);
+
+    await expect(svc.getHistoricVariables('pi')).resolves.toEqual({
+      gevallen: '{not json',
+      aantal: 1,
+    });
+    expect(mockLogger.warn).toHaveBeenCalled();
+  });
+
+  it('getRipInstanceDocuments returns a Json variable as its data', async () => {
+    routeGet([
+      [/\/history\/process-instance\/pi1$/, { data: { processDefinitionId: 'pd1' } }],
+      ['/process-definition/pd1', { data: { deploymentId: 'dep1' } }],
+      ['/deployment/dep1/resources', { data: [] }],
+    ]);
+    const routed = mockClient.get.getMockImplementation()!;
+    mockClient.get.mockImplementation((url: string, opts?: { params?: Record<string, unknown> }) =>
+      String(url).startsWith('/history/variable-instance')
+        ? Promise.resolve({
+            data: [
+              jsonRow(opts?.params?.deserializeValues === false ? JSON.stringify(rows) : spinNode),
+            ],
+          })
+        : routed(url, opts)
+    );
+
+    const res = await svc.getRipInstanceDocuments('pi1');
+    expect(res.variables).toEqual({ gevallen: rows });
+  });
+
+  it('getCapacityClaimDocuments returns a Json variable as its data', async () => {
+    routeGet([
+      [/\/history\/process-instance\/pi1$/, { data: { processDefinitionId: 'pd1' } }],
+      ['/process-definition/pd1', { data: { deploymentId: 'dep1' } }],
+      ['/deployment/dep1/resources', { data: [] }],
+    ]);
+    const routed = mockClient.get.getMockImplementation()!;
+    mockClient.get.mockImplementation((url: string, opts?: { params?: Record<string, unknown> }) =>
+      String(url).startsWith('/history/variable-instance')
+        ? Promise.resolve({
+            data: [
+              jsonRow(opts?.params?.deserializeValues === false ? JSON.stringify(rows) : spinNode),
+            ],
+          })
+        : routed(url, opts)
+    );
+
+    const res = await svc.getCapacityClaimDocuments('pi1');
+    expect(res.variables).toEqual({ gevallen: rows });
+  });
+
+  it('getVariableHints reads names and types without deserialising anything', async () => {
+    mockClient.get.mockResolvedValue({ data: [{ name: 'a', type: 'Json' }] });
+    await svc.getVariableHints('Key');
+    expect(mockClient.get).toHaveBeenCalledWith('/history/variable-instance', {
+      params: {
+        processDefinitionKey: 'Key',
+        firstResult: 0,
+        maxResults: 500,
+        deserializeValues: false,
+      },
+    });
+  });
+});
+
+describe('getProcessVariables with a malformed Json value', () => {
+  it('keeps that value as its text and returns the other variables', async () => {
+    mockClient.get
+      .mockResolvedValueOnce({
+        data: {
+          gevallen: { type: 'Json', value: { dataFormatName: 'application/json' } },
+          aantal: { type: 'Long', value: 1 },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          gevallen: { type: 'Json', value: '{not json' },
+          aantal: { type: 'Long', value: 1 },
+        },
+      });
+
+    const vars = await svc.getProcessVariables('pi');
+    expect(vars.gevallen).toEqual({ type: 'Json', value: '{not json' });
+    expect(vars.aantal).toEqual({ type: 'Long', value: 1 });
+    expect(mockLogger.warn).toHaveBeenCalled();
+  });
+});

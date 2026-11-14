@@ -6,7 +6,7 @@
  */
 export {};
 
-import { inferType, toOperatonVariable } from './operaton-variables';
+import { fromJsonVariableText, inferType, toOperatonVariable } from './operaton-variables';
 
 describe('inferType', () => {
   it('tags the absence of a value as Null', () => {
@@ -84,5 +84,30 @@ describe('toOperatonVariable', () => {
 
   it('keeps null as null rather than the string "null"', () => {
     expect(toOperatonVariable(null)).toEqual({ value: null, type: 'Null' });
+  });
+});
+
+describe('fromJsonVariableText', () => {
+  it('parses the JSON text of a Json variable', () => {
+    expect(fromJsonVariableText('[{"kenmerk":"Geval 1"}]')).toEqual([{ kenmerk: 'Geval 1' }]);
+    expect(fromJsonVariableText('{"a":1}')).toEqual({ a: 1 });
+  });
+
+  it('keeps null as null, and the JSON text null as null', () => {
+    expect(fromJsonVariableText(null)).toBeNull();
+    expect(fromJsonVariableText(undefined)).toBeNull();
+    expect(fromJsonVariableText('null')).toBeNull();
+  });
+
+  it('keeps text that is not valid JSON as it is, and reports it', () => {
+    // One bad value must not fail a read of every other variable.
+    const onInvalid = jest.fn();
+    expect(fromJsonVariableText('{not json', onInvalid)).toBe('{not json');
+    expect(fromJsonVariableText('', onInvalid)).toBe('');
+    expect(onInvalid).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns a value that is not text unchanged', () => {
+    expect(fromJsonVariableText(42)).toBe(42);
   });
 });

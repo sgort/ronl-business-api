@@ -42,3 +42,20 @@ export function toOperatonVariable(value: unknown): OperatonVariable {
   const type = inferType(value);
   return { value: type === 'Json' ? JSON.stringify(value) : value, type };
 }
+
+/**
+ * The value of a Json variable read without deserialising: its JSON text,
+ * parsed. Null stays null. Text that is not valid JSON is returned as it is
+ * and reported through onInvalid, so one bad value does not fail a read of
+ * every other variable. A value that is not text is returned unchanged.
+ */
+export function fromJsonVariableText(text: unknown, onInvalid?: (error: unknown) => void): unknown {
+  if (text === null || text === undefined) return null;
+  if (typeof text !== 'string') return text;
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    onInvalid?.(error);
+    return text;
+  }
+}

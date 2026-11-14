@@ -333,13 +333,23 @@ already tracked by version and merely unpinned by digest.
 The digests recorded are the **index** digests, not per-platform ones, so the
 pin stays correct on an amd64 and an arm64 workstation alike.
 
-**The three compose files under `deployment/vm/` are deliberately not pinned
-yet**, and that is #196. Nothing in this repository applies them — no workflow,
-no script reads them — so a digest there would record a value no deploy
-consults, against a host whose running image cannot be read from here. A pin
-that cannot be verified is a pin that can be wrong with nothing saying so. That
-issue brings the ACC and PROD VM deployment under action control first, and pins
-second.
+**The compose files under `deployment/vm/` are applied by hand on the VMs**, not
+by any workflow, and that is #196: it brings the ACC and PROD VM deployment under
+action control. Nothing here can read which image a VM actually runs, so a pin in
+these files records what the VM _should_ run, not what it does. Two of them are
+pinned by tag and digest anyway, each for a reason that outweighs that:
+
+- `deployment/vm/operaton/prod/docker-compose.yml` — `operaton/operaton:1.0.0`,
+  the digest the VM had pulled (#427).
+- `deployment/vm/caddy/docker-compose.yml` — `caddy:2.11.9-alpine`, the same tag
+  and digest as the #415 test harness (`deployment/vm/operaton/test`), so the
+  engine-rest allowlist is proven on the version the VM runs. Both moved from
+  2.10.2 to 2.11.9 on 14 November 2026, after the harness passed on 2.11.9 with
+  the engine's CORS off and on (#433).
+
+Renovate's compose manager reads these files too, so both get update proposals
+like the local stack's images. A VM picks a new version up only when someone
+pulls on it.
 
 ### The package-manager cooldown — `.npmrc`, and where it does not reach
 
@@ -490,6 +500,14 @@ change, but GitHub Actions runs the workflow file _from the branch being pushed_
 Measured on `origin/main`, 29 August 2026: **4 workflows, 13 `uses:` references,
 0 digest-pinned.** `main` will keep using those copies until `acc` is promoted.
 Pinning the file is not the same as pinning the branch that runs it.
+
+**An open authentication risk sits outside this register: #325.** The browser's
+Keycloak access token can fetch that person's own stored Entra token, which
+reaches eDOCS outside RBA's audit log. No pipeline gate can see a token-design
+risk, so it is named here to keep it from being forgotten. On 14 November 2026
+the owner chose option B, a backend-only path that takes the broker role out of
+the browser token. That is still to be built; until it is, the exposure and its
+limits are as #325 describes them.
 
 ## Keeping this register true
 

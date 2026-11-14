@@ -11,7 +11,7 @@ switch is transparent to the routes, the BPMN worker, and the frontend.
 
 > **Live-tested results, per-endpoint status, and known issues now live on the
 > architecture documentation site**, not here — see
-> [eDOCS — Live Testing](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/edocs-live-testing/)
+> [eDOCS — Live Testing](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/testing/edocs-live-testing/)
 > for the full picture (what's confirmed working, what's broken, and why).
 > This file stays a short local runbook: env vars and the commands to run.
 
@@ -154,7 +154,7 @@ confirmed-working path).
 
 ## Known issues
 
-See [eDOCS — Live Testing](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/edocs-live-testing/)
+See [eDOCS — Live Testing](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/testing/edocs-live-testing/)
 on the architecture site — that page is now the source of truth for
 per-endpoint results and known issues, kept current as testing continues.
 

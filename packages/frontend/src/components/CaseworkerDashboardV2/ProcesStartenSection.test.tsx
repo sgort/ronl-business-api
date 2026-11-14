@@ -39,9 +39,9 @@ const bulk = {
 };
 /** Has a start form, which is filled in before the process starts. */
 const intake = { key: 'IntakeProcess', name: 'Intake', hasStartForm: true };
-/** Every row's button reads "Start process"; its accessible name adds the process. */
-const startLabel = `Start process: ${bulk.name}`;
-const intakeLabel = `Start process: ${intake.name}`;
+/** Every row's button reads "Start proces"; its accessible name adds the process. */
+const startLabel = `Start proces: ${bulk.name}`;
+const intakeLabel = `Start proces: ${intake.name}`;
 
 beforeEach(() => {
   viewerProps.current = null;
@@ -55,13 +55,26 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks());
 
 describe('ProcesStartenSection', () => {
-  it('lists each process as a row with its name and a Start process button', async () => {
+  it('lists each process as a row with its name and a Start proces button', async () => {
     render(<ProcesStartenSection />);
 
     const row = (await screen.findByText(bulk.name)).closest('li')!;
     expect(row).not.toBeNull();
     const button = within(row).getByRole('button', { name: startLabel });
-    expect(button).toHaveTextContent(/^Start process$/);
+    expect(button).toHaveTextContent(/^Start proces$/);
+  });
+
+  it('keeps the visible text in the accessible name while starting', async () => {
+    // WCAG 2.5.3: the accessible name must contain the visible text, also while
+    // the button reads "Bezig…" (#453).
+    mockStart.mockReturnValue(new Promise(() => {}));
+    const user = userEvent.setup();
+    render(<ProcesStartenSection />);
+
+    await user.click(await screen.findByRole('button', { name: startLabel }));
+
+    const busy = screen.getByRole('button', { name: `Bezig…: ${bulk.name}` });
+    expect(busy).toHaveTextContent(/^Bezig…$/);
   });
 
   it('does not make the process name itself the button', async () => {
