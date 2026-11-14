@@ -3,9 +3,11 @@
 // runner, prints a PASS count, exits 1 on any failure. Run with
 // `node scripts/promotion-targets.test.mjs`.
 //
-// Each pattern mirrors the push `paths:` filter of the matching ACC workflow.
-// All four ACC filters list the root package.json and package-lock.json, so a
-// lockfile-only promotion must deploy all four (#354 item 2).
+// All four ACC workflows' push `paths:` filters list the root package.json and
+// package-lock.json, so a lockfile-only promotion must deploy all four (#354
+// item 2). The patterns do not mirror those filters in every respect: the
+// frontend ACC filter also lists keycloak-themes/**, which the frontend
+// pattern here does not.
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 

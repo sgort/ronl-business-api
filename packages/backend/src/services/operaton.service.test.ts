@@ -771,7 +771,7 @@ describe('getHistoricVariables', () => {
     });
     await expect(svc.getHistoricVariables('pi')).resolves.toEqual({ a: 1, b: 'x' });
     expect(mockClient.get).toHaveBeenCalledWith('/history/variable-instance', {
-      params: { processInstanceId: 'pi', deserializeValues: false },
+      params: { processInstanceId: 'pi', deserializeValues: true },
     });
   });
 });
@@ -795,7 +795,7 @@ describe('getHistoricTaskVariables', () => {
       params: { taskId: 't1' },
     });
     expect(mockClient.get).toHaveBeenNthCalledWith(2, '/history/variable-instance', {
-      params: { processInstanceId: 'pi-9', deserializeValues: false },
+      params: { processInstanceId: 'pi-9', deserializeValues: true },
     });
   });
 
@@ -2559,32 +2559,72 @@ describe('candidate starters', () => {
 });
 
 describe('Json values in history reads', () => {
-  // The history API deserialises by default, and a deserialised Json variable
-  // comes back as Spin's internal node ({dataFormatName, nodeType, ...}) rather
-  // than its data. Every history read therefore asks for JSON text (#453).
+  // A deserialised Json variable comes back as Spin's internal node
+  // ({dataFormatName, nodeType, ...}) rather than its data. History reads stay
+  // deserialised, so Java-serialised Object variables (decision results such
+  // as svbResult) keep arriving as objects, and only Json variables are read
+  // again as text and parsed, matched by row id (#453).
   const rows = [{ kenmerk: 'Geval 1', persoonWoontInBES: true }];
-  const jsonVar = (extra: Record<string, unknown> = {}) => ({
-    name: 'gevallen',
-    type: 'Json',
-    value: JSON.stringify(rows),
-    ...extra,
-  });
+  const spinNode = { dataFormatName: 'application/json', nodeType: 'ARRAY', value: false };
+  const svbMap = { recht: true, bedrag: 120 };
 
-  it('getHistoricVariables returns a Json variable of an ended instance as its data', async () => {
-    mockClient.get.mockResolvedValue({
-      data: [jsonVar(), { name: 'aantal', type: 'Long', value: 1 }],
+  /** Answers a history read by its mode: deserialised rows, or the raw text rows. */
+  const historyReads = (deserialised: unknown[], raw: unknown[]) =>
+    mockClient.get.mockImplementation(
+      (url: string, opts?: { params?: Record<string, unknown> }) => {
+        if (!String(url).startsWith('/history/variable-instance'))
+          return Promise.reject(new Error(`unexpected GET ${url}`));
+        return Promise.resolve({
+          data: opts?.params?.deserializeValues === false ? raw : deserialised,
+        });
+      }
+    );
+
+  const jsonRow = (value: unknown) => ({ id: 'v1', name: 'gevallen', type: 'Json', value });
+  const objectRow = (value: unknown) => ({ id: 'v2', name: 'svbResult', type: 'Object', value });
+  const longRow = { id: 'v3', name: 'aantal', type: 'Long', value: 1 };
+
+  it('returns a Json variable as its data and keeps an Object variable deserialised', async () => {
+    historyReads(
+      [jsonRow(spinNode), objectRow(svbMap), longRow],
+      [jsonRow(JSON.stringify(rows)), objectRow('rO0ABXNyABFqYXZh'), longRow]
+    );
+
+    await expect(svc.getHistoricVariables('pi')).resolves.toEqual({
+      gevallen: rows,
+      svbResult: svbMap,
+      aantal: 1,
     });
-
-    await expect(svc.getHistoricVariables('pi')).resolves.toEqual({ gevallen: rows, aantal: 1 });
+    expect(mockClient.get).toHaveBeenCalledWith('/history/variable-instance', {
+      params: { processInstanceId: 'pi', deserializeValues: true },
+    });
     expect(mockClient.get).toHaveBeenCalledWith('/history/variable-instance', {
       params: { processInstanceId: 'pi', deserializeValues: false },
     });
   });
 
-  it('getHistoricVariables keeps a malformed Json value as its text and returns the rest', async () => {
-    mockClient.get.mockResolvedValue({
-      data: [jsonVar({ value: '{not json' }), { name: 'aantal', type: 'Long', value: 1 }],
-    });
+  it('reads once, deserialised, when there is no Json variable', async () => {
+    historyReads([objectRow(svbMap), longRow], []);
+
+    await expect(svc.getHistoricVariables('pi')).resolves.toEqual({ svbResult: svbMap, aantal: 1 });
+    expect(mockClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('matches each Json text to its row by id, whatever order the second read returns', async () => {
+    const other = [{ kenmerk: 'Geval 9' }];
+    historyReads(
+      [jsonRow(spinNode), { ...jsonRow(spinNode), id: 'v9', name: 'ander' }],
+      [
+        { ...jsonRow(JSON.stringify(other)), id: 'v9', name: 'ander' },
+        jsonRow(JSON.stringify(rows)),
+      ]
+    );
+
+    await expect(svc.getHistoricVariables('pi')).resolves.toEqual({ gevallen: rows, ander: other });
+  });
+
+  it('keeps a malformed Json value as its text and returns the rest', async () => {
+    historyReads([jsonRow(spinNode), longRow], [jsonRow('{not json'), longRow]);
 
     await expect(svc.getHistoricVariables('pi')).resolves.toEqual({
       gevallen: '{not json',
@@ -2595,11 +2635,20 @@ describe('Json values in history reads', () => {
 
   it('getRipInstanceDocuments returns a Json variable as its data', async () => {
     routeGet([
-      [/\/history\/variable-instance$/, { data: [jsonVar()] }],
       [/\/history\/process-instance\/pi1$/, { data: { processDefinitionId: 'pd1' } }],
       ['/process-definition/pd1', { data: { deploymentId: 'dep1' } }],
       ['/deployment/dep1/resources', { data: [] }],
     ]);
+    const routed = mockClient.get.getMockImplementation()!;
+    mockClient.get.mockImplementation((url: string, opts?: { params?: Record<string, unknown> }) =>
+      String(url).startsWith('/history/variable-instance')
+        ? Promise.resolve({
+            data: [
+              jsonRow(opts?.params?.deserializeValues === false ? JSON.stringify(rows) : spinNode),
+            ],
+          })
+        : routed(url, opts)
+    );
 
     const res = await svc.getRipInstanceDocuments('pi1');
     expect(res.variables).toEqual({ gevallen: rows });
@@ -2607,31 +2656,36 @@ describe('Json values in history reads', () => {
 
   it('getCapacityClaimDocuments returns a Json variable as its data', async () => {
     routeGet([
-      [/\/history\/variable-instance$/, { data: [jsonVar()] }],
       [/\/history\/process-instance\/pi1$/, { data: { processDefinitionId: 'pd1' } }],
       ['/process-definition/pd1', { data: { deploymentId: 'dep1' } }],
       ['/deployment/dep1/resources', { data: [] }],
     ]);
+    const routed = mockClient.get.getMockImplementation()!;
+    mockClient.get.mockImplementation((url: string, opts?: { params?: Record<string, unknown> }) =>
+      String(url).startsWith('/history/variable-instance')
+        ? Promise.resolve({
+            data: [
+              jsonRow(opts?.params?.deserializeValues === false ? JSON.stringify(rows) : spinNode),
+            ],
+          })
+        : routed(url, opts)
+    );
 
     const res = await svc.getCapacityClaimDocuments('pi1');
     expect(res.variables).toEqual({ gevallen: rows });
   });
 
-  it('no history read deserialises', async () => {
-    // Every list builder and the variable hints read without deserialising.
-    mockClient.post.mockResolvedValue({ data: [{ id: 'i1', startTime: 's', endTime: 'e' }] });
-    mockClient.get.mockResolvedValue({ data: [] });
-    await svc.getHrOnboardingCompletedList('t');
-    await svc.getRipPhaseActiveList('RipR21Process', 't');
+  it('getVariableHints reads names and types without deserialising anything', async () => {
+    mockClient.get.mockResolvedValue({ data: [{ name: 'a', type: 'Json' }] });
     await svc.getVariableHints('Key');
-
-    const historyCalls = mockClient.get.mock.calls.filter(([url]: [string]) =>
-      String(url).startsWith('/history/variable-instance')
-    );
-    expect(historyCalls.length).toBeGreaterThan(0);
-    for (const [, opts] of historyCalls) {
-      expect(opts.params.deserializeValues).toBe(false);
-    }
+    expect(mockClient.get).toHaveBeenCalledWith('/history/variable-instance', {
+      params: {
+        processDefinitionKey: 'Key',
+        firstResult: 0,
+        maxResults: 500,
+        deserializeValues: false,
+      },
+    });
   });
 });
 

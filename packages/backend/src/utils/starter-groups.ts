@@ -49,9 +49,12 @@ export function parseStarterGroups(bpmnXml: string, processKey: string): string[
  * attached by formRef or by formKey. A start event inside a subprocess starts
  * that subprocess, not the process, so its form does not count.
  *
- * Any non-empty formKey counts, an embedded HTML form included: the start form
- * viewer then explains that it cannot show it, rather than the process being
- * started blind with no variables.
+ * Any non-empty formKey counts, an embedded HTML form included. The section
+ * then opens the start form viewer instead of starting the process blind with
+ * no variables. The viewer shows only Camunda Forms: for an embedded or
+ * expression formKey it reports that no form is available, so such a process
+ * cannot be started from Proces starten -- which beats starting it without its
+ * form.
  */
 export function hasStartForm(bpmnXml: string, processKey: string): boolean {
   const starts = (processOf(bpmnXml, processKey)?.startEvent as XmlNode[] | undefined) ?? [];

@@ -39,6 +39,9 @@ const refused = [
   'https://keycloak.open-regels.nl.',
   'https://admin@keycloak.open-regels.nl',
   'http://keycloak.open-regels.nl:8080',
+  // No host can be read: the guard fails closed rather than letting it through.
+  'https://',
+  'https:///realms/ronl',
 ];
 for (const url of refused) {
   for (const flag of ['--with-e2e', '--with-test-author']) {

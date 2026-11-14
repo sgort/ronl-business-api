@@ -703,27 +703,40 @@ export class OperatonService {
   }
 
   /**
-   * Read historic variable instances WITHOUT deserialising, and turn Json
-   * values from their JSON text into data. The history API deserialises by
-   * default, and a deserialised Json variable comes back as Spin's internal
-   * node ({dataFormatName, nodeType, ...}) rather than its data -- so a form
-   * reading an ended instance's dynamic list saw no rows (#453). Every history
-   * read goes through here. Returns the response's `{ data }` shape.
+   * Read historic variable instances, deserialised, with Json values as data.
+   *
+   * A deserialised Json variable comes back as Spin's internal node
+   * ({dataFormatName, nodeType, ...}) rather than its data, so a form reading an
+   * ended instance's dynamic list saw no rows (#453). Other types need the
+   * deserialising read: a Java-serialised Object variable (a decision result
+   * such as svbResult) would otherwise arrive as base64 text. So, as in
+   * getProcessVariables: read deserialised, and only when that holds a Json
+   * variable, read again as text and parse those values, matched by row id.
+   * Every history read of values goes through here. Returns the response's
+   * `{ data }` shape.
    */
   private async getHistoryVariables(
     params: Record<string, unknown>
   ): Promise<{ data: Array<Record<string, unknown>> }> {
     const response = await this.client.get('/history/variable-instance', {
-      params: { ...params, deserializeValues: false },
+      params: { ...params, deserializeValues: true },
     });
     const rows = response.data as Array<Record<string, unknown>>;
+    if (!rows.some((v) => v.type === 'Json')) return { data: rows };
+
+    const raw = (
+      await this.client.get('/history/variable-instance', {
+        params: { ...params, deserializeValues: false },
+      })
+    ).data as Array<Record<string, unknown>>;
+    const textById = new Map(raw.map((v) => [v.id, v.value]));
     return {
       data: rows.map((v) =>
         v.type === 'Json'
           ? {
               ...v,
               value: this.jsonVariableValue(
-                v.value,
+                textById.get(v.id),
                 String(v.name),
                 v.processInstanceId as string | undefined
               ),
@@ -1306,10 +1319,14 @@ export class OperatonService {
    */
   async getVariableHints(processKey: string): Promise<Array<{ name: string; type: string }>> {
     try {
-      const response = await this.getHistoryVariables({
-        processDefinitionKey: processKey,
-        firstResult: 0,
-        maxResults: 500,
+      // Names and types only: no value is read, so nothing is deserialised.
+      const response = await this.client.get('/history/variable-instance', {
+        params: {
+          processDefinitionKey: processKey,
+          firstResult: 0,
+          maxResults: 500,
+          deserializeValues: false,
+        },
       });
 
       const seen = new Map<string, string>();

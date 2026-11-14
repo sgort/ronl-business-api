@@ -100,16 +100,23 @@ jqr() { jq "$@" | tr -d '\r'; }
 # Production is recognised by its host name, whatever else the URL carries:
 # scheme, credentials, port, path, query, a trailing dot and letter case do
 # not change which server is meant (#445). An IP address cannot be recognised
-# this way, so never point this script at production by address.
+# this way, so never point this script at production by address. A URL with
+# no readable host is refused too: the guard fails closed.
+#
+# tr, not ${h,,}: macOS ships bash 3.2, where ${h,,} is a substitution error
+# that would leave the host empty and let the test accounts through.
 keycloak_host() {
+  # Without scheme://, no host can be read reliably: answer none (fail closed).
+  [[ "$1" == *://* ]] || return 0
   local h="${1#*://}"
   h="${h%%[/?#]*}"
   h="${h##*@}"
   h="${h%%:*}"
   h="${h%.}"
-  printf '%s' "${h,,}"
+  printf '%s' "$h" | tr '[:upper:]' '[:lower:]'
 }
-if [[ "$(keycloak_host "$KEYCLOAK_URL")" == "keycloak.open-regels.nl" ]]; then
+KEYCLOAK_HOST="$(keycloak_host "$KEYCLOAK_URL")"
+if [[ -z "$KEYCLOAK_HOST" || "$KEYCLOAK_HOST" == "keycloak.open-regels.nl" ]]; then
   if [[ "$WITH_E2E" == "true" || "$WITH_TEST_AUTHOR" == "true" ]]; then
     echo "--with-e2e and --with-test-author are refused on production (${KEYCLOAK_URL}): no test accounts there" >&2
     exit 2
