@@ -16,6 +16,10 @@ describe('getUserBSN', () => {
     expect(result).toBe(testUserBSNMapping['test-citizen-amsterdam']);
   });
 
+  it('maps the Caribisch Nederland test citizen to the shared test BSN', () => {
+    expect(getUserBSN({ sub: '1', preferred_username: 'test-citizen-bes' })).toBe('999992235');
+  });
+
   it('returns null and warns when the username is not in the mapping', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 

@@ -352,12 +352,93 @@
 .lcp-single .ronl b { font-family: "Source Serif 4", Georgia, serif; font-size: 14px; color: var(--blue); }
 .lcp-single .ronl b i { color: var(--pink); font-style: normal; }
 
+/* ── Citizen entry (optional, per tenant: tenant.citizen) ─── */
+.lcp-single .citizen {
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+  gap: 48px;
+  align-items: center;
+  margin: 0 0 48px;
+  padding: 34px 36px;
+  background: var(--rba-paper);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--color-primary);
+  border-radius: 14px;
+  box-shadow: 0 12px 30px -22px rgba(15, 23, 42, 0.25);
+}
+.lcp-single .citizen .eyebrow { margin-bottom: 14px; }
+.lcp-single .citizen h2 {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 0 0 12px;
+  text-wrap: balance;
+}
+.lcp-single .citizen .lede { font-size: 15px; margin: 0 0 20px; }
+
+.lcp-single .isle-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.lcp-single .isle-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--rba-paper);
+}
+.lcp-single .isle-list img {
+  width: 24px;
+  height: 16px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.14);
+  display: block;
+}
+
+.lcp-single .svc { list-style: none; margin: 0 0 22px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.lcp-single .svc li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; align-items: start; }
+.lcp-single .svc .ic {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--tint);
+  color: var(--color-primary-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lcp-single .svc b { display: block; font-size: 14px; color: var(--ink); margin-bottom: 2px; }
+.lcp-single .svc span { font-size: 13px; line-height: 1.45; color: var(--muted); }
+
+.lcp-single .btn-citizen {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--rba-paper);
+  color: var(--color-primary);
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1.5px solid var(--color-primary);
+  cursor: pointer;
+  padding: 12px 22px;
+  border-radius: 8px;
+}
+.lcp-single .btn-citizen:hover { background: var(--tint); }
+.lcp-single .c-note { display: flex; align-items: center; gap: 7px; margin: 12px 0 0; font-size: 13px; color: var(--muted); }
+
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 920px) {
   .lcp-single .hero { grid-template-columns: 1fr; gap: 40px; padding-top: 48px; }
   .lcp-single h1 { font-size: 34px; }
   .lcp-single .points { grid-template-columns: 1fr; }
   .lcp-single .citizen-link { display: none; }
+  .lcp-single .citizen { grid-template-columns: 1fr; gap: 28px; padding: 28px 24px; }
 }
 
 @media (max-width: 560px) {
@@ -365,4 +446,6 @@
   .lcp-single .shot-nav { display: none; }
   .lcp-single .topbar { padding: 0 16px; }
   .lcp-single .wrap { padding: 0 16px; }
+  /* Wide logos fit beside "Inloggen" on phones. */
+  .lcp-single .topbar .tlogo { max-height: 36px; }
 }

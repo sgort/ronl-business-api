@@ -8,6 +8,7 @@ import {
   type SingleBoardCopy,
 } from '../../pages/login-choice/single-board.copy';
 import type { TenantConfig } from '../../services/tenant';
+import CitizenEntry from './CitizenEntry';
 import './single-board.css';
 
 interface Props {
@@ -129,10 +130,16 @@ export default function SingleBoardLanding({ tenant, board }: Props) {
   const [changelogOpen, setChangelogOpen] = useState(false);
   const { startMedewerkerLogin, startIdpLogin } = useLandingLogin();
   // Province tenants have no single-board copy; municipality is the closest register.
-  const copy =
+  const base =
     SINGLE_BOARD_COPY[
       tenant.organisationType === 'province' ? 'municipality' : tenant.organisationType
     ];
+  // A tenant may override any of it; the preview merges field by field.
+  const copy: SingleBoardCopy = {
+    ...base,
+    ...tenant.copy,
+    preview: { ...base.preview, ...tenant.copy?.preview },
+  };
 
   const caseworkerHint = `test-caseworker-${tenant.id}`;
   const loginToBoard = () => startMedewerkerLogin(board.route, caseworkerHint);
@@ -211,6 +218,8 @@ export default function SingleBoardLanding({ tenant, board }: Props) {
           </div>
           <BoardShot displayName={tenant.displayName} preview={copy.preview} />
         </section>
+
+        {tenant.citizen && <CitizenEntry tenantId={tenant.id} citizen={tenant.citizen} />}
 
         <section className="points">
           {copy.points.map(([title, body], i) => (
