@@ -112,6 +112,69 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.11.4',
+      status: 'Released',
+      date: '14 nov 2026',
+      scope: ['frontend', 'backend', 'ci'],
+      commits: [
+        {
+          sha: 'aaeb7b5',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'History reads keep Object variables deserialised, and the Keycloak guard fails closed on bash 3.2',
+          details: [
+            'The first fix for Json values (7f6fe20) read every history variable without deserialising, which also turned Java-serialised Object variables into base64 text: decision results such as completenessResult and svbResult, shown by the archive, the decision documents and the M2M historic-variables route. getHistoryVariables now does what getProcessVariables does: read deserialised, and only when that holds a Json variable, read again as text and parse those values, matched by row id. The variable hints read only names and types and deserialise nothing. Checked on ACC: completenessResult on an ended Flevoland instance comes back as an object.',
+            'keycloak-add-lde-clients.sh lowercased the host with ${h,,}, which bash 3.2 (macOS) does not support; the host came out empty and the production guard let the test accounts through. It now uses tr, and refuses the test accounts when no host can be read, so it fails closed.',
+          ],
+        },
+        {
+          sha: 'a3a4db6',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject:
+            'Caddy 2.11.9 pinned on the VM and in the #415 harness, the temporary engine-rest log removed, and stale comments and links corrected',
+          details: [
+            "The VM's Caddy floated on caddy:2-alpine, Caddy 2.11.9 today, while the #415 harness proved the engine-rest allowlist on 2.10.2. Both now pin caddy:2.11.9-alpine by tag and digest; the harness passed on 2.11.9 with the engine's CORS off and on. The temporary engine-rest access log from #415's rollout is gone from the Caddyfile. SECURITY-PIPELINE.md says which VM images are pinned and why, and names #325 as an open risk with the decision for option B (#433, #354).",
+            'The Operaton prod compose and the a11y baseline no longer carry stale comments, the eDOCS go-live links point to the current page, the unused @ronl/shared tenant types are removed, and the tenants seed says the table is read by nothing (#445, #354).',
+          ],
+        },
+        {
+          sha: 'ffbc109',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject:
+            'The stylelint rule tests run in CI, the Keycloak production guard reads the host name, and lockfile-only promotions deploy everything',
+          details: [
+            'test:stylelint ran in no workflow or hook, so the custom rba/selector-root-class rule could break with every check green. It now runs in the required audit job, after its npm ci (#433).',
+            'keycloak-add-lde-clients.sh recognised production only by its exact URL; it now compares the host name whatever the URL also carries (scheme, credentials, port, path, query, trailing dot, letter case), tested by keycloak-add-lde-clients.test.mjs (#445). promotion-targets.sh deployed only the backend on a lockfile-only promotion; frontend, pa-demo and public-site now follow the lockfile as their ACC filters do, tested by promotion-targets.test.mjs. Both new tests run in audit (#354).',
+          ],
+        },
+        {
+          sha: '35799e1',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject:
+            'Changelog: b34c098 moved to 2026.11.2, where it shipped, and two figures corrected',
+          details: [
+            'b34c098 (#444) landed after the 2026.11.2 bump and reached production with that release, but was listed under 2026.11.3; it now heads the 2026.11.2 entry. This edits released entries on purpose, decided by the owner, to make the record match what shipped. The 2026.11.2 lock maintenance line names the nested MCP SDK versions correctly, and the v2026.11.0 entry says the ⌘K hint is to be fixed in #405, which is still open (#453, #445, #433).',
+          ],
+        },
+        {
+          sha: '7f6fe20',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Ended instances return Json variables as data, formKey start forms count, and the button reads "Start proces"',
+          details: [
+            "A deserialised Json variable comes back from Operaton as Spin's internal node rather than its data, so an ended instance's dynamic list read as an empty object. All ten history variable reads now go through getHistoryVariables, which turns Json values from their text into data (aaeb7b5 keeps the other types deserialised). A malformed Json value no longer fails a read: it is kept as its text and logged.",
+            'A start form attached with camunda:formKey now counts as a start form, so Proces starten opens the form viewer instead of starting the process blind; OpenAPI describes hasStartForm accordingly. The row button reads "Start proces", and its accessible name always starts with the visible text, "Bezig…" included (WCAG 2.5.3) (#453).',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.11.3',
       status: 'Released',
       date: '14 nov 2026',
