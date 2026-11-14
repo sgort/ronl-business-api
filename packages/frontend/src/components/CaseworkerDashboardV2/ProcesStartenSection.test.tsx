@@ -155,6 +155,76 @@ describe('ProcesStartenSection', () => {
     });
   });
 
+  describe('fallbacks', () => {
+    it('names the instance id when the start returns no business key', async () => {
+      mockStart.mockResolvedValue({ success: true, data: { processInstanceId: 'pi-77' } });
+      const user = userEvent.setup();
+      render(<ProcesStartenSection />);
+      await user.click(await screen.findByRole('button', { name: startLabel }));
+
+      expect(await screen.findByRole('status')).toHaveTextContent('pi-77');
+    });
+
+    it('still confirms when the start returns no data', async () => {
+      mockStart.mockResolvedValue({ success: true });
+      const user = userEvent.setup();
+      render(<ProcesStartenSection />);
+      await user.click(await screen.findByRole('button', { name: startLabel }));
+
+      expect(await screen.findByRole('status')).toHaveTextContent('—');
+    });
+
+    it('falls back to the error message when a refusal has no details', async () => {
+      mockStart.mockResolvedValue({ success: false, error: { message: 'Forbidden' } });
+      const user = userEvent.setup();
+      render(<ProcesStartenSection />);
+      await user.click(await screen.findByRole('button', { name: startLabel }));
+
+      expect(await screen.findByText('failure-Forbidden')).toBeInTheDocument();
+    });
+
+    it('shows the message of a start that throws', async () => {
+      mockStart.mockRejectedValue(new Error('network down'));
+      const user = userEvent.setup();
+      render(<ProcesStartenSection />);
+      await user.click(await screen.findByRole('button', { name: startLabel }));
+
+      expect(await screen.findByText('failure-network down')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: startLabel })).toBeEnabled();
+    });
+
+    it('shows a failure without a cause when something other than an Error is thrown', async () => {
+      mockStart.mockRejectedValue('nope');
+      const user = userEvent.setup();
+      render(<ProcesStartenSection />);
+      await user.click(await screen.findByRole('button', { name: startLabel }));
+
+      expect(await screen.findByText('failure-')).toBeInTheDocument();
+    });
+
+    it('treats a list response without data as nothing to start', async () => {
+      mockStartable.mockResolvedValue({ success: true });
+      render(<ProcesStartenSection />);
+
+      expect(
+        await screen.findByText('Er zijn geen processen die u kunt starten.')
+      ).toBeInTheDocument();
+    });
+
+    it('does not update after it is gone', async () => {
+      let resolve!: (v: unknown) => void;
+      mockStartable.mockReturnValue(new Promise((r) => (resolve = r)));
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const { unmount } = render(<ProcesStartenSection />);
+      unmount();
+      resolve({ success: true, data: [bulk] });
+      await Promise.resolve();
+
+      expect(errors).not.toHaveBeenCalled();
+      errors.mockRestore();
+    });
+  });
+
   it('shows an error when the list cannot be loaded', async () => {
     mockStartable.mockRejectedValue(new Error('down'));
     render(<ProcesStartenSection />);

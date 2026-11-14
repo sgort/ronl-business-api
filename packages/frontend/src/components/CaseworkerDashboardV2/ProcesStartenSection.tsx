@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { businessApi } from '../../services/api';
 import ProcessStartFormViewer, { type StartFailure } from '../ProcessStartFormViewer';
 import StartFailureNotice from '../StartFailureNotice';
@@ -40,15 +40,6 @@ export default function ProcesStartenSection() {
       cancelled = true;
     };
   }, []);
-
-  const onStarted = useCallback(
-    (dossier: string) => {
-      if (chosen) setStarted({ name: chosen.name, dossier });
-      setChosen(null);
-      setFailure(null);
-    },
-    [chosen]
-  );
 
   const startDirectly = async (p: StartableProcess) => {
     setStarting(p.key);
@@ -100,7 +91,12 @@ export default function ProcesStartenSection() {
         {failure && <StartFailureNotice failure={failure} />}
         <ProcessStartFormViewer
           processKey={chosen.key}
-          onStarted={onStarted}
+          onStarted={(dossier) => {
+            // The viewer keeps the latest callback in a ref, so an inline one is fine.
+            setStarted({ name: chosen.name, dossier });
+            setChosen(null);
+            setFailure(null);
+          }}
           onError={setFailure}
         />
       </div>
