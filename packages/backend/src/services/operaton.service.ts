@@ -17,6 +17,7 @@ import { edocsAuthorFrom } from '@services/edocs-author';
 import { parseSwimlane } from '../rip-swimlane/bpmn-swimlane';
 import { engineSegment } from '@utils/engine-segment';
 import { hasStartForm, parseStarterGroups } from '@utils/starter-groups';
+import { fromJsonVariableText } from '@utils/operaton-variables';
 
 const logger = createLogger('operaton-service');
 
@@ -488,7 +489,7 @@ export class OperatonService {
         const text = raw[name]?.value;
         variables[name] = {
           ...variables[name],
-          value: typeof text === 'string' ? JSON.parse(text) : null,
+          value: this.jsonVariableValue(text, name, processInstanceId),
         };
       }
       return variables;
@@ -688,13 +689,56 @@ export class OperatonService {
   }
 
   /**
+   * A Json variable's value from its JSON text. Text that is not valid JSON is
+   * kept as it is and logged, so one bad value does not fail the whole read.
+   */
+  private jsonVariableValue(text: unknown, name: string, processInstanceId?: string): unknown {
+    return fromJsonVariableText(text, (error) =>
+      logger.warn('Json variable is not valid JSON; kept as text', {
+        name,
+        processInstanceId,
+        error: getErrorMessage(error),
+      })
+    );
+  }
+
+  /**
+   * Read historic variable instances WITHOUT deserialising, and turn Json
+   * values from their JSON text into data. The history API deserialises by
+   * default, and a deserialised Json variable comes back as Spin's internal
+   * node ({dataFormatName, nodeType, ...}) rather than its data -- so a form
+   * reading an ended instance's dynamic list saw no rows (#453). Every history
+   * read goes through here. Returns the response's `{ data }` shape.
+   */
+  private async getHistoryVariables(
+    params: Record<string, unknown>
+  ): Promise<{ data: Array<Record<string, unknown>> }> {
+    const response = await this.client.get('/history/variable-instance', {
+      params: { ...params, deserializeValues: false },
+    });
+    const rows = response.data as Array<Record<string, unknown>>;
+    return {
+      data: rows.map((v) =>
+        v.type === 'Json'
+          ? {
+              ...v,
+              value: this.jsonVariableValue(
+                v.value,
+                String(v.name),
+                v.processInstanceId as string | undefined
+              ),
+            }
+          : v
+      ),
+    };
+  }
+
+  /**
    * Fetch final historic variable values for a completed process instance.
    */
   async getHistoricVariables(processInstanceId: string): Promise<Record<string, unknown>> {
     try {
-      const response = await this.client.get('/history/variable-instance', {
-        params: { processInstanceId, deserializeValues: true },
-      });
+      const response = await this.getHistoryVariables({ processInstanceId });
 
       // Flatten [{name, value}] → {name: value}
       const flat: Record<string, unknown> = {};
@@ -812,12 +856,7 @@ export class OperatonService {
 
     // 2. Bulk-fetch all variables for all instance IDs in one request
     const ids = instances.map((i) => i.id).join(',');
-    const varsRes = await this.client.get('/history/variable-instance', {
-      params: {
-        processInstanceIdIn: ids,
-        deserializeValues: true,
-      },
-    });
+    const varsRes = await this.getHistoryVariables({ processInstanceIdIn: ids });
 
     // 3. Index variables by processInstanceId, keep only display fields
     const varMap: Record<string, Record<string, string>> = {};
@@ -1267,8 +1306,10 @@ export class OperatonService {
    */
   async getVariableHints(processKey: string): Promise<Array<{ name: string; type: string }>> {
     try {
-      const response = await this.client.get('/history/variable-instance', {
-        params: { processDefinitionKey: processKey, firstResult: 0, maxResults: 500 },
+      const response = await this.getHistoryVariables({
+        processDefinitionKey: processKey,
+        firstResult: 0,
+        maxResults: 500,
       });
 
       const seen = new Map<string, string>();
@@ -1809,9 +1850,7 @@ export class OperatonService {
     if (instances.length === 0) return [];
 
     const ids = instances.map((i) => i.id).join(',');
-    const varsRes = await this.client.get('/history/variable-instance', {
-      params: { processInstanceIdIn: ids, deserializeValues: true },
-    });
+    const varsRes = await this.getHistoryVariables({ processInstanceIdIn: ids });
 
     const varMap: Record<string, Record<string, string>> = {};
     for (const v of varsRes.data as { processInstanceId: string; name: string; value: unknown }[]) {
@@ -1855,9 +1894,7 @@ export class OperatonService {
     pdp: Record<string, unknown> | null;
   }> {
     // 1. Variables (history API works for active instances)
-    const varsRes = await this.client.get('/history/variable-instance', {
-      params: { processInstanceId, deserializeValues: true },
-    });
+    const varsRes = await this.getHistoryVariables({ processInstanceId });
     const variables: Record<string, unknown> = {};
     for (const v of varsRes.data as { name: string; value: unknown }[]) {
       variables[v.name] = v.value;
@@ -1934,9 +1971,7 @@ export class OperatonService {
     if (instances.length === 0) return [];
 
     const ids = instances.map((i) => i.id).join(',');
-    const varsRes = await this.client.get('/history/variable-instance', {
-      params: { processInstanceIdIn: ids, deserializeValues: true },
-    });
+    const varsRes = await this.getHistoryVariables({ processInstanceIdIn: ids });
 
     const varMap: Record<string, Record<string, string>> = {};
     for (const v of varsRes.data as { processInstanceId: string; name: string; value: unknown }[]) {
@@ -2024,9 +2059,7 @@ export class OperatonService {
     if (instances.length === 0) return [];
 
     const ids = instances.map((i) => i.id).join(',');
-    const varsRes = await this.client.get('/history/variable-instance', {
-      params: { processInstanceIdIn: ids, deserializeValues: true },
-    });
+    const varsRes = await this.getHistoryVariables({ processInstanceIdIn: ids });
 
     const wanted = ['jobTitle', 'requestType', 'boardDecision', 'advisoryGroup'];
     const varMap: Record<string, Record<string, string>> = {};
@@ -2072,9 +2105,7 @@ export class OperatonService {
     if (instances.length === 0) return [];
 
     const ids = instances.map((i) => i.id).join(',');
-    const varsRes = await this.client.get('/history/variable-instance', {
-      params: { processInstanceIdIn: ids, deserializeValues: true },
-    });
+    const varsRes = await this.getHistoryVariables({ processInstanceIdIn: ids });
 
     const wanted = ['jobTitle', 'requestType', 'boardDecision', 'advisoryGroup'];
     const varMap: Record<string, Record<string, string>> = {};
@@ -2119,9 +2150,7 @@ export class OperatonService {
 
     const ids = instances.map((i) => i.id).join(',');
     const [varsRes, tasksRes] = await Promise.all([
-      this.client.get('/history/variable-instance', {
-        params: { processInstanceIdIn: ids, deserializeValues: true },
-      }),
+      this.getHistoryVariables({ processInstanceIdIn: ids }),
       finished
         ? Promise.resolve({ data: [] })
         : this.client.get('/task', { params: { processInstanceIdIn: ids } }),
@@ -2177,9 +2206,7 @@ export class OperatonService {
     capacityClaimHandover: Record<string, unknown> | null;
   }> {
     // 1. Variables
-    const varsRes = await this.client.get('/history/variable-instance', {
-      params: { processInstanceId, deserializeValues: true },
-    });
+    const varsRes = await this.getHistoryVariables({ processInstanceId });
     const variables: Record<string, unknown> = {};
     for (const v of varsRes.data as { name: string; value: unknown }[]) {
       variables[v.name] = v.value;

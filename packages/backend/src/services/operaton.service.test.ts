@@ -771,7 +771,7 @@ describe('getHistoricVariables', () => {
     });
     await expect(svc.getHistoricVariables('pi')).resolves.toEqual({ a: 1, b: 'x' });
     expect(mockClient.get).toHaveBeenCalledWith('/history/variable-instance', {
-      params: { processInstanceId: 'pi', deserializeValues: true },
+      params: { processInstanceId: 'pi', deserializeValues: false },
     });
   });
 });
@@ -795,7 +795,7 @@ describe('getHistoricTaskVariables', () => {
       params: { taskId: 't1' },
     });
     expect(mockClient.get).toHaveBeenNthCalledWith(2, '/history/variable-instance', {
-      params: { processInstanceId: 'pi-9', deserializeValues: true },
+      params: { processInstanceId: 'pi-9', deserializeValues: false },
     });
   });
 
@@ -2555,5 +2555,105 @@ describe('candidate starters', () => {
         { key: 'Shared', name: 'Shared', tenantId: null, starterGroups: null, hasStartForm: false },
       ]);
     });
+  });
+});
+
+describe('Json values in history reads', () => {
+  // The history API deserialises by default, and a deserialised Json variable
+  // comes back as Spin's internal node ({dataFormatName, nodeType, ...}) rather
+  // than its data. Every history read therefore asks for JSON text (#453).
+  const rows = [{ kenmerk: 'Geval 1', persoonWoontInBES: true }];
+  const jsonVar = (extra: Record<string, unknown> = {}) => ({
+    name: 'gevallen',
+    type: 'Json',
+    value: JSON.stringify(rows),
+    ...extra,
+  });
+
+  it('getHistoricVariables returns a Json variable of an ended instance as its data', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [jsonVar(), { name: 'aantal', type: 'Long', value: 1 }],
+    });
+
+    await expect(svc.getHistoricVariables('pi')).resolves.toEqual({ gevallen: rows, aantal: 1 });
+    expect(mockClient.get).toHaveBeenCalledWith('/history/variable-instance', {
+      params: { processInstanceId: 'pi', deserializeValues: false },
+    });
+  });
+
+  it('getHistoricVariables keeps a malformed Json value as its text and returns the rest', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [jsonVar({ value: '{not json' }), { name: 'aantal', type: 'Long', value: 1 }],
+    });
+
+    await expect(svc.getHistoricVariables('pi')).resolves.toEqual({
+      gevallen: '{not json',
+      aantal: 1,
+    });
+    expect(mockLogger.warn).toHaveBeenCalled();
+  });
+
+  it('getRipInstanceDocuments returns a Json variable as its data', async () => {
+    routeGet([
+      [/\/history\/variable-instance$/, { data: [jsonVar()] }],
+      [/\/history\/process-instance\/pi1$/, { data: { processDefinitionId: 'pd1' } }],
+      ['/process-definition/pd1', { data: { deploymentId: 'dep1' } }],
+      ['/deployment/dep1/resources', { data: [] }],
+    ]);
+
+    const res = await svc.getRipInstanceDocuments('pi1');
+    expect(res.variables).toEqual({ gevallen: rows });
+  });
+
+  it('getCapacityClaimDocuments returns a Json variable as its data', async () => {
+    routeGet([
+      [/\/history\/variable-instance$/, { data: [jsonVar()] }],
+      [/\/history\/process-instance\/pi1$/, { data: { processDefinitionId: 'pd1' } }],
+      ['/process-definition/pd1', { data: { deploymentId: 'dep1' } }],
+      ['/deployment/dep1/resources', { data: [] }],
+    ]);
+
+    const res = await svc.getCapacityClaimDocuments('pi1');
+    expect(res.variables).toEqual({ gevallen: rows });
+  });
+
+  it('no history read deserialises', async () => {
+    // Every list builder and the variable hints read without deserialising.
+    mockClient.post.mockResolvedValue({ data: [{ id: 'i1', startTime: 's', endTime: 'e' }] });
+    mockClient.get.mockResolvedValue({ data: [] });
+    await svc.getHrOnboardingCompletedList('t');
+    await svc.getRipPhaseActiveList('RipR21Process', 't');
+    await svc.getVariableHints('Key');
+
+    const historyCalls = mockClient.get.mock.calls.filter(([url]: [string]) =>
+      String(url).startsWith('/history/variable-instance')
+    );
+    expect(historyCalls.length).toBeGreaterThan(0);
+    for (const [, opts] of historyCalls) {
+      expect(opts.params.deserializeValues).toBe(false);
+    }
+  });
+});
+
+describe('getProcessVariables with a malformed Json value', () => {
+  it('keeps that value as its text and returns the other variables', async () => {
+    mockClient.get
+      .mockResolvedValueOnce({
+        data: {
+          gevallen: { type: 'Json', value: { dataFormatName: 'application/json' } },
+          aantal: { type: 'Long', value: 1 },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          gevallen: { type: 'Json', value: '{not json' },
+          aantal: { type: 'Long', value: 1 },
+        },
+      });
+
+    const vars = await svc.getProcessVariables('pi');
+    expect(vars.gevallen).toEqual({ type: 'Json', value: '{not json' });
+    expect(vars.aantal).toEqual({ type: 'Long', value: 1 });
+    expect(mockLogger.warn).toHaveBeenCalled();
   });
 });

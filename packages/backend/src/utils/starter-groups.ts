@@ -45,13 +45,18 @@ export function parseStarterGroups(bpmnXml: string, processKey: string): string[
 }
 
 /**
- * Whether the process has a start form: a form on one of its own start events.
- * A start event inside a subprocess starts that subprocess, not the process,
- * so its form does not count.
+ * Whether the process has a start form: a form on one of its own start events,
+ * attached by formRef or by formKey. A start event inside a subprocess starts
+ * that subprocess, not the process, so its form does not count.
+ *
+ * Any non-empty formKey counts, an embedded HTML form included: the start form
+ * viewer then explains that it cannot show it, rather than the process being
+ * started blind with no variables.
  */
 export function hasStartForm(bpmnXml: string, processKey: string): boolean {
   const starts = (processOf(bpmnXml, processKey)?.startEvent as XmlNode[] | undefined) ?? [];
-  return starts.some((s) => typeof s['@_formRef'] === 'string' && s['@_formRef'].trim() !== '');
+  const named = (v: unknown) => typeof v === 'string' && v.trim() !== '';
+  return starts.some((s) => named(s['@_formRef']) || named(s['@_formKey']));
 }
 
 /** Whether a user with these roles may start a process declaring these groups. */
