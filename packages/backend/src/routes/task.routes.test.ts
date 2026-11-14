@@ -421,6 +421,26 @@ describe('POST /v1/task/:id/complete', () => {
     });
   });
 
+  it('sends a dynamic list to Operaton as a JSON string', async () => {
+    // A form-js dynamic list submits an array of row objects. Operaton accepts a
+    // Json variable only as a string; an array value was refused with a 400 and
+    // the caseworker saw "Opslaan mislukt".
+    svc.getTask.mockResolvedValue(task());
+    svc.completeTask.mockResolvedValue(undefined);
+    const gevallen = [
+      { kenmerk: 'Geval 1', persoonWoontInBES: true },
+      { kenmerk: 'Geval 2', persoonWoontInBES: false },
+    ];
+    const res = await auth(request(app).post('/v1/task/t1/complete')).send({
+      variables: { gevallen },
+    });
+    expect(res.status).toBe(200);
+    expect(svc.completeTask.mock.calls[0][1].variables.gevallen).toEqual({
+      value: JSON.stringify(gevallen),
+      type: 'Json',
+    });
+  });
+
   it('keeps the previous author when the token names nobody', async () => {
     svc.getTask.mockResolvedValue(task());
     svc.completeTask.mockResolvedValue(undefined);
@@ -543,7 +563,7 @@ describe('inferType, via the variables submitted on task completion', () => {
         aantal: { value: 3, type: 'Integer' },
         bedrag: { value: 12.5, type: 'Double' },
         toelichting: { value: 'ok', type: 'String' },
-        bijlage: { value: { naam: 'a.pdf' }, type: 'Json' },
+        bijlage: { value: '{"naam":"a.pdf"}', type: 'Json' },
         reden: { value: null, type: 'Null' },
       },
     });

@@ -5,7 +5,7 @@ import { operatonService, OperatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
 import { auditLog } from '@middleware/audit.middleware';
 import { OperatonVariable } from '@ronl/shared';
-import { inferType } from '@utils/operaton-variables';
+import { toOperatonVariable } from '@utils/operaton-variables';
 import { RESERVED_PROCESS_VARIABLES } from '@auth/tenant-access';
 import { sendProblem } from '@utils/problem';
 
@@ -99,7 +99,7 @@ function toOperatonVariables(input: Record<string, unknown>): Record<string, Ope
     result[k] =
       typeof v === 'object' && v !== null && 'value' in v && 'type' in v
         ? (v as OperatonVariable)
-        : { value: v, type: inferType(v) };
+        : toOperatonVariable(v);
   }
   return result;
 }

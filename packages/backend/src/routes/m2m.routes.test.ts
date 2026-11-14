@@ -217,7 +217,7 @@ describe('process endpoints', () => {
           amount: { value: 5, type: 'Integer' },
           ratio: { value: 1.5, type: 'Double' },
           name: { value: 'x', type: 'String' },
-          obj: { value: { a: 1 }, type: 'Json' },
+          obj: { value: '{"a":1}', type: 'Json' },
           pre: { value: 9, type: 'Long' },
         },
         businessKey: 'bk',
@@ -792,7 +792,7 @@ describe('variable coercion', () => {
         aantal: { value: 3, type: 'Integer' },
         bedrag: { value: 12.5, type: 'Double' },
         toelichting: { value: 'ok', type: 'String' },
-        bijlage: { value: { naam: 'a.pdf' }, type: 'Json' },
+        bijlage: { value: '{"naam":"a.pdf"}', type: 'Json' },
         reden: { value: null, type: 'Null' },
       },
     });

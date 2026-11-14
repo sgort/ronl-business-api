@@ -8,7 +8,7 @@ import { createLogger } from '@utils/logger';
 import { sendProblem } from '@utils/problem';
 import { auditLog } from '@middleware/audit.middleware';
 import { OperatonVariable, Task } from '@ronl/shared';
-import { inferType } from '@utils/operaton-variables';
+import { toOperatonVariable } from '@utils/operaton-variables';
 import { denyTenant, reservedVariablesIn, tenantAllows } from '@auth/tenant-access';
 
 const router = express.Router();
@@ -336,7 +336,7 @@ router.post('/:id/complete', async (req, res) => {
     // Transform plain values to Operaton variable format
     const operatonVariables: Record<string, OperatonVariable> = {};
     for (const [key, value] of Object.entries(variables)) {
-      operatonVariables[key] = { value, type: inferType(value) };
+      operatonVariables[key] = toOperatonVariable(value);
     }
     // The member of staff who completed it is the employee later archiving is
     // done for (spec §6). The reserved check above has already refused a sent value.

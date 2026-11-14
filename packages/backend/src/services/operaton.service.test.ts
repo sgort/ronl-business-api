@@ -127,6 +127,47 @@ describe('passthrough queries', () => {
     mockClient.get.mockResolvedValue({ data: { x: { value: 1, type: 'Integer' } } });
     await svc.getProcessVariables('pi');
     expect(mockClient.get).toHaveBeenCalledWith('/process-instance/pi/variables');
+    // No Json variable, so no second read.
+    expect(mockClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('getProcessVariables returns a Json variable as its data, not the engine node', async () => {
+    // A deserialising read hands back Spin's internal node for a Json variable
+    // (dataFormatName, nodeType, ...) instead of the data. A form then saw no
+    // rows in a dynamic list, and submitting it overwrote the cases.
+    const rows = [{ kenmerk: 'Geval 1', persoonWoontInBES: true }];
+    mockClient.get
+      .mockResolvedValueOnce({
+        data: {
+          gevallen: {
+            type: 'Json',
+            value: { dataFormatName: 'application/json', nodeType: 'ARRAY', value: false },
+          },
+          aantal: { type: 'Long', value: 1 },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          gevallen: { type: 'Json', value: JSON.stringify(rows) },
+          aantal: { type: 'Long', value: 1 },
+        },
+      });
+
+    const vars = await svc.getProcessVariables('pi');
+
+    expect(vars.gevallen).toEqual({ type: 'Json', value: rows });
+    expect(vars.aantal).toEqual({ type: 'Long', value: 1 });
+    expect(mockClient.get).toHaveBeenLastCalledWith('/process-instance/pi/variables', {
+      params: { deserializeValues: false },
+    });
+  });
+
+  it('getProcessVariables keeps a null Json variable null', async () => {
+    mockClient.get
+      .mockResolvedValueOnce({ data: { gevallen: { type: 'Json', value: null } } })
+      .mockResolvedValueOnce({ data: { gevallen: { type: 'Json', value: null } } });
+    const vars = await svc.getProcessVariables('pi');
+    expect(vars.gevallen).toEqual({ type: 'Json', value: null });
   });
 
   // A deserialising read can write an object variable back (ENGINE-03005 on
