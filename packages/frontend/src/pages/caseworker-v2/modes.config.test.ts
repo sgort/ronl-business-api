@@ -217,3 +217,36 @@ describe('tenant section lists', () => {
     ).toBe(true);
   });
 });
+
+describe('Proces starten', () => {
+  const tenants = JSON.parse(readFileSync(join(__dirname, '../../../public/tenants.json'), 'utf8'))
+    .tenants as Record<string, { leftPanelSections?: Record<string, { id: string }[]> }>;
+  const item = MODES.flatMap((m) => m.groups)
+    .flatMap((g) => g.items)
+    .find((i) => i.id === 'proces-starten') as RailItem;
+  const gate = (tenantId: string) =>
+    isRailItemVisible(item, {
+      isAuthenticated: true,
+      tenantSectionIds: tenantSectionIdsFrom(tenants[tenantId].leftPanelSections),
+      userRoles: ['caseworker'],
+      userOrgType: 'municipality',
+    } as GateContext);
+
+  it('sits in Werk, directly under Taken', () => {
+    expect(findModeForSection('proces-starten')).toBe('werk');
+    const werk = MODES.find((m) => m.id === 'werk')!;
+    expect(werk.groups[0].items.map((i) => i.id)).toEqual(['taken', 'proces-starten']);
+  });
+
+  it('needs no role beyond being signed in', () => {
+    expect(item).toMatchObject({ authRequired: true });
+    expect(item.requiredRoles).toBeUndefined();
+  });
+
+  it('shows only for a tenant that lists it: Caribisch Nederland, for now', () => {
+    expect(gate('bes')).toBe(true);
+    for (const other of Object.keys(tenants).filter((id) => id !== 'bes')) {
+      expect(gate(other)).toBe(false);
+    }
+  });
+});

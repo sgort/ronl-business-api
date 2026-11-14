@@ -15,6 +15,7 @@
 import type { KeycloakUser } from '@ronl/shared';
 import type { TenantConfig } from '../../services/tenant';
 import TakenInbox from './TakenInbox';
+import ProcesStartenSection from './ProcesStartenSection';
 import NoAccessPanel from './NoAccessPanel';
 import RegelSimulatie from './RegelSimulatie';
 import { MODES } from '../../pages/caseworker-v2/modes.config';
@@ -86,6 +87,7 @@ export default function SectionRouter({
   if (sectionId === 'taken') {
     return <TakenInbox user={user} onCountChange={onTaskCountChange} />;
   }
+  if (sectionId === 'proces-starten') return <ProcesStartenSection />;
   if (sectionId === 'filter-overdue') return <TakenInbox user={user} initialFilter="overdue" />;
   if (sectionId === 'filter-waiting') return <TakenInbox user={user} initialFilter="unassigned" />;
   if (sectionId === 'filter-today') return <TakenInbox user={user} initialFilter="today" />;

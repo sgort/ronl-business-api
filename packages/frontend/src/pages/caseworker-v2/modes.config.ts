@@ -81,7 +81,13 @@ export const MODES: ModeConfig[] = [
     defaultSectionId: 'taken',
     groups: [
       {
-        items: [{ id: 'taken', label: 'Taken', badgeKey: 'taskCount', authRequired: true }],
+        items: [
+          { id: 'taken', label: 'Taken', badgeKey: 'taskCount', authRequired: true },
+          // Every process the caseworker may start, by the candidate starter
+          // groups its model declares. Tenant-gated: a tenant opts in through
+          // its leftPanelSections.
+          { id: 'proces-starten', label: 'Proces starten', authRequired: true },
+        ],
       },
       {
         label: 'Snel filter',

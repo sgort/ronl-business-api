@@ -138,6 +138,17 @@ export const businessApi = {
       return response.data;
     },
 
+    /** The processes the signed-in member of staff may start, by candidate starter group. */
+    startable: async (): Promise<
+      ApiResponse<{ key: string; name: string; hasStartForm: boolean }[]>
+    > => {
+      const response =
+        await api.get<ApiResponse<{ key: string; name: string; hasStartForm: boolean }[]>>(
+          '/process/startable'
+        );
+      return response.data;
+    },
+
     historicVariables: async (
       processInstanceId: string
     ): Promise<ApiResponse<Record<string, unknown>>> => {
