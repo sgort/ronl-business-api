@@ -112,6 +112,136 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.11.3',
+      status: 'Released',
+      date: '14 nov 2026',
+      scope: ['frontend', 'backend', 'pa-demo', 'ci'],
+      commits: [
+        {
+          sha: '5b13731',
+          author: 'Steven Gort',
+          type: 'test',
+          subject:
+            'Proces starten: the fallbacks are covered, so the section meets the branch coverage gate',
+          details: [
+            "Starting directly added fallback branches no test reached, and the per-file branch coverage gate failed the section at 74.28% (80% required). New tests cover the dossier falling back to the instance id and to a dash, a refusal without details, a thrown Error and a thrown non-Error, a list response without data, and no update after unmount. An unreachable guard in the start form's callback is gone. Branch coverage of the file: 96.97%.",
+          ],
+        },
+        {
+          sha: '8a7714a',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'Proces starten: start any process a caseworker may start, for Caribisch Nederland first',
+          details: [
+            'A new section in Werk, under Taken, lists the processes the caseworker may start, each as a row with a coloured "Start process" button. A process without a start form starts at once, like HR onboarding: the section confirms the dossier and the first task appears under Taken. One with a start form shows the form first. A failed start shows the failure notice.',
+            "The rail item is tenant-gated and enabled only in Caribisch Nederland's leftPanelSections; other tenants opt in by adding it. No process key is known in the frontend: the backend decides what is listed.",
+          ],
+        },
+        {
+          sha: '667fa6d',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'GET /v1/process/startable, and a start refused outside the declared starter groups',
+          details: [
+            "The new endpoint lists the latest definitions of the caller's tenant and the untenanted ones that declare a candidate starter group (camunda:candidateStarterGroups) among the caller's roles, each with hasStartForm. Every key is resolved as the start resolves it, so nothing listed is refused there; a key deployed ambiguously is left out. Citizens get 403, an engine failure 503.",
+            "POST /v1/process/:key/start now refuses with 403 NOT_CANDIDATE_STARTER when the resolved definition declares starter groups the user lacks. The check reads the definition the start will run (resolved tenant, else the caller's, then untenanted) and fails closed when it cannot be read. A process that declares none starts exactly as before, so the existing start sections and citizen services are unaffected. OpenAPI documents both.",
+          ],
+        },
+        {
+          sha: 'dde7355',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: "A tenant's start candidates and a process's starter groups, from the engine",
+          details: [
+            'getStarterGroups reads the groups of the definition a key resolves to for a tenant, or the untenanted one; errors propagate, so a start never goes ahead on a guess. listStartCandidates returns the latest definitions of a tenant plus the untenanted ones, each with its starter groups and whether it has a start form, through the per-definition XML cache.',
+          ],
+        },
+        {
+          sha: '6584c83',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: "A process's candidate starter groups and start form, read from its BPMN",
+          details: [
+            "parseStarterGroups reads camunda:candidateStarterGroups from the process with the given key: comma-separated, trimmed, empty entries dropped, null when none is declared. hasStartForm looks only at the process's own start events, not a subprocess's. mayStart decides for a set of roles and is open when nothing is declared. The process is selected by key because Operaton returns the whole deployed file, and a collaboration file holds one process per pool.",
+          ],
+        },
+        {
+          sha: '2178100',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The /bes landing in the single-board e2e suite',
+          details: [
+            "Caribisch Nederland joins the parametrised single-board tenants, plus a test that the citizen section's DigiD button pre-fills test-citizen-bes at the login form.",
+          ],
+        },
+        {
+          sha: '7e0cf29',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The Caribisch Nederland test citizen maps to the test BSN',
+        },
+        {
+          sha: 'a819d57',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'A citizen entry and per-tenant copy on the single-board landing',
+          details: [
+            "The landing merges a tenant's copy over its organisation type's copy, the preview field by field. When a tenant has citizen, a section between the hero and the points offers residents their own DigiD login, with greetings, island chips and services; every value is rendered as text. The CSS is ported from the landing mock and scoped under .lcp-single. Below 560px the top-bar logo is capped at 36px so a wide logo fits beside Inloggen; desktop is unchanged for every tenant.",
+          ],
+        },
+        {
+          sha: '1b5e81d',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'New tenant Caribisch Nederland (Bonaire, Sint Eustatius en Saba) at /bes',
+          details: [
+            'A single-board tenant built like Heusden, with its own theme, wide logo, share copy and a social card for ACC and production. It is the first single-board landing with a citizen entry. TenantConfig gains two optional fields, copy and citizen; tenants without them are unchanged. Contact details are not known yet and stay empty. The local realm gets test-caseworker-bes and test-citizen-bes.',
+          ],
+        },
+        {
+          sha: 'cdd9c2d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Json variables round-trip as JSON text, so dynamic lists save and display',
+          details: [
+            'Operaton accepts a Json variable only as a string, and a deserialising read returns Spin\'s internal node instead of the data. A form-js dynamic list therefore failed to save ("Opslaan mislukt"), and a form that displayed one saw no rows and submitted an empty row back over the stored list.',
+            'Write: toOperatonVariable serialises Json values; the task-complete, process-start, decision-evaluate and M2M routes use it. Read: getProcessVariables re-reads any Json variables without deserialising and parses them (#449).',
+          ],
+        },
+        {
+          sha: '16daf1c',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'upstream-certs.yml in the supply-chain register',
+        },
+        {
+          sha: '25b5c14',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'An unreachable BRP upstream is named, reported in health, and its certificate checked daily',
+          details: [
+            'On 13 November 2026 the BRP mock\'s reverse proxy served a certificate for another host. Every TLS handshake failed with ERR_TLS_CERT_ALTNAME_INVALID, the citizen timeline went blank on ACC and PROD, and the API answered a bare 500 while /v1/health said "healthy".',
+            'POST /v1/brp/personen now answers 502 BRP_UPSTREAM_UNREACHABLE for a transport error and logs its code. /v1/health reports the upstream under dependencies.brp through a HEAD probe, optional so it never degrades the report. A new daily workflow, upstream-certs.yml, fails when a certificate does not validate for its host or expires within 14 days, and opens, updates or closes a tracking issue (#446).',
+          ],
+        },
+        {
+          sha: 'b34c098',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            '⌘K buttons keep their visible text in the accessible name; the sign-in scan survives Playwright 1.64',
+          details: [
+            'axe-core 4.14.0 enables label-content-name-mismatch. It flagged the ⌘K button in Caseworker v2 and PA-Cockpit, whose aria-label "Snel navigeren" replaced the visible text (WCAG 2.5.3 Label in Name). The aria-label is gone, as on the Infra-board and Woo.',
+            "Playwright 1.64 makes locator.waitFor wait for a pending navigation, and the sign-in scan answers Keycloak's authorize navigation with 204, which never finishes. It now waits with page.waitForFunction.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.11.2',
       status: 'Released',
       date: '12 nov 2026',
