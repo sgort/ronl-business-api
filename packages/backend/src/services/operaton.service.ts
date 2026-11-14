@@ -16,8 +16,18 @@ import type { EdocsAuthor } from '@services/edocs.service';
 import { edocsAuthorFrom } from '@services/edocs-author';
 import { parseSwimlane } from '../rip-swimlane/bpmn-swimlane';
 import { engineSegment } from '@utils/engine-segment';
+import { hasStartForm, parseStarterGroups } from '@utils/starter-groups';
 
 const logger = createLogger('operaton-service');
+
+/** A latest process definition, with what a caseworker's start list decides on. */
+export interface StartCandidate {
+  key: string;
+  name: string;
+  tenantId: string | null;
+  starterGroups: string[] | null;
+  hasStartForm: boolean;
+}
 
 export interface TaskCompleteRequest {
   variables?: Record<string, OperatonVariable>;
@@ -1469,6 +1479,49 @@ export class OperatonService {
     const url = `/process-definition/key/${encodeURIComponent(processKey)}${suffix}`;
     const result = options ? await this.client.get<T>(url, options) : await this.client.get<T>(url);
     return result as { data: T; headers: Record<string, string> };
+  }
+
+  /**
+   * The candidate starter groups the process declares, read from the definition
+   * the key resolves to for this tenant (or the untenanted one), or null when it
+   * declares none. Errors propagate: a start must not go ahead on a guess.
+   */
+  async getStarterGroups(processKey: string, tenantId?: string): Promise<string[] | null> {
+    const definitionId = await this.getCurrentDefinitionId(processKey, tenantId);
+    return parseStarterGroups(await this.getCachedBpmnXml(definitionId), processKey);
+  }
+
+  /**
+   * The latest definitions of a tenant and the untenanted ones, each with what a
+   * caseworker's start list needs to decide on it. The tenant rule is applied by
+   * the caller, which resolves each key the way the start route does.
+   */
+  async listStartCandidates(tenantId: string): Promise<StartCandidate[]> {
+    const response = await this.client.get('/process-definition', {
+      params: {
+        latestVersion: true,
+        tenantIdIn: tenantId,
+        includeProcessDefinitionsWithoutTenantId: true,
+      },
+    });
+    const definitions = response.data as Array<{
+      id: string;
+      key: string;
+      name?: string | null;
+      tenantId?: string | null;
+    }>;
+    return Promise.all(
+      definitions.map(async (d) => {
+        const xml = await this.getCachedBpmnXml(d.id);
+        return {
+          key: d.key,
+          name: d.name || d.key,
+          tenantId: d.tenantId ?? null,
+          starterGroups: parseStarterGroups(xml, d.key),
+          hasStartForm: hasStartForm(xml, d.key),
+        };
+      })
+    );
   }
 
   /**
