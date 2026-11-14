@@ -168,3 +168,7 @@
 
 - Final whole-branch review (fresh reviewer), fix pass, then the user's checks: full backend and frontend suites, e2e, and the manual acceptance in the spec (§Acceptance 1–5, as `test-caseworker-bes` and `test-caseworker-utrecht`), including the phase stepper and _Bekijk proces_.
 - Push and pull request into `acc` only on the user's go-ahead.
+
+## Amendment, 14 November 2026
+
+See the spec's amendment. Task 4: no start-form filter; entries carry `hasStartForm`; test "lists a process without a start form too, flagged". Task 5: _Start process_ starts directly when `hasStartForm` is false (tests "a process without a start form" / "a process with a start form"). Task 6: the lab BPMN stays as deployed from the LDE; Steps 2–3 (start-form edit) are not done.

@@ -116,3 +116,12 @@ Plus the usual gates: backend and frontend unit suites green, contract tests gre
 - File layout and names inside the backend service and the section component, following the surrounding code.
 - How the list request is cached, if at all, beyond the existing XML cache.
 - Test fixtures for the BPMN XML (a minimal process with and without `candidateStarterGroups` and a start form).
+
+## Amendment, 14 November 2026: start directly, first task in Taken
+
+Testing showed the start-form flow was not what a caseworker expects. Clicking _Start process_ opened the start form on the _Proces starten_ page, and nothing started until the form was submitted; the user expected the process to start and its first task to appear under _Taken_, as HR onboarding works. Decided by the user:
+
+- **List:** rule 4 (must have a start form) is dropped. A process is listed on rules 1–3 alone, and each entry carries `hasStartForm: boolean`: `{ key, name, hasStartForm }`.
+- **Section:** _Start process_ starts a process **without** a start form at once (`POST /v1/process/:key/start` with no variables) and confirms "_<name>_ is gestart als dossier _X_. De eerste taak staat onder Taken." A process **with** a start form still shows it first; its submit starts the process. A failed start shows `StartFailureNotice` on the list.
+- **DMN-bulk example:** back to the version deployed from the LDE: _Voer de gevallen in_ is the first task, there is no start form, and the `gevallen` seed stays (Operaton Tasklist needs it; RBA works with or without it). The start-form edit is not made.
+- **Acceptance 2–3** read: _Start process_ confirms the dossier; _Voer de gevallen in_ appears under _Taken_; completing it with cases leads to _Bekijk het resultaat_ with the count and all cases.
