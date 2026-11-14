@@ -3,8 +3,8 @@ name: operaton-prod
 services:
   operaton:
     # 1.0.0 is what runs: the VM pulled `latest` once and its digest,
-    # sha256:74659f07..., is Docker Hub's 1.0.0. Upgrading is #423; digest
-    # pinning comes with #196.
+    # sha256:74659f07..., is Docker Hub's 1.0.0, pinned below by digest.
+    # Upgrading is #423.
     image: operaton/operaton:1.0.0@sha256:74659f07be7815420572a07043d74681aaf8c744bb0f5e4025a156e42d026708
     container_name: ${OPERATON_NAME}
     restart: unless-stopped

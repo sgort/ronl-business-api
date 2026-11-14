@@ -1344,7 +1344,7 @@ paths:
                       properties:
                         key: { type: string, description: 'Process definition key.' }
                         name: { type: string, description: 'Process name, or the key when it has none.' }
-                        hasStartForm: { type: boolean, description: 'Whether a start event of the process itself has a form.' }
+                        hasStartForm: { type: boolean, description: 'Whether a start event of the process itself has a form, by formRef or formKey.' }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'

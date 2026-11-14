@@ -167,7 +167,8 @@ does not check. Step 1 has been running since 7 November 2026 (#424).
    `OPERATON_PASSWORD` (an `operaton-admin` account) to the scripts and the e2e suite.
 
 8. **Remove the temporary access log**: delete its block from `Caddyfile`, reload Caddy, and delete the log
-   (`docker exec caddy rm /data/logs/operaton-engine-rest.log`).
+   (`docker exec caddy rm /data/logs/operaton-engine-rest.log`). _The block is gone from the repository's
+   `Caddyfile` since #453; on the VM, copy that file over, reload Caddy and delete the log._
 
 **Rollback.** Step 6: set `-Doperaton.bpm.run.auth.enabled=false` and `-Doperaton.bpm.authorization.enabled=false`,
 then `docker compose up -d`. Step 5: restore the previous `Caddyfile` and reload. Steps 1 to 4 can stay in place.

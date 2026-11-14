@@ -227,17 +227,6 @@ export const changelog: Changelog = {
             'POST /v1/brp/personen now answers 502 BRP_UPSTREAM_UNREACHABLE for a transport error and logs its code. /v1/health reports the upstream under dependencies.brp through a HEAD probe, optional so it never degrades the report. A new daily workflow, upstream-certs.yml, fails when a certificate does not validate for its host or expires within 14 days, and opens, updates or closes a tracking issue (#446).',
           ],
         },
-        {
-          sha: 'b34c098',
-          author: 'Steven Gort',
-          type: 'fix',
-          subject:
-            '⌘K buttons keep their visible text in the accessible name; the sign-in scan survives Playwright 1.64',
-          details: [
-            'axe-core 4.14.0 enables label-content-name-mismatch. It flagged the ⌘K button in Caseworker v2 and PA-Cockpit, whose aria-label "Snel navigeren" replaced the visible text (WCAG 2.5.3 Label in Name). The aria-label is gone, as on the Infra-board and Woo.',
-            "Playwright 1.64 makes locator.waitFor wait for a pending navigation, and the sign-in scan answers Keycloak's authorize navigation with 204, which never finishes. It now waits with page.waitForFunction.",
-          ],
-        },
       ],
     },
     {
@@ -247,6 +236,18 @@ export const changelog: Changelog = {
       date: '12 nov 2026',
       scope: ['frontend', 'backend', 'pa-demo', 'ci'],
       commits: [
+        {
+          sha: 'b34c098',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            '⌘K buttons keep their visible text in the accessible name; the sign-in scan survives Playwright 1.64 (#444)',
+          details: [
+            'axe-core 4.14.0 enables label-content-name-mismatch. It flagged the ⌘K button in Caseworker v2 and PA-Cockpit, whose aria-label "Snel navigeren" replaced the visible text (WCAG 2.5.3 Label in Name). The aria-label is gone, as on the Infra-board and Woo.',
+            "Playwright 1.64 makes locator.waitFor wait for a pending navigation, and the sign-in scan answers Keycloak's authorize navigation with 204, which never finishes. It now waits with page.waitForFunction.",
+            'It landed after this release was cut and reached production with its promotion (#443), so it is listed here, where it shipped, rather than under 2026.11.3.',
+          ],
+        },
         {
           sha: 'a123503',
           author: 'renovate[bot]',
@@ -262,7 +263,7 @@ export const changelog: Changelog = {
           type: 'chore',
           subject: 'Lock file maintenance: 129 updates, no downgrades',
           details: [
-            'All locks refreshed under the 14-day release-age rule. 53 of the updates are runtime, among them express 5.3.0, @modelcontextprotocol/sdk 1.32.2, axios 1.21.0, jose 6.2.13, pg 8.23.1, qs 6.16.2, hono 4.13.14 and the bpmn-io, codemirror and micromark packages. Five runtime packages are new, pulled in by those updates: temporal-polyfill, temporal-spec and temporal-utils, @codemirror/streamparser and micromark-util-edit-map. bser and fb-watchman moved from Apache-2.0 to MIT.',
+            "All locks refreshed under the 14-day release-age rule. 53 of the updates are runtime, among them @modelcontextprotocol/sdk 1.32.2 with its own nested express 5.3.0 and jose 6.2.14 (the backend's own express stays 4.22.3), axios 1.21.0, pg 8.23.1, qs 6.16.2, hono 4.13.14 and the bpmn-io, codemirror and micromark packages. Five runtime packages are new, pulled in by those updates: temporal-polyfill, temporal-spec and temporal-utils, @codemirror/streamparser and micromark-util-edit-map. bser and fb-watchman moved from Apache-2.0 to MIT.",
             'The lockfile review found no downgrades, so the break-glass versions from the October advisory refresh held (#387).',
           ],
         },
@@ -541,7 +542,7 @@ export const changelog: Changelog = {
           subject: 'Accessibility checks with axe-core, one scan per page type',
           details: [
             'The frontend E2E suite scans ten page types with axe-core 4.13, WCAG 2.0–2.2 at levels A and AA: the landing page, the sign-in screen, three Keycloak form variants, and the Caseworker V2, Infra-board, Woo and PA-Cockpit dashboards, plus Caseworker V2 for Heusden as the other-tenant check. A critical or serious violation fails unless it is listed in `e2e/a11y-baseline.ts`, and a baseline entry that no longer occurs fails too, so a fix shrinks the list. The full axe result of every page is attached to the Playwright report.',
-            'The baseline is a "before" picture for step 2 of the Flevoland look: the ⌘K search hint on every dashboard (fixed in #405) and two contrast issues for tenants other than Flevoland (#412). The run against ACC also found the PA-Cockpit score total (`.pac-total b`) in Flevoland pink at 4.23:1 on the grey background; it now uses the darker accent, 6.13:1 (#409).',
+            'The baseline is a "before" picture for step 2 of the Flevoland look: the ⌘K search hint on every dashboard (to be fixed in #405) and two contrast issues for tenants other than Flevoland (#412). The run against ACC also found the PA-Cockpit score total (`.pac-total b`) in Flevoland pink at 4.23:1 on the grey background; it now uses the darker accent, 6.13:1 (#409).',
           ],
         },
         {

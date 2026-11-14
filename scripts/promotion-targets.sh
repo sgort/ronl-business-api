@@ -42,9 +42,9 @@ set -euo pipefail
 # is what GitHub's own path filters do.
 TARGETS=(
   'backend:^(packages/backend/|packages/shared/|\.github/workflows/azure-backend-prod\.yml$|package-lock\.json$|package\.json$|\.nvmrc$)'
-  'frontend:^(packages/frontend/|packages/shared/|packages/pa-cockpit/|\.github/workflows/azure-frontend-prod\.yml$|\.nvmrc$)'
-  'pa_demo:^(packages/pa-demo/|packages/shared/|packages/pa-cockpit/|\.github/workflows/azure-pa-demo-prod\.yml$|\.nvmrc$)'
-  'public_site:^(packages/public-site/|\.github/workflows/azure-publicsite-prod\.yml$|\.nvmrc$)'
+  'frontend:^(packages/frontend/|packages/shared/|packages/pa-cockpit/|\.github/workflows/azure-frontend-prod\.yml$|package-lock\.json$|package\.json$|\.nvmrc$)'
+  'pa_demo:^(packages/pa-demo/|packages/shared/|packages/pa-cockpit/|\.github/workflows/azure-pa-demo-prod\.yml$|package-lock\.json$|package\.json$|\.nvmrc$)'
+  'public_site:^(packages/public-site/|\.github/workflows/azure-publicsite-prod\.yml$|package-lock\.json$|package\.json$|\.nvmrc$)'
 )
 
 # promote-to-production.yml is deliberately absent from every pattern above.
