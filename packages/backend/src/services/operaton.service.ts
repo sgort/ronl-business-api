@@ -459,7 +459,29 @@ export class OperatonService {
           : await this.client.get(
               `/process-instance/${engineSegment(processInstanceId)}/variables`
             );
-      return response.data;
+      const variables: Record<string, OperatonVariable> = response.data;
+      if (options.deserializeValues === false) return variables;
+
+      // A deserialising read returns Spin's internal node for a Json variable
+      // ({dataFormatName, nodeType, ...}) rather than its data, so a form shown
+      // a dynamic list saw no rows and submitted an empty one back over the real
+      // cases. Re-read those variables as JSON text and parse that instead.
+      const jsonNames = Object.keys(variables).filter((name) => variables[name]?.type === 'Json');
+      if (jsonNames.length === 0) return variables;
+
+      const raw: Record<string, OperatonVariable> = (
+        await this.client.get(`/process-instance/${engineSegment(processInstanceId)}/variables`, {
+          params: { deserializeValues: false },
+        })
+      ).data;
+      for (const name of jsonNames) {
+        const text = raw[name]?.value;
+        variables[name] = {
+          ...variables[name],
+          value: typeof text === 'string' ? JSON.parse(text) : null,
+        };
+      }
+      return variables;
     } catch (error) {
       logger.error('Failed to get process variables', {
         processInstanceId,

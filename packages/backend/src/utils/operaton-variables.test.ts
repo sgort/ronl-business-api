@@ -6,7 +6,7 @@
  */
 export {};
 
-import { inferType } from './operaton-variables';
+import { inferType, toOperatonVariable } from './operaton-variables';
 
 describe('inferType', () => {
   it('tags the absence of a value as Null', () => {
@@ -53,5 +53,36 @@ describe('inferType', () => {
     expect(inferType(10n)).toBe('String');
     expect(inferType(Symbol('x'))).toBe('String');
     expect(inferType(() => undefined)).toBe('String');
+  });
+});
+
+describe('toOperatonVariable', () => {
+  it('serialises an array to a JSON string, as Operaton requires for type Json', () => {
+    // Operaton refuses a Json variable whose value is not a string: "Must provide
+    // 'null' or String value for value of SerializableValue type 'Json'". A form's
+    // dynamic list submits exactly this shape.
+    const rows = [
+      { kenmerk: 'Geval 1', persoonWoontInBES: true },
+      { kenmerk: 'Geval 2', persoonWoontInBES: false },
+    ];
+    expect(toOperatonVariable(rows)).toEqual({ value: JSON.stringify(rows), type: 'Json' });
+  });
+
+  it('serialises a plain object to a JSON string', () => {
+    expect(toOperatonVariable({ naam: 'a.pdf' })).toEqual({
+      value: '{"naam":"a.pdf"}',
+      type: 'Json',
+    });
+  });
+
+  it('passes scalars through unchanged', () => {
+    expect(toOperatonVariable('granted')).toEqual({ value: 'granted', type: 'String' });
+    expect(toOperatonVariable(3)).toEqual({ value: 3, type: 'Integer' });
+    expect(toOperatonVariable(1.5)).toEqual({ value: 1.5, type: 'Double' });
+    expect(toOperatonVariable(false)).toEqual({ value: false, type: 'Boolean' });
+  });
+
+  it('keeps null as null rather than the string "null"', () => {
+    expect(toOperatonVariable(null)).toEqual({ value: null, type: 'Null' });
   });
 });

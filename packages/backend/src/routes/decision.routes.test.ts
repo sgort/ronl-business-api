@@ -108,7 +108,7 @@ describe('POST /:key/evaluate', () => {
       ratio: { value: 1.5, type: 'Double' },
       active: { value: true, type: 'Boolean' },
       name: { value: 'Bob', type: 'String' },
-      payload: { value: { a: 1 }, type: 'Json' },
+      payload: { value: '{"a":1}', type: 'Json' },
       empty: { value: null, type: 'Null' },
       prewrapped: { value: 9, type: 'Integer' },
     });

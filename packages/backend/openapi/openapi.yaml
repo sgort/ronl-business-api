@@ -6758,9 +6758,11 @@ components:
         **Used in both directions**, which is easy to get wrong. Every variable
         READ returns this shape. So do the two writes that take variables from
         a caller: `POST /process/{key}/start` and `POST /task/{id}/complete`
-        wrap the plain values themselves with `inferType`, so sending them
-        `OperatonVariableMap` double-wraps it into
-        `{value: {value, type}, type: "Json"}`. Both were published as
+        wrap the plain values themselves with `toOperatonVariable`, so sending
+        them `OperatonVariableMap` double-wraps it into a `Json` variable whose
+        value is the serialised `{value, type}`. An object or array value is
+        stored as a `Json` variable, serialised to a string as Operaton
+        requires; a form's dynamic list arrives this way. Both were published as
         `OperatonVariableMap` until #214.
 
         `OperatonVariableMap` is genuinely the input of exactly one operation,
