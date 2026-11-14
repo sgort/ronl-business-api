@@ -11,6 +11,7 @@ import { isLocalTarget, isProductionTarget } from './helpers/target';
 const TENANTS = [
   { id: 'amsterdam', name: 'Gemeente Amsterdam', primary: '#EC0000' },
   { id: 'heusden', name: 'Gemeente Heusden', primary: '#00505c' },
+  { id: 'bes', name: 'Caribisch Nederland', primary: '#012a87' },
 ] as const;
 
 for (const tenant of TENANTS) {
@@ -89,6 +90,22 @@ for (const tenant of TENANTS) {
     });
   });
 }
+
+// Caribisch Nederland is the first single-board tenant with a citizen section:
+// its own DigiD login under the hero, beside the top-bar link every tenant has.
+test('/bes: the citizen section pre-fills the tenant test citizen', async ({ page }) => {
+  const formTimeout = isLocalTarget ? 10_000 : 30_000;
+
+  await page.goto('/bes');
+  const section = page.getByRole('region', {
+    name: 'Regel uw zaken met het openbaar lichaam online.',
+  });
+  await expect(section).toBeVisible();
+  await section.getByRole('button', { name: 'Inloggen met DigiD' }).click();
+
+  await page.locator('#username').waitFor({ timeout: formTimeout });
+  await expect(page.locator('#username')).toHaveValue('test-citizen-bes');
+});
 
 test('a link from before tenant paths, /?tenant=amsterdam, lands on /amsterdam', async ({
   page,
