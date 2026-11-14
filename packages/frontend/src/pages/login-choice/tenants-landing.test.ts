@@ -69,4 +69,23 @@ describe('tenants.json landing fields', () => {
       expect(existsSync(join(PUBLIC, `og-image-${id}-${env}.png`))).toBe(true);
     }
   });
+
+  // The citizen section shows a flag per island; a wrong path is a broken image.
+  it.each(tenants.filter((t) => t.citizen?.islands).map((t) => [t.id, t] as const))(
+    "%s's citizen island flags are in public/",
+    (_id, tenant) => {
+      for (const island of tenant.citizen?.islands ?? []) {
+        expect(existsSync(join(PUBLIC, island.flag))).toBe(true);
+      }
+    }
+  );
+
+  it('Caribisch Nederland has a citizen section with three islands', () => {
+    const bes = tenants.find((t) => t.id === 'bes');
+    expect(bes?.citizen?.islands?.map((i) => i.name)).toEqual([
+      'Bonaire',
+      'Sint Eustatius',
+      'Saba',
+    ]);
+  });
 });

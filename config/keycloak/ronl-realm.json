@@ -673,6 +673,50 @@
       "realmRoles": ["caseworker"]
     },
     {
+      "username": "test-citizen-bes",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Inwoner BES",
+      "email": "test@bes.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["bes"],
+        "organisation_type": ["municipality"],
+        "assurance_level": ["hoog"],
+        "opaque_id": ["opaque-citizen-010"]
+      },
+      "realmRoles": ["citizen"]
+    },
+    {
+      "username": "test-caseworker-bes",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Medewerker BES",
+      "email": "medewerker@bes.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["bes"],
+        "organisation_type": ["municipality"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-010"]
+      },
+      "realmRoles": ["caseworker"]
+    },
+    {
       "username": "test-citizen-rotterdam",
       "enabled": true,
       "firstName": "Test",

@@ -4,6 +4,7 @@
  */
 
 import type { BoardId } from '../pages/login-choice/boards.config';
+import type { SingleBoardCopy } from '../pages/login-choice/single-board.copy';
 
 export type OrganisationType = 'municipality' | 'province' | 'national' | 'commercial';
 
@@ -17,6 +18,9 @@ export interface TenantTheme {
   background?: string;
 }
 
+// TODO(bes-contact): no confirmed contact details for Caribisch Nederland yet, and
+// each island has its own openbaar lichaam, so its entry has empty strings. Nothing
+// renders tenant contact today; whatever starts to must skip empty fields.
 export interface TenantContact {
   phone: string;
   email: string;
@@ -24,6 +28,26 @@ export interface TenantContact {
   postalCode: string;
   city: string;
 }
+
+/**
+ * A section for residents on a single-board landing page, with its own DigiD
+ * login. Optional: a tenant without it offers residents only the top-bar link.
+ */
+export interface TenantCitizenEntry {
+  eyebrow: string;
+  greetings?: { lang: string; text: string }[];
+  title: string;
+  lede: string;
+  islands?: { name: string; flag: string }[];
+  services: { icon: 'doc' | 'pin' | 'clock'; title: string; body: string }[];
+  cta: string;
+  note: string;
+}
+
+/** Per-tenant overrides of the single-board landing copy, merged over its organisation type's. */
+export type TenantCopy = Partial<Omit<SingleBoardCopy, 'preview'>> & {
+  preview?: Partial<SingleBoardCopy['preview']>;
+};
 
 export interface LeftPanelSection {
   id: string;
@@ -59,6 +83,10 @@ export interface TenantConfig {
   logo?: TenantLogo;
   /** Link-preview copy for the tenant's /<id> page, written into its HTML at build time. */
   share?: { title: string; description: string };
+  /** Landing copy overrides; without them the organisation type's copy is shown as is. */
+  copy?: TenantCopy;
+  /** A resident section with its own DigiD login on the single-board landing page. */
+  citizen?: TenantCitizenEntry;
 }
 
 export interface TenantRegistry {

@@ -238,7 +238,7 @@ describe('the real tenants.json', () => {
     ).tenants;
     const ids = tenantPageTenants(tenants).map((t) => t.id);
 
-    expect(ids.sort()).toEqual(['amsterdam', 'heusden', 'toeslagen', 'unive']);
+    expect(ids.sort()).toEqual(['amsterdam', 'bes', 'heusden', 'toeslagen', 'unive']);
   });
 
   it.each([
@@ -259,5 +259,22 @@ describe('the real tenants.json', () => {
       `${pageEnv.titlePrefix}Uw werkvoorraad, overzichtelijk op één plek`
     );
     expect(meta(html, 'property', 'og:site_name')).toBe('Gemeente Heusden · werkomgeving');
+  });
+
+  it.each([
+    ['acc', ACC],
+    ['prod', PROD],
+  ] as const)('renders the Caribisch Nederland %s page from its entry', (env, pageEnv) => {
+    const tenants = JSON.parse(
+      readFileSync(resolve(__dirname, 'public', 'tenants.json'), 'utf-8')
+    ).tenants;
+    const bes = tenantPageTenants(tenants).find((t) => t.id === 'bes')!;
+    const html = renderTenantPage(BUILT, bes, pageEnv);
+
+    expect(meta(html, 'property', 'og:url')).toBe(`${pageEnv.siteUrl}/bes`);
+    expect(meta(html, 'property', 'og:image')).toBe(`${pageEnv.siteUrl}/og-image-bes-${env}.png`);
+    expect(meta(html, 'property', 'og:title')).toBe(
+      `${pageEnv.titlePrefix}Eén werkvoorraad voor drie eilanden`
+    );
   });
 });
