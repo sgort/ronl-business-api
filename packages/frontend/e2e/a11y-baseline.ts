@@ -4,8 +4,9 @@
  * here that no longer occurs: fix a finding, then remove its entry.
  *
  * Measured 2026-11-03 on the local stack (axe-core 4.13, WCAG 2.0–2.2 A/AA),
- * before step 2 of the Flevoland look (#405). Every entry says why it is
- * here and where it gets fixed.
+ * before step 2 of the Flevoland look (#405). The scan now runs on axe-core
+ * 4.14.0 (lock file maintenance, #387); the entries were not re-measured for
+ * it. Every entry says why it is here and where it gets fixed.
  */
 export type PageName =
   | 'landing'
