@@ -1,0 +1,602 @@
+/* ==========================================================================
+   Flevoland stap 2 — compacte huisstijl voor werkschermen (#405)
+   --------------------------------------------------------------------------
+   Design layer for the Caseworker dashboard (and the shared v2 chrome) when
+   the user belongs to Flevoland. Loads AFTER flevoland-tokens.css (Flevoland
+   IT v0.2.0, verbatim).
+
+   Scope: `.fl2` in this prototype. In the app this becomes
+   `:root[data-tenant="flevoland"] .cwd-v2` (and `.pac` for PA-Cockpit),
+   so other tenants keep today's look.
+
+   Rules:
+   - Every value is a --flevoland-* token, or one of the five RBA additions
+     in section 1 (each with its reason), or a layout width in section 1b.
+   - Class names are the ones dashboard-v2.css / v2-chrome.css use today,
+     so this file maps 1:1 onto the existing markup. New components (buttons,
+     fields, badges) get .v2-btn--*, .v2-field*, .v2-badge--*.
+   ========================================================================== */
+
+/* --- 0. Fonts: self-hosted woff2, no external service (AVG) ------------- */
+@font-face { font-family: "Fira Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/fira-sans-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Fira Sans"; font-style: italic; font-weight: 400; font-display: swap; src: url("fonts/fira-sans-latin-400-italic.woff2") format("woff2"); }
+@font-face { font-family: "Fira Sans"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/fira-sans-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Fira Sans"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/fira-sans-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Fira Sans"; font-style: normal; font-weight: 700; font-display: swap; src: url("fonts/fira-sans-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Fira Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/fira-mono-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Fira Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/fira-mono-latin-500-normal.woff2") format("woff2"); }
+
+/* --- 1. RBA additions to Flevoland's tokens (proposed, named) ------------ */
+:root {
+  /* (1) 12px: labels, counts, metadata, kbd hints. Flevoland's smallest
+         token is 14px; a work screen needs one step below it for
+         secondary data. Never for running text; always weight >= 500 or
+         colour text-subtle (#616161, 6.2:1) or darker. */
+  --flevoland-typography-font-size-2xs: 0.75rem;
+
+  /* (2) 32px compact control: buttons and fields inside toolbars, table
+         rows, list headers, the dock and filter bars. Above WCAG 2.2 AA
+         2.5.8 (24px). Forms, dialogs and primary actions keep 44px. */
+  --flevoland-size-control-compact: 2rem;
+
+  /* (3) 36px navigation row: rail items, filters, palette results. One
+         full-width row is the target, so 36px tall x 200px+ wide. */
+  --flevoland-size-row: 2.25rem;
+
+  /* (4) Code face: Fira Mono, same type family and licence (OFL) as Fira
+         Sans, self-hosted. Only for IDs, process keys and raw values.
+         Falls back to Flevoland's own monospace stack. */
+  --flevoland-typography-font-family-code:
+    "Fira Mono", var(--flevoland-typography-font-family-monospace);
+
+  /* (5) Dimmed backdrop behind dialogs (palette, process view). Navy at
+         50%; Flevoland has no overlay colour token. */
+  --flevoland-color-background-backdrop: rgb(12 28 71 / 0.5);
+}
+
+/* --- 1b. Layout widths (app, not house style) --------------------------- */
+.fl2 {
+  --fl2-rail-w: 232px;
+  --fl2-filters-w: 200px;
+  --fl2-list-w: 340px;
+  --fl2-dock-w: 400px;
+}
+@media (max-width: 1365px) {
+  .fl2 {
+    --fl2-rail-w: 208px;
+    --fl2-filters-w: 176px;
+    --fl2-list-w: 300px;
+    --fl2-dock-w: 380px;
+  }
+}
+
+/* --- 2. Aliases: same --rba-* names as packages/shared/styles/tokens.css
+          (Flevoland block, step 1) so the chrome rules read the same ---- */
+.fl2 {
+  --rba-brand:   var(--flevoland-color-brand-primary);        /* #0046ad */
+  --rba-brand-d: var(--flevoland-color-brand-primary-active); /* #003a8e */
+  --rba-accent:  #e70077;  /* tenants.json secondary; thin lines only   */
+  --rba-ink:     var(--flevoland-color-text-default);   /* #0c1c47 navy  */
+  --rba-ink-2:   var(--flevoland-color-text-heading);   /* #424242       */
+  --rba-ink-3:   var(--flevoland-color-text-subtle);    /* #616161       */
+  --rba-rule:    var(--flevoland-color-border-subtle);  /* #e0e0e0       */
+  --rba-rule-2:  var(--flevoland-color-background-muted); /* #eeeeee     */
+  --rba-bg:      var(--flevoland-color-background-document); /* #f8f8f8  */
+  --rba-paper:   var(--flevoland-color-background-surface);
+  --rba-accent-fill:    var(--flevoland-color-brand-accent);   /* yellow */
+  --rba-on-accent-fill: var(--flevoland-color-text-on-accent); /* #212121 */
+
+  --fs-2xs: var(--flevoland-typography-font-size-2xs); /* 12 */
+  --fs-xs:  var(--flevoland-typography-font-size-xs);  /* 14 */
+  --fs-sm:  var(--flevoland-typography-font-size-sm);  /* 16 */
+  --fs-md:  var(--flevoland-typography-font-size-md);  /* 18 */
+  --fs-lg:  var(--flevoland-typography-font-size-lg);  /* 20 */
+  --fs-xl:  var(--flevoland-typography-font-size-xl);  /* 24 */
+  --lh-ui:  var(--flevoland-typography-line-height-heading); /* 1.3 */
+  --lh-text: var(--flevoland-typography-line-height-base);   /* 1.6 */
+  --sans: var(--flevoland-typography-font-family-base);
+  --code: var(--flevoland-typography-font-family-code);
+  --sp-3xs: var(--flevoland-space-3xs); --sp-2xs: var(--flevoland-space-2xs);
+  --sp-xs: var(--flevoland-space-xs);   --sp-sm: var(--flevoland-space-sm);
+  --sp-md: var(--flevoland-space-md);   --sp-lg: var(--flevoland-space-lg);
+  --sp-xl: var(--flevoland-space-xl);   --sp-2xl: var(--flevoland-space-2xl);
+  --radius: var(--flevoland-border-radius-control);  /* 2px */
+  --bw-1: var(--flevoland-border-width-thin);
+  --bw-2: var(--flevoland-border-width-medium);
+  --bw-4: var(--flevoland-border-width-thick);
+  --h-default: var(--flevoland-size-target-min);       /* 44 */
+  --h-compact: var(--flevoland-size-control-compact);  /* 32 */
+  --h-row: var(--flevoland-size-row);                  /* 36 */
+  --ease: var(--flevoland-motion-duration-fast) var(--flevoland-motion-easing-standard);
+}
+
+/* --- 3. Root, focus, links ---------------------------------------------- */
+.fl2 {
+  font-family: var(--sans);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-ui);
+  color: var(--rba-ink);
+  background: var(--rba-bg);
+  font-variant-numeric: tabular-nums;   /* counts and dates line up */
+  -webkit-font-smoothing: antialiased;
+}
+.fl2 *, .fl2 *::before, .fl2 *::after { box-sizing: border-box; }
+.fl2 button, .fl2 input, .fl2 select, .fl2 textarea { font: inherit; color: inherit; }
+.fl2 h1, .fl2 h2, .fl2 h3, .fl2 h4 { font-weight: var(--flevoland-typography-font-weight-heading); color: var(--rba-ink-2); line-height: var(--lh-ui); margin: 0; }
+.fl2 p { margin: 0; }
+.fl2 code, .fl2 .v2-code { font-family: var(--code); font-size: var(--fs-2xs); font-weight: 400; }
+.fl2 ::selection { background: var(--flevoland-color-selection-background); color: var(--flevoland-color-selection-text); }
+
+/* Focus: one ring for every interactive element. 3px #003a8e, offset 2px. */
+.fl2 :focus-visible,
+.fl2 .is-focus {
+  outline: var(--flevoland-focus-outline-width) var(--flevoland-focus-outline-style) var(--flevoland-color-focus-outline);
+  outline-offset: var(--flevoland-focus-outline-offset);
+}
+/* On the blue top bar and tab bar: the inverse (white) ring. */
+.fl2 .flevoland-inverse :focus-visible,
+.fl2 .flevoland-inverse .is-focus { outline-color: var(--flevoland-color-focus-outline-inverse); }
+/* Rows that fill their container (rail, filters, list, palette): ring
+   inset so it is never clipped by overflow. */
+.fl2 .v2-rail-item:focus-visible, .fl2 .v2-rail-item.is-focus,
+.fl2 .v2-taken-filter:focus-visible,
+.fl2 .v2-taken-item:focus-visible, .fl2 .v2-taken-item.is-focus,
+.fl2 .v2-pal-item:focus-visible, .fl2 .v2-tab:focus-visible, .fl2 .v2-tab.is-focus {
+  outline-offset: calc(-1 * var(--flevoland-focus-outline-width));
+}
+
+/* Links in running text: always underlined (Flevoland 0b). Navigation
+   (rail, tabs, list rows, palette) are buttons and are not underlined. */
+.fl2 a, .fl2 .v2-link {
+  color: var(--flevoland-color-link-default);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  transition: color var(--ease), text-decoration-thickness var(--ease);
+}
+.fl2 a:visited, .fl2 a.is-visited { color: var(--flevoland-color-link-visited); }
+.fl2 a:hover, .fl2 .v2-link:hover, .fl2 .is-hover.v2-link, .fl2 a.is-hover { color: var(--flevoland-color-link-hover); text-decoration-thickness: 3px; }
+
+/* kbd hint */
+.fl2 kbd, .fl2 .v2-key {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.5rem; height: 1.25rem; padding: 0 var(--sp-2xs);
+  font-family: var(--code); font-size: var(--fs-2xs); font-weight: 500;
+  color: var(--flevoland-color-neutral-800);               /* #424242 */
+  background: var(--flevoland-color-background-subtle);    /* #f5f5f5: 9.2:1 */
+  border: var(--bw-1) solid var(--flevoland-color-border-default); /* #757575 */
+  border-radius: var(--radius); line-height: 1;
+}
+
+/* --- 4. Shell grid ------------------------------------------------------ */
+.fl2.cwd-v2 { height: 100vh; display: grid; grid-template-rows: auto auto 1fr; overflow: hidden; }
+.fl2 .v2-body { position: relative; display: grid; grid-template-columns: var(--fl2-rail-w) 1fr; min-height: 0; background: var(--rba-paper); }
+.fl2 .v2-main { min-height: 0; overflow: auto; background: var(--rba-paper); }
+
+/* --- 5. Top bar --------------------------------------------------------- */
+.fl2 .v2-topbar {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center;
+  gap: var(--sp-lg); height: 3.5rem; padding: 0 var(--sp-md);
+  background: var(--rba-brand); color: var(--flevoland-color-text-on-brand);
+}
+.fl2 .v2-logo { display: flex; align-items: center; gap: var(--sp-sm); color: inherit; text-decoration: none; }
+.fl2 .v2-logo-mark { font-size: var(--fs-lg); font-weight: var(--flevoland-typography-font-weight-bold); letter-spacing: -0.01em; line-height: 1; }
+.fl2 .v2-logo-mark em { font-style: normal; color: var(--rba-accent-fill); } /* yellow on blue 5.4:1 */
+.fl2 .v2-logo-sub {
+  padding-left: var(--sp-sm); border-left: var(--bw-1) solid currentColor;
+  font-size: var(--fs-xs); font-weight: 500; line-height: 1.25rem;
+}
+.fl2 .v2-search {
+  justify-self: center; width: 100%; max-width: 30rem; height: 2.25rem;
+  display: flex; align-items: center; gap: var(--sp-xs); padding: 0 var(--sp-xs) 0 var(--sp-sm);
+  background: var(--rba-paper); color: var(--rba-ink-3);
+  border: 0; border-radius: var(--radius); cursor: text; text-align: left;
+  font-size: var(--fs-xs);
+}
+.fl2 .v2-search svg { flex-shrink: 0; }
+.fl2 .v2-search > span { flex: 1; }
+.fl2 .v2-search:hover, .fl2 .v2-search.is-hover { box-shadow: inset 0 0 0 var(--bw-2) var(--flevoland-color-brand-primary-hover); }
+.fl2 .v2-user { display: flex; align-items: center; gap: var(--sp-sm); font-size: var(--fs-xs); }
+.fl2 .v2-loa {
+  padding: 0 var(--sp-xs); height: 1.5rem; display: inline-flex; align-items: center;
+  border: var(--bw-1) solid currentColor; border-radius: var(--radius);
+  font-size: var(--fs-2xs); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.fl2 .v2-username { font-weight: 500; }
+.fl2 .v2-avatar {
+  width: var(--h-compact); height: var(--h-compact); display: grid; place-items: center;
+  background: var(--rba-accent-fill); color: var(--rba-on-accent-fill);
+  border: 0; border-radius: var(--radius); font-size: var(--fs-2xs); font-weight: 700; cursor: pointer;
+}
+.fl2 .v2-icon-btn {
+  width: var(--h-compact); height: var(--h-compact); display: inline-grid; place-items: center;
+  background: transparent; color: currentColor; border: var(--bw-1) solid currentColor;
+  border-radius: var(--radius); cursor: pointer; padding: 0;
+}
+.fl2 .v2-icon-btn:hover { background: var(--flevoland-color-brand-primary-hover); }
+
+/* --- 6. Mode tabs ------------------------------------------------------- */
+.fl2 .v2-tabs {
+  display: flex; align-items: stretch; height: var(--h-default); padding-left: var(--sp-xs);
+  background: var(--rba-brand-d); color: var(--flevoland-color-text-on-brand);
+}
+.fl2 .v2-tab {
+  display: flex; align-items: center; gap: var(--sp-xs); padding: 0 var(--sp-md);
+  background: none; color: inherit; border: 0; cursor: pointer;
+  border-bottom: var(--bw-4) solid transparent; border-top: var(--bw-4) solid transparent;
+  font-size: var(--fs-xs); font-weight: 500;
+}
+.fl2 .v2-tab:hover, .fl2 .v2-tab.is-hover { border-bottom-color: var(--flevoland-color-neutral-0); }
+.fl2 .v2-tab.active { font-weight: 700; border-bottom-color: var(--rba-accent-fill); } /* yellow bar 6.7:1 vs #003a8e */
+.fl2 .v2-tabs-spacer { flex: 1; }
+.fl2 .v2-tenant-label { align-self: center; padding-right: var(--sp-md); font-size: var(--fs-2xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+
+/* Counts and badges */
+.fl2 .v2-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.25rem; height: 1.25rem; padding: 0 var(--sp-2xs);
+  font-size: var(--fs-2xs); font-weight: 600; line-height: 1;
+  background: var(--rba-accent-fill); color: var(--rba-on-accent-fill);
+  border-radius: var(--radius);
+}
+.fl2 .v2-count--quiet { background: transparent; color: var(--rba-ink-3); font-weight: 500; min-width: 0; padding: 0; }
+.fl2 .v2-badge {
+  display: inline-flex; align-items: center; gap: var(--sp-2xs); height: 1.25rem; padding: 0 var(--sp-xs);
+  font-size: var(--fs-2xs); font-weight: 600; line-height: 1; white-space: nowrap;
+  border: var(--bw-1) solid; border-radius: var(--radius);
+}
+.fl2 .v2-badge--open     { color: var(--flevoland-color-status-warning-text); background: var(--flevoland-color-status-warning-background); border-color: var(--flevoland-color-status-warning-border); }
+.fl2 .v2-badge--claimed  { color: var(--flevoland-color-status-info-text);    background: var(--flevoland-color-status-info-background);    border-color: var(--flevoland-color-status-info-border); }
+.fl2 .v2-badge--overdue  { color: var(--flevoland-color-status-error-text-on-background); background: var(--flevoland-color-status-error-background); border-color: var(--flevoland-color-status-error-border); }
+.fl2 .v2-badge--done     { color: var(--flevoland-color-status-success-text); background: var(--flevoland-color-status-success-background); border-color: var(--flevoland-color-status-success-border); }
+.fl2 .v2-badge--neutral  { color: var(--rba-ink-2); background: var(--flevoland-color-background-subtle); border-color: var(--flevoland-color-border-default); }
+.fl2 .v2-badge--you      { color: var(--rba-on-accent-fill); background: var(--rba-accent-fill); border-color: var(--rba-accent-fill); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* --- 7. Left rail ------------------------------------------------------- */
+.fl2 .v2-rail { background: var(--rba-bg); border-right: var(--bw-1) solid var(--rba-rule); overflow-y: auto; padding-bottom: var(--sp-lg); }
+.fl2 .v2-rail-card {
+  padding: var(--sp-md) var(--sp-md) var(--sp-sm);
+  background: var(--rba-accent-fill); color: var(--rba-on-accent-fill);
+  font-size: var(--fs-lg); font-weight: 600; line-height: var(--lh-ui);
+}
+.fl2 .v2-rail-group + .v2-rail-group { border-top: var(--bw-1) solid var(--rba-rule); }
+.fl2 .v2-rail-group-label,
+.fl2 .v2-label {
+  font-size: var(--fs-2xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rba-ink-3);
+}
+.fl2 .v2-rail-group-label { padding: var(--sp-md) var(--sp-md) var(--sp-2xs); }
+.fl2 .v2-rail-group:first-of-type { padding-top: var(--sp-xs); }
+.fl2 .v2-rail-list { list-style: none; margin: 0; padding: 0 0 var(--sp-xs); }
+.fl2 .v2-rail-item, .fl2 .v2-taken-filter {
+  width: 100%; min-height: var(--h-row); display: flex; align-items: center; justify-content: space-between; gap: var(--sp-xs);
+  padding: 0 var(--sp-md) 0 calc(var(--sp-md) - var(--bw-4));
+  border: 0; border-left: var(--bw-4) solid transparent; background: none; cursor: pointer; text-align: left;
+  font-size: var(--fs-xs); color: var(--rba-ink-2);
+}
+.fl2 .v2-rail-item:hover, .fl2 .v2-rail-item.is-hover,
+.fl2 .v2-taken-filter:hover { background: var(--flevoland-color-blue-100); color: var(--rba-ink); }
+.fl2 .v2-rail-item.active, .fl2 .v2-taken-filter.active {
+  background: var(--rba-paper); color: var(--rba-ink); font-weight: 600;
+  border-left-color: var(--rba-brand);
+}
+.fl2 .v2-rail-item.overdue, .fl2 .v2-taken-filter.overdue { color: var(--flevoland-color-status-error-text); }
+.fl2 .v2-rail-item.active .v2-count--quiet, .fl2 .v2-taken-filter.active .v2-count--quiet { color: var(--rba-brand); font-weight: 700; }
+
+/* --- 8. Buttons --------------------------------------------------------
+   Maps onto Flevoland's NL DS Button tokens (base.css section 3):
+   primary = nl-button--primary, secondary = --secondary,
+   ghost = --subtle, danger = --primary --negative,
+   danger-secondary = --secondary --negative.
+   Sizes: default 44px (forms, dialogs), compact 32px (toolbars, rows, dock). */
+.fl2 .v2-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-xs);
+  min-height: var(--h-default); min-width: var(--h-default);
+  padding: 0 var(--sp-md);
+  border: var(--bw-2) solid var(--flevoland-color-brand-primary); border-radius: var(--radius);
+  background: var(--flevoland-color-brand-primary); color: var(--flevoland-color-text-on-brand);
+  font-size: var(--fs-sm); font-weight: var(--flevoland-typography-font-weight-control); line-height: var(--flevoland-typography-line-height-tight);
+  cursor: pointer; white-space: nowrap;
+  transition: background-color var(--ease), border-color var(--ease), color var(--ease);
+}
+.fl2 .v2-btn:hover, .fl2 .v2-btn.is-hover { background: var(--flevoland-color-brand-primary-hover); border-color: var(--flevoland-color-brand-primary-hover); }
+.fl2 .v2-btn:active, .fl2 .v2-btn.is-active { background: var(--flevoland-color-brand-primary-active); border-color: var(--flevoland-color-brand-primary-active); }
+
+.fl2 .v2-btn--secondary { background: var(--flevoland-color-background-surface); color: var(--flevoland-color-brand-primary); }
+.fl2 .v2-btn--secondary:hover, .fl2 .v2-btn--secondary.is-hover { background: var(--flevoland-color-brand-primary-subtle); color: var(--flevoland-color-brand-primary-hover); }
+.fl2 .v2-btn--secondary:active, .fl2 .v2-btn--secondary.is-active { background: var(--flevoland-color-blue-200); color: var(--flevoland-color-brand-primary-active); }
+
+.fl2 .v2-btn--ghost { background: transparent; border-color: transparent; color: var(--flevoland-color-link-default); }
+.fl2 .v2-btn--ghost:hover, .fl2 .v2-btn--ghost.is-hover { background: var(--flevoland-color-brand-primary-subtle); border-color: transparent; color: var(--flevoland-color-link-hover); }
+.fl2 .v2-btn--ghost:active, .fl2 .v2-btn--ghost.is-active { background: var(--flevoland-color-blue-200); border-color: transparent; color: var(--flevoland-color-link-active); }
+
+.fl2 .v2-btn--danger { background: var(--flevoland-color-status-error-text); border-color: var(--flevoland-color-status-error-border); }
+.fl2 .v2-btn--danger:hover, .fl2 .v2-btn--danger.is-hover,
+.fl2 .v2-btn--danger:active, .fl2 .v2-btn--danger.is-active { background: var(--flevoland-color-status-error-hover); border-color: var(--flevoland-color-status-error-hover); }
+
+.fl2 .v2-btn--danger-secondary { background: var(--flevoland-color-background-surface); border-color: var(--flevoland-color-status-error-border); color: var(--flevoland-color-status-error-text); }
+.fl2 .v2-btn--danger-secondary:hover, .fl2 .v2-btn--danger-secondary.is-hover { background: var(--flevoland-color-status-error-background); border-color: var(--flevoland-color-status-error-hover); color: var(--flevoland-color-status-error-hover); }
+
+/* Accent: yellow fill with dark text. Only for the assistant toggle
+   ("knoppen in zijkolommen" on the intranet). */
+.fl2 .v2-btn--accent { background: var(--rba-accent-fill); border-color: var(--rba-accent-fill); color: var(--rba-on-accent-fill); }
+.fl2 .v2-btn--accent:hover, .fl2 .v2-btn--accent.is-hover { border-color: var(--rba-on-accent-fill); background: var(--rba-accent-fill); }
+
+.fl2 .v2-btn:disabled, .fl2 .v2-btn[aria-disabled="true"] {
+  background: var(--flevoland-color-background-disabled); border-color: var(--flevoland-color-border-disabled);
+  color: var(--flevoland-color-text-disabled); cursor: not-allowed;
+}
+.fl2 .v2-btn--ghost:disabled, .fl2 .v2-btn--ghost[aria-disabled="true"] { background: transparent; border-color: transparent; }
+
+.fl2 .v2-btn--compact { min-height: var(--h-compact); min-width: var(--h-compact); padding: 0 var(--sp-sm); font-size: var(--fs-xs); border-width: var(--bw-1); }
+.fl2 .v2-btn--compact.v2-btn--ghost { padding: 0 var(--sp-xs); }
+.fl2 .v2-btn--icon { padding: 0; }
+
+/* --- 9. Form fields ---------------------------------------------------- */
+.fl2 .v2-field { display: flex; flex-direction: column; gap: var(--sp-2xs); margin: 0 0 var(--sp-lg); max-width: 30rem; }
+.fl2 .v2-field > label, .fl2 .v2-field legend { font-size: var(--fs-sm); font-weight: 600; color: var(--rba-ink); padding: 0; }
+.fl2 .v2-field .v2-hint { font-size: var(--fs-xs); color: var(--rba-ink-3); line-height: var(--lh-text); }
+.fl2 .v2-field .v2-error {
+  display: flex; align-items: flex-start; gap: var(--sp-2xs);
+  font-size: var(--fs-xs); font-weight: 600; color: var(--flevoland-color-status-error-text); line-height: var(--lh-text);
+}
+.fl2 .v2-input, .fl2 .v2-select, .fl2 .v2-textarea {
+  display: block; width: 100%; min-height: var(--h-default);
+  padding: var(--sp-xs) var(--sp-sm);
+  border: var(--bw-2) solid var(--flevoland-color-border-default); border-radius: var(--radius);
+  background: var(--flevoland-color-background-surface); color: var(--rba-ink);
+  font-size: var(--fs-sm); line-height: var(--lh-ui);
+  transition: border-color var(--ease);
+}
+.fl2 .v2-textarea { min-height: 7.5rem; line-height: var(--lh-text); resize: vertical; }
+.fl2 .v2-select { appearance: none; padding-right: var(--sp-xl);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%230c1c47' stroke-width='2'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right var(--sp-sm) center; }
+.fl2 .v2-input::placeholder, .fl2 .v2-textarea::placeholder { color: var(--flevoland-color-text-subtle); opacity: 1; }
+.fl2 .v2-input:hover, .fl2 .v2-select:hover, .fl2 .v2-textarea:hover,
+.fl2 .v2-input.is-hover { border-color: var(--flevoland-color-border-hover); }
+.fl2 .v2-input[aria-invalid="true"], .fl2 .v2-select[aria-invalid="true"], .fl2 .v2-textarea[aria-invalid="true"] {
+  border-color: var(--flevoland-color-status-error-border); border-left-width: var(--bw-4);
+}
+.fl2 .v2-input:disabled, .fl2 .v2-select:disabled, .fl2 .v2-textarea:disabled {
+  background-color: var(--flevoland-color-background-disabled); border-color: var(--flevoland-color-border-disabled);
+  color: var(--flevoland-color-text-disabled); cursor: not-allowed;
+}
+.fl2 .v2-input[readonly] { background-color: var(--flevoland-color-background-subtle); border-color: var(--flevoland-color-border-subtle); }
+.fl2 .v2-input--compact, .fl2 .v2-select.v2-input--compact {
+  min-height: var(--h-compact); height: var(--h-compact); padding: 0 var(--sp-xs);
+  border-width: var(--bw-1); font-size: var(--fs-xs);
+}
+.fl2 .v2-select.v2-input--compact { padding-right: var(--sp-lg); background-position: right var(--sp-xs) center; }
+.fl2 .v2-input--compact[aria-invalid="true"] { border-left-width: var(--bw-4); }
+
+.fl2 .v2-choices { display: flex; flex-direction: column; gap: var(--sp-2xs); border: 0; margin: 0 0 var(--sp-lg); padding: 0; }
+.fl2 .v2-choices legend { margin-bottom: var(--sp-2xs); padding: 0; font-size: var(--fs-sm); font-weight: 600; color: var(--rba-ink); }
+.fl2 .v2-choices .v2-error { display: flex; align-items: flex-start; gap: var(--sp-2xs); font-size: var(--fs-xs); font-weight: 600; color: var(--flevoland-color-status-error-text); line-height: var(--lh-text); }
+.fl2 .v2-choices--row { display: flex; }
+.fl2 .v2-choice { display: flex; align-items: center; gap: var(--sp-xs); min-height: var(--h-default); font-size: var(--fs-sm); cursor: pointer; }
+.fl2 .v2-choice input { width: 1.25rem; height: 1.25rem; margin: 0; accent-color: var(--flevoland-color-brand-primary); cursor: pointer; flex-shrink: 0; }
+.fl2 .v2-choices--row { flex-direction: row; gap: var(--sp-lg); flex-wrap: wrap; }
+.fl2 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.fl2 .sr-only-focusable:focus { position: fixed; z-index: 2000; top: var(--sp-xs); left: var(--sp-xs); width: auto; height: auto; margin: 0; clip: auto; padding: var(--sp-xs) var(--sp-sm); background: var(--flevoland-color-brand-primary-active); color: var(--flevoland-color-text-on-brand); outline-color: var(--flevoland-color-focus-outline-inverse); }
+.fl2 .v2-choices.is-invalid { padding-left: var(--sp-sm); border-left: var(--bw-4) solid var(--flevoland-color-status-error-border); }
+
+/* Error summary (above a form) */
+.fl2 .v2-error-summary {
+  scroll-margin-top: var(--sp-lg);
+  margin: 0 0 var(--sp-lg); padding: var(--sp-md);
+  background: var(--flevoland-color-status-error-background);
+  border-left: var(--bw-4) solid var(--flevoland-color-status-error-border);
+  color: var(--flevoland-color-status-error-text-on-background); max-width: 40rem;
+}
+.fl2 .v2-error-summary h3 { color: inherit; font-size: var(--fs-sm); margin-bottom: var(--sp-xs); }
+.fl2 .v2-error-summary ul { margin: 0; padding-left: var(--sp-md); line-height: var(--lh-text); }
+.fl2 .v2-error-summary a { color: inherit; font-weight: 600; }
+
+/* Inline messages */
+.fl2 .v2-msg { display: flex; gap: var(--sp-xs); align-items: flex-start; padding: var(--sp-sm) var(--sp-md); border-left: var(--bw-4) solid; font-size: var(--fs-xs); line-height: var(--lh-text); }
+.fl2 .v2-msg--info    { background: var(--flevoland-color-status-info-background); border-color: var(--flevoland-color-status-info-text); color: var(--flevoland-color-text-default); }
+.fl2 .v2-msg--success { background: var(--flevoland-color-status-success-background); border-color: var(--flevoland-color-status-success-text); color: var(--flevoland-color-text-default); }
+.fl2 .v2-msg--error   { background: var(--flevoland-color-status-error-background); border-color: var(--flevoland-color-status-error-border); color: var(--flevoland-color-text-default); }
+.fl2 .v2-msg--warning { background: var(--flevoland-color-status-warning-background); border-color: var(--flevoland-color-status-warning-text); color: var(--flevoland-color-text-default); }
+
+/* --- 10. Taken inbox --------------------------------------------------- */
+.fl2 .v2-taken { display: grid; grid-template-columns: var(--fl2-filters-w) var(--fl2-list-w) minmax(0, 1fr); height: 100%; min-height: 0; }
+.fl2 .v2-taken-filters { display: flex; flex-direction: column; background: var(--rba-bg); border-right: var(--bw-1) solid var(--rba-rule); padding: var(--sp-sm) 0; min-height: 0; overflow-y: auto; }
+.fl2 .v2-taken-filters .v2-label { padding: var(--sp-xs) var(--sp-md) var(--sp-2xs); }
+.fl2 .v2-taken-filters ul { list-style: none; margin: 0; padding: 0; }
+.fl2 .v2-taken-filters .v2-taken-refresh { margin: auto var(--sp-xs) 0; align-self: flex-start; }
+
+.fl2 .v2-taken-list { display: flex; flex-direction: column; min-height: 0; border-right: var(--bw-1) solid var(--rba-rule); }
+.fl2 .v2-taken-list > header { padding: var(--sp-sm) var(--sp-md); border-bottom: var(--bw-1) solid var(--rba-rule); display: flex; flex-direction: column; gap: var(--sp-xs); }
+.fl2 .v2-taken-list-title { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-xs); }
+.fl2 .v2-taken-list h2 { font-size: var(--fs-sm); color: var(--rba-ink); }
+.fl2 .v2-taken-list-meta { font-size: var(--fs-2xs); color: var(--rba-ink-3); }
+.fl2 .v2-toolbar { display: flex; gap: var(--sp-xs); align-items: center; }
+.fl2 .v2-toolbar .v2-input--compact { flex: 1; min-width: 0; }
+.fl2 .v2-taken-list ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+.fl2 .v2-taken-item {
+  width: 100%; display: flex; flex-direction: column; gap: var(--sp-2xs); text-align: left; cursor: pointer;
+  padding: var(--sp-sm) var(--sp-md) var(--sp-sm) calc(var(--sp-md) - var(--bw-4));
+  background: none; border: 0; border-left: var(--bw-4) solid transparent; border-bottom: var(--bw-1) solid var(--rba-rule-2);
+}
+.fl2 .v2-taken-item:hover, .fl2 .v2-taken-item.is-hover { background: var(--flevoland-color-blue-50); }
+.fl2 .v2-taken-item.active { background: var(--flevoland-color-blue-100); border-left-color: var(--rba-brand); }
+.fl2 .v2-taken-item-row { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sp-xs); }
+.fl2 .v2-taken-item-name { font-size: var(--fs-xs); font-weight: 600; color: var(--rba-ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.fl2 .v2-taken-item-meta { display: flex; gap: var(--sp-xs); flex-wrap: wrap; align-items: baseline; font-size: var(--fs-2xs); color: var(--rba-ink-3); }
+.fl2 .v2-taken-item-meta .sep::before { content: "·"; }
+.fl2 .v2-taken-item-meta .overdue { color: var(--flevoland-color-status-error-text); font-weight: 600; }
+
+.fl2 .v2-taken-detail { overflow-y: auto; min-height: 0; padding: var(--sp-lg) var(--sp-xl) var(--sp-2xl); background: var(--rba-paper); }
+.fl2 .v2-taken-detail-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sp-md); margin-bottom: var(--sp-md); }
+.fl2 .v2-eyebrow { font-family: var(--code); font-size: var(--fs-2xs); color: var(--rba-ink-3); margin-bottom: var(--sp-2xs); }
+.fl2 .v2-taken-detail h1 { font-size: var(--fs-xl); color: var(--rba-ink-2); max-width: 40ch; }
+.fl2 .v2-taken-meta {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--sp-sm) var(--sp-lg);
+  margin: 0 0 var(--sp-lg); padding: var(--sp-sm) var(--sp-md);
+  background: var(--flevoland-color-background-subtle); border-left: var(--bw-2) solid var(--rba-accent); /* pink: thin line */
+}
+.fl2 .v2-taken-meta dt { font-size: var(--fs-2xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rba-ink-3); margin-bottom: var(--sp-3xs); }
+.fl2 .v2-taken-meta dd { margin: 0; font-size: var(--fs-xs); color: var(--rba-ink); }
+.fl2 .v2-section { margin-top: var(--sp-xl); }
+.fl2 .v2-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); margin-bottom: var(--sp-sm); }
+.fl2 .v2-section h2 { font-size: var(--fs-sm); }
+
+/* Data table (Procesgegevens) */
+.fl2 .v2-table { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); }
+.fl2 .v2-table th, .fl2 .v2-table td { text-align: left; vertical-align: top; padding: var(--sp-xs) var(--sp-sm); border-bottom: var(--bw-1) solid var(--rba-rule-2); }
+.fl2 .v2-table thead th { font-size: var(--fs-2xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rba-ink-3); border-bottom-color: var(--rba-rule); }
+.fl2 .v2-table tbody th { font-weight: 400; color: var(--rba-ink-3); width: 38%; }
+.fl2 .v2-table td { color: var(--rba-ink); overflow-wrap: anywhere; }
+.fl2 .v2-table tbody tr:hover { background: var(--flevoland-color-blue-50); }
+
+/* Process steps (compact list) */
+.fl2 .v2-steps { list-style: none; margin: 0; padding: 0; border: var(--bw-1) solid var(--rba-rule); }
+.fl2 .v2-step { display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto; gap: var(--sp-sm); align-items: start; padding: var(--sp-xs) var(--sp-sm); }
+.fl2 .v2-step + .v2-step { border-top: var(--bw-1) solid var(--rba-rule-2); }
+.fl2 .v2-step-dot { width: 0.75rem; height: 0.75rem; margin-top: var(--sp-2xs); border-radius: var(--flevoland-border-radius-round); background: var(--flevoland-color-status-success-text); }
+.fl2 .v2-step.running .v2-step-dot { background: var(--rba-paper); border: var(--bw-4) solid var(--rba-brand); }
+.fl2 .v2-step.next .v2-step-dot { background: var(--rba-paper); border: var(--bw-2) solid var(--flevoland-color-border-default); }
+.fl2 .v2-step-name { font-size: var(--fs-xs); font-weight: 500; color: var(--rba-ink); }
+.fl2 .v2-step.running { background: var(--flevoland-color-blue-50); }
+.fl2 .v2-step.running .v2-step-name { font-weight: 700; }
+.fl2 .v2-step.next .v2-step-name { color: var(--rba-ink-2); font-weight: 400; }
+.fl2 .v2-step-meta { font-size: var(--fs-2xs); color: var(--rba-ink-3); }
+.fl2 .v2-step-type { font-family: var(--code); font-size: var(--fs-2xs); color: var(--rba-ink-3); padding-top: var(--sp-3xs); }
+
+/* Task form */
+.fl2 .v2-form { margin-top: var(--sp-xl); padding: var(--sp-lg); border: var(--bw-1) solid var(--rba-rule); background: var(--rba-paper); }
+.fl2 .v2-form > h2 { font-size: var(--fs-lg); margin-bottom: var(--sp-2xs); }
+.fl2 .v2-form > p.v2-hint { font-size: var(--fs-xs); color: var(--rba-ink-3); margin-bottom: var(--sp-lg); line-height: var(--lh-text); }
+.fl2 .v2-actions { display: flex; flex-wrap: wrap; gap: var(--sp-sm); align-items: center; padding-top: var(--sp-md); border-top: var(--bw-1) solid var(--rba-rule); }
+.fl2 .v2-actions .spacer { flex: 1; }
+
+/* Empty / loading / error states */
+.fl2 .v2-state { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-sm); padding: var(--sp-lg) var(--sp-md); max-width: 26rem; }
+.fl2 .v2-state h2, .fl2 .v2-state h3 { font-size: var(--fs-sm); color: var(--rba-ink-2); }
+.fl2 .v2-state p { font-size: var(--fs-xs); color: var(--rba-ink-3); line-height: var(--lh-text); }
+.fl2 .v2-state--center { margin: auto; align-items: center; text-align: center; }
+.fl2 .v2-skel { display: block; height: 0.75rem; background: var(--rba-rule-2); border-radius: var(--radius); }
+.fl2 .v2-skel-item { padding: var(--sp-sm) var(--sp-md); border-bottom: var(--bw-1) solid var(--rba-rule-2); display: flex; flex-direction: column; gap: var(--sp-xs); }
+@media (prefers-reduced-motion: no-preference) {
+  .fl2 .v2-skel { animation: fl2-pulse 1.4s var(--flevoland-motion-easing-standard) infinite; }
+  @keyframes fl2-pulse { 50% { opacity: 0.5; } }
+}
+
+/* --- 11. Process view: compact stepper, full stepper, swimlane --------- */
+.fl2 .v2-where { margin: 0 0 var(--sp-lg); padding: var(--sp-sm) var(--sp-md); border: var(--bw-1) solid var(--rba-rule); background: var(--rba-bg); }
+.fl2 .v2-where-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-md); margin-bottom: var(--sp-sm); }
+.fl2 .v2-where-cap { margin-top: var(--sp-sm); font-size: var(--fs-xs); color: var(--rba-ink-2); }
+.fl2 .v2-where-cap b { color: var(--rba-ink); }
+.fl2 .v2-stepper { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; list-style: none; margin: 0; padding: 0; }
+.fl2 .v2-stepper li { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2xs); text-align: center; }
+.fl2 .v2-stepper li + li::before { content: ""; position: absolute; top: calc(var(--dot) / 2 - 1px); right: calc(50% + var(--dot) / 2); left: calc(-50% + var(--dot) / 2); height: var(--bw-2); background: var(--flevoland-color-border-default); }
+.fl2 .v2-stepper li.done + li::before, .fl2 .v2-stepper li.done + li.current::before { background: var(--flevoland-color-status-success-text); }
+.fl2 .v2-stepper { --dot: 1.5rem; }
+.fl2 .v2-stepper--full { --dot: 2rem; }
+.fl2 .v2-step-num {
+  width: var(--dot); height: var(--dot); display: grid; place-items: center; border-radius: var(--flevoland-border-radius-round);
+  font-size: var(--fs-2xs); font-weight: 700; background: var(--rba-paper); color: var(--rba-ink-2);
+  border: var(--bw-2) solid var(--flevoland-color-border-default);
+}
+.fl2 .v2-stepper--full .v2-step-num { font-size: var(--fs-xs); }
+.fl2 .v2-stepper li.done .v2-step-num { background: var(--flevoland-color-status-success-text); border-color: var(--flevoland-color-status-success-text); color: var(--flevoland-color-text-on-brand); }
+.fl2 .v2-stepper li.current .v2-step-num { background: var(--rba-brand); border-color: var(--rba-brand); color: var(--flevoland-color-text-on-brand); box-shadow: 0 0 0 var(--bw-4) var(--flevoland-color-blue-200); }
+.fl2 .v2-step-label { font-size: var(--fs-2xs); color: var(--rba-ink-3); line-height: var(--lh-ui); padding: 0 var(--sp-2xs); }
+.fl2 .v2-stepper--full .v2-step-label { font-size: var(--fs-xs); color: var(--rba-ink-2); }
+.fl2 .v2-stepper li.current .v2-step-label { color: var(--rba-ink); font-weight: 600; }
+
+/* Process overlay (dialog) */
+.fl2 .v2-overlay { position: fixed; inset: 0; z-index: 80; display: flex; padding: var(--sp-lg); background: var(--flevoland-color-background-backdrop); }
+.fl2 .v2-dialog { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--rba-paper); border-radius: var(--flevoland-border-radius-md); box-shadow: var(--flevoland-shadow-overlay), var(--flevoland-shadow-raised); }
+.fl2 .v2-dialog-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sp-md); padding: var(--sp-md) var(--sp-lg); border-bottom: var(--bw-1) solid var(--rba-rule); }
+.fl2 .v2-dialog-head h2 { font-size: var(--fs-xl); margin-top: var(--sp-2xs); }
+.fl2 .v2-dialog-body { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-lg); }
+.fl2 .v2-legend { display: flex; flex-wrap: wrap; gap: var(--sp-xs) var(--sp-lg); margin: var(--sp-lg) 0 var(--sp-sm); font-size: var(--fs-2xs); color: var(--rba-ink-2); }
+.fl2 .v2-legend span { display: inline-flex; align-items: center; gap: var(--sp-xs); }
+.fl2 .v2-legend i { display: inline-block; width: 1rem; height: 0.75rem; border: var(--bw-1) solid var(--flevoland-color-border-default); border-top-width: var(--bw-4); }
+.fl2 .v2-legend i.done { background: var(--flevoland-color-status-success-background); border-color: var(--flevoland-color-status-success-text); }
+.fl2 .v2-legend i.current { background: var(--flevoland-color-blue-100); border: var(--bw-2) solid var(--rba-brand); }
+.fl2 .v2-legend i.todo { background: var(--rba-paper); }
+.fl2 .v2-legend i.auto { background: var(--rba-paper); border-style: dashed; border-top-width: var(--bw-1); }
+.fl2 .v2-legend i.mine { background: var(--flevoland-color-blue-50); border: var(--bw-1) solid var(--flevoland-color-blue-200); }
+
+.fl2 .v2-swim { --col: 11.5rem; --lab: 9.5rem; --lane-h: 6.5rem; position: relative; border: var(--bw-1) solid var(--rba-rule); overflow-x: auto; }
+.fl2 .v2-swim-grid { position: relative; display: grid; grid-template-columns: var(--lab) repeat(6, var(--col)); min-width: max-content; }
+.fl2 .v2-swim-phase { position: sticky; top: 0; z-index: 2; height: 2.25rem; display: flex; align-items: center; gap: var(--sp-xs); padding: 0 var(--sp-sm); background: var(--rba-bg); border-bottom: var(--bw-1) solid var(--rba-rule); border-left: var(--bw-1) solid var(--rba-rule-2); font-size: var(--fs-2xs); font-weight: 600; color: var(--rba-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fl2 .v2-swim-phase.current { background: var(--flevoland-color-blue-100); color: var(--rba-ink); box-shadow: inset 0 calc(-1 * var(--bw-4)) 0 var(--rba-brand); }
+.fl2 .v2-swim-corner { position: sticky; left: 0; z-index: 3; background: var(--rba-bg); border-bottom: var(--bw-1) solid var(--rba-rule); }
+.fl2 .v2-swim-lane { position: sticky; left: 0; z-index: 1; height: var(--lane-h); display: flex; flex-direction: column; justify-content: center; gap: var(--sp-2xs); padding: 0 var(--sp-sm); background: var(--rba-bg); border-right: var(--bw-1) solid var(--rba-rule); border-bottom: var(--bw-1) solid var(--rba-rule-2); font-size: var(--fs-xs); font-weight: 600; color: var(--rba-ink-2); }
+.fl2 .v2-swim-lane.mine { background: var(--flevoland-color-blue-50); color: var(--rba-ink); }
+.fl2 .v2-swim-lane small { font-size: var(--fs-2xs); font-weight: 400; color: var(--rba-ink-3); }
+.fl2 .v2-swim-cell { height: var(--lane-h); border-bottom: var(--bw-1) solid var(--rba-rule-2); border-left: var(--bw-1) solid var(--rba-rule-2); display: flex; align-items: center; justify-content: center; padding: 0 var(--sp-sm); }
+.fl2 .v2-swim-cell.mine { background: var(--flevoland-color-blue-50); }
+.fl2 .v2-swim-node {
+  position: relative; width: 100%; min-height: 3.5rem; padding: var(--sp-xs) var(--sp-xs) var(--sp-sm);
+  background: var(--rba-paper); border: var(--bw-1) solid var(--flevoland-color-border-default); border-top-width: var(--bw-4);
+  font-size: var(--fs-2xs); line-height: var(--lh-ui); color: var(--rba-ink); text-align: left; cursor: pointer;
+}
+.fl2 .v2-swim-node .nlabel { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-weight: 500; font-size: var(--fs-xs); line-height: 1.25; }
+.fl2 .v2-swim-node .kind { position: absolute; left: var(--sp-xs); bottom: calc(-1 * var(--sp-xs)); padding: 0 var(--sp-2xs); background: var(--rba-paper); border: var(--bw-1) solid var(--flevoland-color-border-default); font-family: var(--code); font-size: var(--fs-2xs); line-height: 1.1; color: var(--rba-ink-2); }
+.fl2 .v2-swim-node.done { background: var(--flevoland-color-status-success-background); border-color: var(--flevoland-color-status-success-text); }
+.fl2 .v2-swim-node.current { background: var(--flevoland-color-blue-100); border: var(--bw-2) solid var(--rba-brand); border-top-width: var(--bw-4); }
+.fl2 .v2-swim-node.auto { border-style: dashed; border-top-width: var(--bw-1); }
+.fl2 .v2-swim-node .now { position: absolute; top: calc(-1 * var(--sp-sm)); right: var(--sp-xs); }
+.fl2 .v2-swim-arrows { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.fl2 .v2-swim-arrows path { fill: none; stroke: var(--flevoland-color-border-default); stroke-width: 1.5; }
+
+/* --- 12. Command palette ----------------------------------------------- */
+.fl2 .v2-pal-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: start center; padding-top: 12vh; background: var(--flevoland-color-background-backdrop); }
+.fl2 .v2-pal { width: min(40rem, 92vw); background: var(--rba-paper); border-radius: var(--flevoland-border-radius-md); box-shadow: var(--flevoland-shadow-overlay), var(--flevoland-shadow-raised); overflow: hidden; }
+.fl2 .v2-pal-input { display: flex; align-items: center; gap: var(--sp-sm); padding: 0 var(--sp-md); border-bottom: var(--bw-1) solid var(--rba-rule); }
+.fl2 .v2-pal-input svg { color: var(--rba-ink-3); flex-shrink: 0; }
+.fl2 .v2-pal-input input { flex: 1; height: 3.5rem; border: 0; background: transparent; font-size: var(--fs-md); color: var(--rba-ink); }
+.fl2 .v2-pal-input input:focus-visible { outline: none; }
+.fl2 .v2-pal-input:focus-within { box-shadow: inset 0 calc(-1 * var(--bw-4)) 0 var(--flevoland-color-focus-outline); }
+.fl2 .v2-pal-list { list-style: none; margin: 0; padding: var(--sp-xs) 0; max-height: 24rem; overflow-y: auto; }
+.fl2 .v2-pal-group { padding: var(--sp-sm) var(--sp-md) var(--sp-2xs); }
+.fl2 .v2-pal-item { width: 100%; min-height: var(--h-row); display: grid; grid-template-columns: 1fr auto; gap: var(--sp-sm); align-items: center; padding: 0 var(--sp-md) 0 calc(var(--sp-md) - var(--bw-4)); border: 0; border-left: var(--bw-4) solid transparent; background: none; text-align: left; font-size: var(--fs-xs); color: var(--rba-ink); cursor: pointer; }
+.fl2 .v2-pal-item mark { background: none; color: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 0.2em; }
+.fl2 .v2-pal-item .path { font-size: var(--fs-2xs); color: var(--rba-ink-3); }
+.fl2 .v2-pal-item.active { background: var(--flevoland-color-blue-100); border-left-color: var(--rba-brand); font-weight: 600; }
+.fl2 .v2-pal-hint { display: flex; gap: var(--sp-lg); align-items: center; padding: var(--sp-xs) var(--sp-md); border-top: var(--bw-1) solid var(--rba-rule); background: var(--rba-bg); font-size: var(--fs-2xs); color: var(--rba-ink-3); }
+.fl2 .v2-pal-hint span { display: inline-flex; gap: var(--sp-2xs); align-items: center; }
+
+/* --- 13. Assistant dock ------------------------------------------------ */
+.fl2 .v2-dock { position: absolute; top: 0; right: 0; bottom: 0; z-index: 30; width: var(--fl2-dock-w); display: flex; flex-direction: column; min-height: 0; background: var(--rba-paper); border-left: var(--bw-1) solid var(--rba-rule); box-shadow: var(--flevoland-shadow-overlay), var(--flevoland-shadow-raised); }
+.fl2 .v2-dock-head { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-xs); padding: var(--sp-xs) var(--sp-xs) var(--sp-xs) var(--sp-md); border-bottom: var(--bw-1) solid var(--rba-rule); }
+.fl2 .v2-dock-head h2 { font-size: var(--fs-sm); }
+.fl2 .v2-dock-id { display: flex; flex-direction: column; gap: var(--sp-xs); padding: var(--sp-sm) var(--sp-md); border-bottom: var(--bw-1) solid var(--rba-rule-2); }
+.fl2 .v2-dock-id-row { display: flex; gap: var(--sp-sm); align-items: center; }
+.fl2 .v2-dock-av { width: var(--h-compact); height: var(--h-compact); flex-shrink: 0; display: grid; place-items: center; border-radius: var(--flevoland-border-radius-round); background: var(--rba-ink); color: var(--flevoland-color-text-inverse); font-size: var(--fs-2xs); font-weight: 700; }
+.fl2 .v2-dock-id-name { font-size: var(--fs-xs); font-weight: 600; }
+.fl2 .v2-dock-id-sub { font-size: var(--fs-2xs); color: var(--rba-ink-3); }
+.fl2 .v2-dock-msgs { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-md); display: flex; flex-direction: column; gap: var(--sp-md); }
+.fl2 .v2-msg-user { align-self: flex-end; max-width: 85%; padding: var(--sp-xs) var(--sp-sm); background: var(--rba-brand); color: var(--flevoland-color-text-on-brand); border-radius: var(--flevoland-border-radius-md); font-size: var(--fs-xs); line-height: var(--lh-text); }
+.fl2 .v2-msg-ai { font-size: var(--fs-xs); line-height: var(--lh-text); color: var(--rba-ink); }
+.fl2 .v2-msg-ai h3 { font-size: var(--fs-sm); margin: var(--sp-md) 0 var(--sp-2xs); }
+.fl2 .v2-msg-ai p, .fl2 .v2-msg-ai ul { margin: 0 0 var(--sp-xs); }
+.fl2 .v2-msg-ai ul { padding-left: var(--sp-md); }
+.fl2 .v2-msg-ai .meta { font-size: var(--fs-2xs); color: var(--rba-ink-3); }
+.fl2 .v2-msg-ai .v2-table { margin: var(--sp-2xs) 0 var(--sp-sm); }
+.fl2 .v2-msg-ai .v2-table td, .fl2 .v2-msg-ai .v2-table th { padding: var(--sp-2xs) var(--sp-xs); }
+.fl2 .v2-dock-chips { display: flex; flex-wrap: wrap; gap: var(--sp-xs); padding: var(--sp-xs) var(--sp-md); border-top: var(--bw-1) solid var(--rba-rule-2); }
+.fl2 .v2-chip { display: inline-flex; align-items: center; gap: var(--sp-2xs); min-height: var(--h-compact); padding: 0 var(--sp-sm); border: var(--bw-1) solid var(--flevoland-color-border-default); border-radius: var(--flevoland-border-radius-round); background: var(--rba-paper); color: var(--rba-ink-2); font-size: var(--fs-2xs); font-weight: 600; cursor: pointer; }
+.fl2 .v2-chip[aria-pressed="true"] { background: var(--flevoland-color-blue-100); border-color: var(--rba-brand); color: var(--flevoland-color-brand-primary-active); }
+.fl2 .v2-chip:hover { border-color: var(--flevoland-color-border-hover); }
+.fl2 .v2-dock-input { display: flex; gap: var(--sp-xs); padding: var(--sp-sm) var(--sp-md) var(--sp-md); border-top: var(--bw-1) solid var(--rba-rule); }
+.fl2 .v2-dock-input .v2-input { flex: 1; max-width: none; }
+.fl2 .v2-dock-toggle { position: fixed; right: var(--sp-lg); bottom: var(--sp-lg); z-index: 50; box-shadow: var(--flevoland-shadow-raised); }
+
+/* --- 14. User preferences (Flevoland base.css section 4) ---------------- */
+@media (prefers-reduced-motion: reduce) {
+  .fl2 *, .fl2 *::before, .fl2 *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+@media (forced-colors: active) {
+  .fl2 :focus-visible { outline-color: Highlight; }
+  .fl2 .v2-btn { border-color: ButtonText; }
+  .fl2 .v2-input[aria-invalid="true"] { border-color: Mark; }
+  .fl2 .v2-rail-item.active, .fl2 .v2-taken-item.active, .fl2 .v2-pal-item.active { border-left-color: Highlight; }
+  .fl2 .v2-tab.active { border-bottom-color: Highlight; }
+}
