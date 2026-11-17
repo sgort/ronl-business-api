@@ -91,8 +91,10 @@ ENTRA_CLIENT_ID="$(trim "${ENTRA_CLIENT_ID:?set ENTRA_CLIENT_ID (the app registr
 # Entra issues tokens with the tenant id in lower case, and Keycloak compares
 # the token's iss to the configured issuer as an exact string: an upper-case
 # paste would be accepted here and then fail every login ("wrong issuer").
-ENTRA_TENANT_ID="${ENTRA_TENANT_ID,,}"
-ENTRA_CLIENT_ID="${ENTRA_CLIENT_ID,,}"
+# tr, not ${VAR,,}: macOS ships bash 3.2, where ${VAR,,} is a substitution
+# error that stops the script (#457).
+ENTRA_TENANT_ID="$(printf '%s' "$ENTRA_TENANT_ID" | tr '[:upper:]' '[:lower:]')"
+ENTRA_CLIENT_ID="$(printf '%s' "$ENTRA_CLIENT_ID" | tr '[:upper:]' '[:lower:]')"
 
 ALIAS=$(jqr -r '.provider.alias' "$IDP_FILE")
 AUTHORITY="https://login.microsoftonline.com/${ENTRA_TENANT_ID}"

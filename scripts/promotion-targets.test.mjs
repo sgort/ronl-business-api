@@ -5,9 +5,8 @@
 //
 // All four ACC workflows' push `paths:` filters list the root package.json and
 // package-lock.json, so a lockfile-only promotion must deploy all four (#354
-// item 2). The patterns do not mirror those filters in every respect: the
-// frontend ACC filter also lists keycloak-themes/**, which the frontend
-// pattern here does not.
+// item 2). The frontend pattern also mirrors the ACC filter's keycloak-themes/**
+// entry, whose guard tests run in the frontend suite (#457).
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -62,6 +61,11 @@ expectDeploys(
   'a public-site change deploys the public site only',
   ['packages/public-site/x.ts'],
   ['public_site']
+);
+expectDeploys(
+  "a Keycloak theme change runs the frontend, whose suite holds the theme's guard tests",
+  ['keycloak-themes/ronl/login/resources/css/login.css'],
+  ['frontend']
 );
 expectDeploys('documentation deploys nothing', ['docs/x.md', 'SECURITY-PIPELINE.md'], []);
 
