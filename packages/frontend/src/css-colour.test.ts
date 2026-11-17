@@ -82,6 +82,8 @@ describe('contrastRatio', () => {
   it('matches WCAG for the Flevoland colours', () => {
     expect(contrastRatio(c('#fec612'), c('#ffffff'))).toBeCloseTo(1.6, 1);
     expect(contrastRatio(c('#212121'), c('#fec612'))).toBeGreaterThanOrEqual(10);
+    expect(contrastRatio(c('#ffffff'), c('#e60078'))).toBeCloseTo(4.53, 2);
+    expect(contrastRatio(c('#212121'), c('#e60078'))).toBeLessThan(4.5);
     expect(contrastRatio(c('#757575'), c('#ffffff'))).toBeCloseTo(4.6, 1);
     expect(contrastRatio(c('#757575'), c('#f8f8f8'))).toBeCloseTo(4.3, 1);
     expect(contrastRatio(c('#ffffff'), c('#ffffff'))).toBe(1);
@@ -370,6 +372,7 @@ describe('Flevoland contrast', () => {
     '--rba-flevoland-blue': 'equals --rba-brand for Flevoland',
     '--rba-flevoland-blue-d': 'equals --rba-brand-d for Flevoland',
     '--rba-flevoland-pink': 'equals --rba-accent for Flevoland',
+    '--rba-flevoland-pink-fill': 'equals --rba-accent-fill for Flevoland',
     '--rba-ok-line': 'border of a status tint; decorative, the text inside carries the meaning',
     '--rba-warn-line': 'border of a status tint, as --rba-ok-line',
     '--rba-bad-line': 'border of a status tint, as --rba-ok-line',
@@ -394,12 +397,12 @@ describe('Flevoland contrast', () => {
     }
   });
 
+  // Each fill has its own text colour: Flevoland's accent fill is pink with
+  // white text, its warning fill yellow with dark text.
   it('text on the accent and warning fills reaches 4.5:1', () => {
-    for (const bg of FILLS) {
-      expect(contrastRatio(token('--rba-on-accent-fill'), token(bg)), bg).toBeGreaterThanOrEqual(
-        4.5
-      );
-    }
+    expect(
+      contrastRatio(token('--rba-on-accent-fill'), token('--rba-accent-fill'))
+    ).toBeGreaterThanOrEqual(4.5);
     expect(
       contrastRatio(token('--rba-on-warn-fill'), token('--rba-warn-fill'))
     ).toBeGreaterThanOrEqual(4.5);
@@ -450,8 +453,8 @@ describe('Flevoland contrast', () => {
       bg: '#f8f8f8',
       brandD: '#003a8e',
       accent: '#e70077',
-      accentFill: '#fec612',
-      onAccentFill: '#212121',
+      accentFill: '#e60078',
+      onAccentFill: '#ffffff',
       warn: '#85531a',
       warnFill: '#fec612',
       idle: '#bdbdbd',
