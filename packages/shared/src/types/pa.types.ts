@@ -38,8 +38,9 @@ export interface Signal {
   bron: 'tk' | 'ob' | 'eu' | 'media' | null;
   /** EU sub-source identifier: 'ep-rss' (plenary documents, now via the EP Open
    *  Data API — the key predates the move off RSS and is kept so the stream's
-   *  signals stay together) or 'ep-teksten' (texts-submitted). 'ep-persbericht'
-   *  occurs only on signals persisted before press releases were dropped (#55).
+   *  signals stay together). 'ep-teksten' (texts-submitted) and
+   *  'ep-persbericht' occur only on signals persisted before those sources
+   *  were dropped (#57, #55).
    *  Media sub-source: 'nieuws-nationaal' | 'nieuws-regionaal'. */
   subbron?: string | null;
   /** EP committee code (ITRE, ENVI, …). Display only — not used for scoring. */

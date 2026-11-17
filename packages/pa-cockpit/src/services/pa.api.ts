@@ -1248,7 +1248,8 @@ function patchDemoSearch(id: string, patch: Partial<SavedSearch>): void {
 const TAB_SOURCES: Record<string, string[]> = {
   politiek: ['tk', 'ob'],
   regionaal: ['ob'],
-  // Twee EU-subbronnen: (1) EP plenaire RSS-feed (ep-rss) en (2) EP "Ingediende teksten" (ep-teksten)
+  // EU: de EP Open Data API (subbron ep-rss). "Ingediende teksten" (ep-teksten) is vervallen (#57);
+  // opgeslagen signalen met die subbron blijven zichtbaar.
   europa: ['eu'],
   // Nieuws-aggregator (100+ landelijke + regionale RSS-feeds), regio-gescoopt op Flevoland via GET /search.
   // Sociale media/omgeving  volgt als tweede subbron.
@@ -2054,7 +2055,6 @@ export interface SourcesStatus {
   tk: boolean;
   ob: boolean;
   eu: boolean;
-  epTeksten: boolean;
   media: boolean;
   feeds: SourcesStatusFeed[];
 }
@@ -2119,8 +2119,7 @@ const MOCK_SOURCE_FEEDS: SourcesStatusFeed[] = [
 ];
 
 export async function fetchSourcesStatus(): Promise<SourcesStatus> {
-  if (isPaMock())
-    return { tk: true, ob: true, eu: true, epTeksten: true, media: true, feeds: MOCK_SOURCE_FEEDS };
+  if (isPaMock()) return { tk: true, ob: true, eu: true, media: true, feeds: MOCK_SOURCE_FEEDS };
   return paGet<SourcesStatus>('/pa/sources/status');
 }
 

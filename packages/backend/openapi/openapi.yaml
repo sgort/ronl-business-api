@@ -4407,7 +4407,7 @@ paths:
                   success: { type: boolean, const: true }
                   data:
                     type: object
-                    description: 'Keyed by source: `tk`, `ob`, `eu`, `epTeksten`, `media`, `feeds`.'
+                    description: 'Keyed by source: `tk`, `ob`, `eu`, `media`, `feeds`.'
                     additionalProperties: true
           headers:
             API-Version:

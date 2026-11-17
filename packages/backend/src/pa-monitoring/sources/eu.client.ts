@@ -268,8 +268,8 @@ function normaliseAtomEntry(entry: AtomEntry): FeedItem | null {
     subbron: 'ep-rss',
     // The API's Atom entries carry no committee. Under RSS this came from
     // <category domain="body">, which has no equivalent here; the detail
-    // endpoint would mean one request per entry. ep-teksten still supplies it
-    // for documents that appear in both.
+    // endpoint would mean one request per entry, so EU signals carry no
+    // committee since the ep-teksten scrape was dropped (#57).
     commissie: null,
     description: addDutchContext(title),
   };
