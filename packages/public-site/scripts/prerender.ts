@@ -22,6 +22,7 @@ import { mapToHits } from '../src/lib/sectionHits';
 import { slugify } from '../src/lib/slug';
 import { HERKOMST_STRINGS } from '../src/pages/herkomst/herkomstData';
 import { KT_CONCEPTS } from '../src/pages/herkomst/herkomstConcepts';
+import { isMainModule } from './check-bundle.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -362,8 +363,15 @@ async function main() {
   console.log(`Prerendered ${urls.length} routes for mode=${mode} (${origin})`);
 }
 
-main().catch((error) => {
-  // eslint-disable-next-line no-console
-  console.error('Prerender failed:', error);
-  process.exitCode = 1;
-});
+// Only as the entry point (`tsx scripts/prerender.ts --mode …`), never on
+// import: prerender.test.ts imports this file for its pure helpers, and an
+// unguarded main() would then run a production prerender against the
+// production API and overwrite a local dist/ (#290). isMainModule is
+// check-bundle.mjs's, which handles the Windows drive-letter path.
+if (isMainModule(import.meta.url, process.argv[1])) {
+  main().catch((error) => {
+    // eslint-disable-next-line no-console
+    console.error('Prerender failed:', error);
+    process.exitCode = 1;
+  });
+}
