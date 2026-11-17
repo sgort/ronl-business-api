@@ -318,17 +318,18 @@ control.
 
 ### Container images — pinned by digest where this repository applies them
 
-The local development stack in `docker-compose.yml` pins all five of its images
+The local development stack in `docker-compose.yml` pins all six of its images
 by tag **and** digest, and Renovate maintains them: `docker:pinDigests` is in
 `renovate.json`'s `extends`, beside `helpers:pinGitHubActionDigests`. The same
 rule that file already states for actions applies here — pinning without
 automated updates decays into an unpatched tree, which is worse than floating.
 
-Two of those five were `:latest` before, and they are the reason this mattered
+Two of the five images there at the time were `:latest` before, and they are the reason this mattered
 more than it looked. **A floating tag is invisible to Renovate**: it has no
 version to compare, so `alpine:latest` and `operaton/operaton:latest` were the
 only images in the tree that nothing was watching at all. The other three were
-already tracked by version and merely unpinned by digest.
+already tracked by version and merely unpinned by digest. The sixth,
+`curlimages/curl`, came later (#415) and was pinned from the start.
 
 The digests recorded are the **index** digests, not per-platform ones, so the
 pin stays correct on an amd64 and an arm64 workstation alike.
