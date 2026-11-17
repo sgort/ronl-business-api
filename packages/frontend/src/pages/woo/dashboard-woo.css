@@ -133,7 +133,7 @@
 .wood .w-bucket .track { height: 22px; background: var(--v2-bg); position: relative; }
 .wood .w-bucket .fill { position: absolute; inset: 0 auto 0 0; }
 .wood .w-bucket .fill.groen { background: var(--w-green); }
-.wood .w-bucket .fill.geel  { background: var(--w-amber-fill); color: var(--rba-on-accent-fill); }
+.wood .w-bucket .fill.geel  { background: var(--w-amber-fill); color: var(--rba-on-warn-fill); }
 .wood .w-bucket .fill.rood  { background: var(--w-red); }
 .wood .w-bucket .fill.blauw { background: var(--w-blue); }
 .wood .w-bucket .fill.bar   { background: var(--w-blue); }
@@ -199,7 +199,7 @@
 .wood .w-flagdot { font-family: var(--v2-mono); font-size: 11px; color: var(--v2-ink-3); }
 .wood .w-flagdot.on { color: var(--v2-accent); font-weight: 700; }
 
-.wood .w-rail-sub { display: block; font-family: var(--v2-sans); font-size: 11px; font-weight: 500; letter-spacing: 0.02em; opacity: 0.85; margin-top: 4px; }
+.wood .w-rail-sub { display: block; font-family: var(--v2-sans); font-size: 11px; font-weight: 500; letter-spacing: 0.02em; margin-top: 4px; }
 .wood .w-rail-filter { padding: 4px 20px 10px; display: grid; gap: 10px; }
 .wood .w-rail-field { display: grid; gap: 5px; }
 .wood .w-rail-field label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-ink-3); font-weight: 700; }

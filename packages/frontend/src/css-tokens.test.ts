@@ -52,6 +52,7 @@ const EXPECTED_TOKENS = [
   '--rba-flevoland-blue',
   '--rba-flevoland-blue-d',
   '--rba-flevoland-pink',
+  '--rba-flevoland-pink-fill',
   '--rba-font-mono',
   '--rba-font-sans',
   '--rba-font-serif',
@@ -96,9 +97,15 @@ const FLEVOLAND_SELECTOR = ':root[data-tenant="flevoland"]';
 const FLEVOLAND_PALETTE =
   /^--flevoland-color-(blue|yellow|neutral|red|green|orange|cyan|purple)-\d+$/;
 
-/** The one palette reference allowed: Flevoland's file has no semantic token for an inactive state. */
+/**
+ * The values allowed outside Flevoland's semantic tokens: their file has no
+ * semantic token for an inactive state, and the accent fill is our pink with
+ * white text instead of their yellow with dark text.
+ */
 const PALETTE_EXCEPTIONS: Record<string, string> = {
   '--rba-idle': 'var(--flevoland-color-neutral-400)',
+  '--rba-accent-fill': 'var(--rba-flevoland-pink-fill)',
+  '--rba-on-accent-fill': 'var(--rba-ink-inverse)',
 };
 
 function stripComments(css: string): string {
@@ -423,17 +430,19 @@ describe('accent and warning backgrounds', () => {
   });
 
   const STATE = /:(hover|focus|focus-visible|active)$/;
-  // A -fill token as the background; --rba-on-accent-fill is the text colour, not a fill.
+  // A -fill token as the background; --rba-on-accent-fill and --rba-on-warn-fill
+  // are text colours, not fills.
   const fills = rules.filter((r) =>
-    /var\(--(?![\w-]*on-accent)[\w-]*-fill(-d)?\b/.test(r.background)
+    /var\(--(?![\w-]*on-(accent|warn))[\w-]*-fill(-d)?\b/.test(r.background)
   );
+  const ON_FILL = /on-(accent|warn)-fill/;
 
   it('every accent or warning fill sets the text colour on it in the same rule', () => {
     expect(fills.length).toBeGreaterThan(10);
     expect(
       fills
         .filter((r) => !STATE.test(r.selector))
-        .filter((r) => !r.color || !r.color.includes('on-accent-fill'))
+        .filter((r) => !r.color || !ON_FILL.test(r.color))
         .map((r) => r.selector)
     ).toEqual([]);
   });
@@ -447,12 +456,13 @@ describe('accent and warning backgrounds', () => {
     const base = new Map(rules.map((r) => [r.selector, r.color]));
     expect(
       states
-        .filter((r) => !base.get(r.selector.replace(STATE, ''))?.includes('on-accent-fill'))
+        .filter((r) => !ON_FILL.test(base.get(r.selector.replace(STATE, '')) ?? ''))
         .map((r) => r.selector)
     ).toEqual([]);
   });
 
-  // The pulsing dot sits on the yellow live badge; white would be 1.6:1 there.
+  // The pulsing dot sits on the live badge's accent fill: it takes the text
+  // colour on that fill, whatever the tenant's fill is.
   it('the live dot on the live badge takes the text colour on the fill', () => {
     const dot = rules.find((r) => r.selector === '.pac .pac-ag-live-dot');
     expect(dot?.background).toBe('var(--rba-on-accent-fill)');
