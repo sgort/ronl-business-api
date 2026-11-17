@@ -47,7 +47,15 @@ let initPromise: Promise<boolean> | null = null;
 
 export const initializeKeycloak = (): Promise<boolean> => {
   if (!initPromise) {
-    initPromise = keycloak.init({ onLoad: 'check-sso', checkLoginIframe: false });
+    // pkceMethod: keycloak-js 23 sends no code_challenge unless asked, and
+    // ronl-business-api is a public client with no secret, so PKCE is what
+    // keeps a code that reaches the wrong redirect URI from being exchanged
+    // (#188). The realm can require it once this is deployed.
+    initPromise = keycloak.init({
+      onLoad: 'check-sso',
+      checkLoginIframe: false,
+      pkceMethod: 'S256',
+    });
   }
   return initPromise;
 };

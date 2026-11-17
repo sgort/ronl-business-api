@@ -191,6 +191,13 @@ jobs:
         if: always()
         run: node scripts/keycloak-add-lde-clients.test.mjs
 
+      - name: Test the ronl-business-api client restriction
+        # keycloak-restrict-rba-client.sh must refuse a wildcard or a path in
+        # its origins: a prefix wildcard would let an attacker's host through
+        # as redirect URI (#188). Stops before any network call, like above.
+        if: always()
+        run: node scripts/keycloak-restrict-rba-client.test.mjs
+
       - name: Test the promotion targets
         # promotion-targets.sh decides which production deploys a promotion
         # runs; a wrong pattern means a deploy that silently does not happen
