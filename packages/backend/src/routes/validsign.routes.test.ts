@@ -103,6 +103,7 @@ import validsignRouter, {
   deriveBoardHandOverUrl,
   isCallbackPath,
   resetCallbackLimiterForTests,
+  resetStubSignsForTests,
 } from './validsign.routes';
 import { operatonService } from '@services/operaton.service';
 import { validsignService } from '@services/validsign.service';
@@ -130,6 +131,15 @@ const mockValidsign = validsignService as unknown as {
 const mockCompleteSignature = completeSignature as jest.Mock;
 const mockRenderTemplate = renderTemplate as jest.Mock;
 const mockToPdf = toPdf as jest.Mock;
+
+/** Polls until `condition` holds, for a request that is still in flight. */
+async function waitUntil(condition: () => boolean, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error('waitUntil timed out');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
 
 // The real app mounts the callback router BEFORE any body-parsing/auth
 // concerns of its own, and relies on the app-wide body parsers -- mirror that
@@ -203,6 +213,9 @@ beforeEach(async () => {
   // test in this file that hits /callback observing a stale 429, making
   // the suite's pass/fail depend on execution order.
   await resetCallbackLimiterForTests();
+  // The stub ceremony remembers each package's sign request; without this a
+  // package id reused across tests would see an earlier test's outcome.
+  resetStubSignsForTests();
 });
 
 describe('POST /v1/validsign/callback', () => {
@@ -1131,6 +1144,83 @@ describe('the stub ceremony', () => {
       .post('/v1/validsign/stub/ceremony/pkg-1/sign')
       .send({ outcome: 'DECLINED' });
     expect(res.text).not.toContain('Ondertekend op:');
+  });
+
+  // A second click on "Onderteken" while the first is still archiving to
+  // eDOCS (seconds, against live eDOCS) used to reach stubSign again, hit
+  // VALIDSIGN_ILLEGAL_TRANSITION (COMPLETED -> COMPLETED), and replace the
+  // first request's page with "Ondertekenen mislukt" for a signature that
+  // was in fact recorded.
+  describe('a repeated submit of the same outcome', () => {
+    it('waits for the first, in flight, and shows its result instead of failing', async () => {
+      let finishFirst: (value: string) => void = () => undefined;
+      mockCompleteSignature.mockReturnValueOnce(
+        new Promise<string>((resolve) => {
+          finishFirst = resolve;
+        })
+      );
+      const first = request(app)
+        .post('/v1/validsign/stub/ceremony/pkg-dup/sign')
+        .send({ outcome: 'COMPLETED' })
+        .then((r) => r);
+      await waitUntil(() => mockCompleteSignature.mock.calls.length === 1);
+
+      const second = request(app)
+        .post('/v1/validsign/stub/ceremony/pkg-dup/sign')
+        .send({ outcome: 'COMPLETED' })
+        .then((r) => r);
+      finishFirst('completed');
+      const [firstRes, secondRes] = await Promise.all([first, second]);
+
+      expect(firstRes.status).toBe(200);
+      expect(secondRes.status).toBe(200);
+      expect(secondRes.text).toContain('<h1>Ondertekend</h1>');
+      expect(mockValidsign.stubSign).toHaveBeenCalledTimes(1);
+      expect(mockCompleteSignature).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows the recorded result when it arrives after the first finished', async () => {
+      mockCompleteSignature.mockResolvedValue('completed');
+      await request(app)
+        .post('/v1/validsign/stub/ceremony/pkg-dup/sign')
+        .send({ outcome: 'COMPLETED' });
+      const res = await request(app)
+        .post('/v1/validsign/stub/ceremony/pkg-dup/sign')
+        .send({ outcome: 'COMPLETED' });
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('<h1>Ondertekend</h1>');
+      expect(mockValidsign.stubSign).toHaveBeenCalledTimes(1);
+      expect(mockCompleteSignature).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows the failure, without signing again, when the first failed', async () => {
+      mockCompleteSignature.mockRejectedValue(new Error('eDOCS down'));
+      await request(app)
+        .post('/v1/validsign/stub/ceremony/pkg-dup/sign')
+        .send({ outcome: 'COMPLETED' });
+      const res = await request(app)
+        .post('/v1/validsign/stub/ceremony/pkg-dup/sign')
+        .send({ outcome: 'COMPLETED' });
+      expect(res.status).toBe(500);
+      expect(res.text).toContain('Ondertekenen mislukt');
+      expect(mockValidsign.stubSign).toHaveBeenCalledTimes(1);
+    });
+
+    it('still refuses a different outcome after one was recorded', async () => {
+      mockCompleteSignature.mockResolvedValue('completed');
+      await request(app)
+        .post('/v1/validsign/stub/ceremony/pkg-dup/sign')
+        .send({ outcome: 'COMPLETED' });
+      mockValidsign.stubSign.mockImplementationOnce(() => {
+        throw new Error('VALIDSIGN_ILLEGAL_TRANSITION: package pkg-dup is COMPLETED');
+      });
+      const res = await request(app)
+        .post('/v1/validsign/stub/ceremony/pkg-dup/sign')
+        .send({ outcome: 'DECLINED' });
+      expect(res.status).toBe(500);
+      expect(res.text).toContain('Ondertekenen mislukt');
+      expect(mockValidsign.stubSign).toHaveBeenLastCalledWith('pkg-dup', 'DECLINED');
+    });
   });
 });
 

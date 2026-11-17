@@ -472,6 +472,33 @@ callbackRouter.get('/stub/ceremony/:packageId', callbackLimiter, (req, res) => {
   }
 });
 
+/**
+ * Each stub package's sign request, by package id: the outcome it asked for
+ * and the work it started (stubSign + completeSignature).
+ *
+ * The ceremony page has no script (see stubCeremonyHtml), so nothing stops a
+ * second click on "Onderteken" while the first is still archiving to eDOCS --
+ * seconds against live eDOCS, with the page giving no sign that anything is
+ * happening. The browser shows whichever response answers the LATEST submit,
+ * so if the repeat failed (stubSign refusing COMPLETED -> COMPLETED, which
+ * is correct: the stub enforces the real lifecycle) the signer was told
+ * "Ondertekenen mislukt" about a signature that was in fact recorded.
+ *
+ * So a repeat of the SAME outcome does not sign again: it waits for the first
+ * request's work and shows that result -- success, or the first request's own
+ * failure. A DIFFERENT outcome still goes through stubSign, which refuses it,
+ * as the live service would. The guard in the service stays strict; this is
+ * only about what the page tells a human.
+ *
+ * Stub mode only, held in memory beside the stub's own package map, so it is
+ * bounded by the same thing that bounds that map.
+ */
+const stubSigns = new Map<string, { outcome: 'COMPLETED' | 'DECLINED'; done: Promise<void> }>();
+
+export function resetStubSignsForTests(): void {
+  stubSigns.clear();
+}
+
 // Body parsing (the HTML form-post from the ceremony button) relies on the
 // app-wide express.urlencoded() mounted in index.ts, same reasoning as the
 // callback route above.
@@ -490,9 +517,19 @@ callbackRouter.post('/stub/ceremony/:packageId/sign', callbackLimiter, async (re
   // read this response at all; it learns the outcome by polling the task's
   // status, so this page only has to tell a human what happened.
   applyCeremonyFramingHeaders(res);
+  const earlier = stubSigns.get(packageId);
+  const repeat = earlier?.outcome === outcome;
   try {
-    validsignService.stubSign(packageId, outcome);
-    await completeSignature(packageId);
+    if (earlier && repeat) {
+      await earlier.done;
+    } else {
+      // Throws synchronously on a refused transition, BEFORE anything is
+      // recorded: a refused outcome must never become the one repeats wait on.
+      validsignService.stubSign(packageId, outcome);
+      const done = completeSignature(packageId).then(() => undefined);
+      stubSigns.set(packageId, { outcome, done });
+      await done;
+    }
     return res
       .status(200)
       .type('html')

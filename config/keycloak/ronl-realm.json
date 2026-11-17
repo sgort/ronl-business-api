@@ -36,8 +36,8 @@
       "description": "Secure Business API for municipality BPMN services",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
-      "redirectUris": ["*"],
-      "webOrigins": ["*"],
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["+"],
       "protocol": "openid-connect",
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
@@ -47,6 +47,8 @@
       "frontchannelLogout": false,
       "fullScopeAllowed": true,
       "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+",
         "access.token.lifespan": "900",
         "client.secret.creation.time": "1706400000"
       },

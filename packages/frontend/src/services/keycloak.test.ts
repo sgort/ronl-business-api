@@ -86,6 +86,18 @@ describe('initializeKeycloak', () => {
     expect(initSpy).toHaveBeenCalledWith(expect.objectContaining({ onLoad: 'check-sso' }));
   });
 
+  // keycloak-js 23 sends no code_challenge unless asked (#188). Without it, a
+  // code that reaches the wrong redirect URI can be exchanged by whoever holds
+  // it: ronl-business-api is a public client, with no secret to stop that.
+  it('asks for PKCE with S256, so the realm can require it', async () => {
+    const { default: kc, initializeKeycloak } = await import('./keycloak');
+    const initSpy = vi.spyOn(kc, 'init').mockResolvedValue(true);
+
+    await initializeKeycloak();
+
+    expect(initSpy).toHaveBeenCalledWith(expect.objectContaining({ pkceMethod: 'S256' }));
+  });
+
   it('memoizes — a later call does not init() again', async () => {
     const { default: kc, initializeKeycloak } = await import('./keycloak');
     const initSpy = vi.spyOn(kc, 'init').mockResolvedValue(true);
