@@ -192,8 +192,7 @@ const startServer = async () => {
     })
   );
 
-  // Periodic curation refresh — picks up new EP teksten, TK, and OB candidates.
-  // EP teksten fetch is gated inside runCurationCycle on epTextsSubmittedEnabled.
+  // Periodic curation refresh — picks up new TK, OB, EU and media candidates.
   setInterval(
     () => {
       void runCurationCycle().catch((err) =>

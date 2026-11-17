@@ -9,7 +9,6 @@ import { createLogger } from '@utils/logger';
 import { fetchTkFeed } from './sources/tk.client';
 import { fetchObFeed } from './sources/ob.client';
 import { fetchEuFeed } from './sources/eu.client';
-import { fetchAllNewSubmittedTexts } from './sources/ep-texts-submitted.client';
 import { fetchFlevolandNews } from './sources/media.client';
 import { computeNotifications } from './notifications.service';
 import { config } from '@utils/config';
@@ -132,13 +131,11 @@ async function persistCandidate(
   if (item.source === 'tk') {
     srcLabel = `Tweede Kamer · ${item.type ?? 'Document'} · ${formatAge(item.date)}`;
   } else if (item.source === 'eu') {
-    // Name the sub-source, but only when it adds something the type does not
-    // already say. The ep-persbericht arm is gone with the press-release feed
-    // (#55); signals already persisted under it keep the srcLabel they were
+    // No sub-source in the label: the EP Open Data API is the only EU source
+    // left. The ep-persbericht (#55) and ep-teksten (#57) arms went with their
+    // feeds; signals already persisted under them keep the srcLabel they were
     // stored with, which is why nothing needs backfilling here.
-    const subbronName = item.subbron === 'ep-teksten' ? 'Ingediende teksten' : null;
-    const subbronLabel = subbronName && subbronName !== item.type ? ` · ${subbronName}` : '';
-    srcLabel = `Europees Parlement · ${item.type ?? 'Document'}${subbronLabel} · ${formatAge(item.date)}`;
+    srcLabel = `Europees Parlement · ${item.type ?? 'Document'} · ${formatAge(item.date)}`;
   } else if (item.source === 'media') {
     const subbronLabel =
       item.subbron === 'nieuws-regionaal' ? 'Regionaal nieuws' : 'Landelijk nieuws';
@@ -182,23 +179,6 @@ async function persistCandidate(
       sourceKey,
       error: err instanceof Error ? err.message : String(err),
     });
-  }
-}
-
-async function getSeenEpTekstenRefs(): Promise<string[]> {
-  try {
-    // Exclude refs whose stored title is still in English (starts with an EP English
-    // doc-type prefix) so those items are re-fetched on the next cycle. Once the
-    // Dutch translation is published on the EP listing page, the title gets updated
-    // via the ON CONFLICT SET below.
-    const rows = await db.any<{ ref: { nr: string } | null }>(
-      `SELECT ref FROM pa_signals
-       WHERE subbron = 'ep-teksten' AND ref IS NOT NULL
-         AND NOT (status = 'candidate' AND title ~* '^(REPORT|MOTION FOR|RECOMMENDATION|OPINION)\\s')`
-    );
-    return rows.map((r) => r.ref?.nr).filter((nr): nr is string => !!nr);
-  } catch {
-    return [];
   }
 }
 
@@ -274,19 +254,6 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
     if (result) allItems.push(...result.items);
   }
 
-  // Fetch EP "Ingediende teksten" first — its richer metadata (commissie) wins dedup over
-  // the plenary RSS feed when the same document appears in both.
-  if (hasEuSearches && config.pa.epTextsSubmittedEnabled) {
-    const sinceRefs = new Set(await getSeenEpTekstenRefs());
-    const teksten = await fetchAllNewSubmittedTexts({ sinceRefs }).catch((err: unknown) => {
-      logger.error('EP teksten fetch failed', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return [] as FeedItem[];
-    });
-    allItems.push(...teksten);
-  }
-
   // Fetch Media & omgeving — the news-aggregator, region-scoped to Flevoland.
   if (hasMediaSearches && config.pa.mediaSourceEnabled) {
     const terms = [...mediaTerms];
@@ -299,8 +266,7 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
     allItems.push(...media);
   }
 
-  // Fetch EU plenary documents from the EP Open Data API — ep-teksten entries
-  // already pushed above take priority in dedup.
+  // Fetch EU plenary documents from the EP Open Data API.
   if (hasEuSearches && config.pa.euSourceEnabled) {
     const result = await fetchEuFeed(null, [], 0, 50).catch((err: unknown) => {
       logger.error('EU feed fetch failed', {

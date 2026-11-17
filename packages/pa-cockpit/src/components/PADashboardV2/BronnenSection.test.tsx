@@ -23,7 +23,6 @@ function makeStatus(overrides: Partial<Record<string, unknown>> = {}) {
     tk: true,
     ob: true,
     eu: true,
-    epTeksten: false,
     media: true,
     feeds: [
       {
@@ -74,10 +73,22 @@ describe('BronnenSection', () => {
     render(<BronnenSection />);
 
     expect(await screen.findByText('Tweede Kamer')).toBeInTheDocument();
-    expect(screen.getByText('Europees Parlement · Ingediende teksten')).toBeInTheDocument();
-    // eu enabled -> actief, epTeksten disabled -> uitgeschakeld
+    expect(screen.getByText('Europees Parlement · plenaire documenten')).toBeInTheDocument();
     expect(screen.getByText('EU_SOURCE_ENABLED = true')).toBeInTheDocument();
-    expect(screen.getByText('EP_TEXTS_SUBMITTED_ENABLED = false')).toBeInTheDocument();
+    // The ep-teksten scrape is gone (#57): no row, no flag.
+    expect(screen.queryByText('Europees Parlement · Ingediende teksten')).not.toBeInTheDocument();
+    expect(screen.queryByText(/EP_TEXTS_SUBMITTED_ENABLED/)).not.toBeInTheDocument();
+  });
+
+  it('shows a disabled flag as uitgeschakeld', async () => {
+    mockFetchSourcesStatus.mockResolvedValue(makeStatus({ eu: false }));
+    render(<BronnenSection />);
+
+    expect(await screen.findByText('EU_SOURCE_ENABLED = false')).toBeInTheDocument();
+    const euRow = screen
+      .getByText('Europees Parlement · plenaire documenten')
+      .closest('.pac-src-row') as HTMLElement;
+    expect(euRow).toHaveClass('status-uit');
   });
 
   it('builds the Media & omgeving group from the live feeds list', async () => {
@@ -135,8 +146,8 @@ describe('BronnenSection', () => {
     const feedRow = screen.getByText('Lokaal Nieuws').closest('.pac-src-row') as HTMLElement;
     expect(feedRow).toHaveClass('status-uit');
     expect(feedRow.querySelector('.pac-src-note')).toHaveTextContent(/^$/);
-    // epTeksten (off) plus the one media feed count as uitgeschakeld.
-    expect(container.querySelector('.pac-src-statnum.off')).toHaveTextContent('2');
+    // Only the one media feed counts as uitgeschakeld.
+    expect(container.querySelector('.pac-src-statnum.off')).toHaveTextContent('1');
   });
 
   it('uses the singular "feed" when only the planned Sociaal placeholder remains', async () => {

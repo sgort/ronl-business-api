@@ -727,7 +727,9 @@ describe('fetchSourcesStatus', () => {
   it('mock mode: reports every source as up', async () => {
     const api = await freshApi({ signalsMock: true });
     const status = await api.fetchSourcesStatus();
-    expect(status).toMatchObject({ tk: true, ob: true, eu: true, epTeksten: true, media: true });
+    expect(status).toMatchObject({ tk: true, ob: true, eu: true, media: true });
+    // The ep-teksten scrape is gone (#57); the mock must not report it.
+    expect(status).not.toHaveProperty('epTeksten');
     expect(status.feeds.length).toBeGreaterThan(0);
   });
 

@@ -117,7 +117,6 @@ jest.mock('@utils/config', () => ({
   config: {
     pa: {
       euSourceEnabled: true,
-      epTextsSubmittedEnabled: true,
       mediaSourceEnabled: false,
     },
   },
@@ -1201,7 +1200,6 @@ describe('PA routes — curator, searches CRUD & status', () => {
         tk: true,
         ob: true,
         eu: true,
-        epTeksten: true,
         media: false,
         feeds: FEEDS.map((f) => ({
           id: f.id,
