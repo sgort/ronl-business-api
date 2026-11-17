@@ -70,16 +70,45 @@ function useAsync<T>(
 /** The signed-in user's open engine tasks (the work surface). */
 export const useOpenTasks = () => useAsync<Task[]>(() => businessApi.task.list(), []);
 
-/** Live "is this phase's process deployed here?" data for the RIP catalogue. */
-export const useDeployedProcessKeys = () =>
-  useAsync<{ deployedKeys: string[] }>(() => businessApi.rip.deploymentStatus(), []);
+export type DeployedProcessKeys = { deployedKeys: string[] };
+export type LivePhaseCounts = { counts: Record<string, { wip: number; gereed: number }> };
 
-/** Live per-phase WIP/Gereed instance counts for the Faseladder overview. */
-export const useLivePhaseCounts = () =>
-  useAsync<{ counts: Record<string, { wip: number; gereed: number }> }>(
-    () => businessApi.rip.phasesCounts(),
-    []
-  );
+/** The fetch behind `useDeployedProcessKeys`, run once by
+ *  `RipActiveAcrossPhasesProvider` (#78). */
+export const useDeployedProcessKeysResource = () =>
+  useAsync<DeployedProcessKeys>(() => businessApi.rip.deploymentStatus(), []);
+
+/** The fetch behind `useLivePhaseCounts`, run once by
+ *  `RipActiveAcrossPhasesProvider` (#78). */
+export const useLivePhaseCountsResource = () =>
+  useAsync<LivePhaseCounts>(() => businessApi.rip.phasesCounts(), []);
+
+export const DeployedProcessKeysContext = createContext<AsyncState<DeployedProcessKeys> | null>(
+  null
+);
+export const LivePhaseCountsContext = createContext<AsyncState<LivePhaseCounts> | null>(null);
+
+/**
+ * Live "is this phase's process deployed here?" data for the RIP catalogue.
+ * The page root, FaseladderOverview and PhaseDetail all read it; each used to
+ * fetch its own copy (#78). Now shared by `RipActiveAcrossPhasesProvider`, and
+ * like `useRipActiveAcrossPhases` it throws outside that provider rather than
+ * quietly fetching again.
+ */
+export const useDeployedProcessKeys = (): AsyncState<DeployedProcessKeys> => {
+  const ctx = useContext(DeployedProcessKeysContext);
+  if (!ctx)
+    throw new Error('useDeployedProcessKeys must be used inside RipActiveAcrossPhasesProvider');
+  return ctx;
+};
+
+/** Live per-phase WIP/Gereed instance counts for the Faseladder overview.
+ *  Shared the same way as `useDeployedProcessKeys` (#78). */
+export const useLivePhaseCounts = (): AsyncState<LivePhaseCounts> => {
+  const ctx = useContext(LivePhaseCountsContext);
+  if (!ctx) throw new Error('useLivePhaseCounts must be used inside RipActiveAcrossPhasesProvider');
+  return ctx;
+};
 
 /** Running instances of one RIP phase. Pass null to skip the request —
  *  for a phase with no process model there is nothing to ask for. */
