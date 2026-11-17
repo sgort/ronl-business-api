@@ -1,43 +1,24 @@
 /**
- * Maps Keycloak test usernames to BSN numbers for BRP API demo
- * In production, BSN should come from DigiD via Keycloak user attributes
- */
-
-export const testUserBSNMapping: Record<string, string> = {
-  'test-citizen-utrecht': '999992235', // Wessel Kooyman
-  'test-caseworker-utrecht': '999992235', // Same person for demo
-  'test-citizen-amsterdam': '999992235', // For now, same test data
-  'test-citizen-heusden': '999992235', // For now, same test data
-  'test-citizen-bes': '999992235', // For now, same test data
-  'test-citizen-rotterdam': '999992235', // For now, same test data
-  'test-citizen-denhaag': '999992235', // For now, same test data
-  'test-citizen-flevoland': '999992235', // For now, same test data
-};
-
-/**
- * Get BSN for current user
- * First tries user.bsn attribute from JWT
- * Falls back to username mapping for test users
+ * The signed-in person's BSN, from the token's `bsn` claim only (#319).
+ *
+ * The claim is a user attribute on the test realms and the DigiD subject where
+ * DigiD is real. The backend checks a citizen's BRP lookup against that same
+ * claim, so the username-to-BSN table this file used to hold is gone: a BSN
+ * taken from anywhere else would only be refused.
  */
 export function getUserBSN(user: {
   sub: string;
   preferred_username?: string;
   bsn?: string;
 }): string | null {
-  // If BSN is in the JWT (production with DigiD), use it
   if (user.bsn) {
     return user.bsn;
   }
 
-  // For test users, map username to BSN
-  if (user.preferred_username && user.preferred_username in testUserBSNMapping) {
-    return testUserBSNMapping[user.preferred_username];
-  }
-
-  // No BSN available. Logs the username only, not the whole claims object:
-  // this branch cannot carry a BSN (it is the one where there isn't one), but
-  // `user` also holds `sub` and whatever else the token brought, and none of
-  // that is needed to explain the warning.
+  // Logs the username only, not the whole claims object: this branch cannot
+  // carry a BSN (it is the one where there isn't one), but `user` also holds
+  // `sub` and whatever else the token brought, and none of that is needed to
+  // explain the warning.
   console.warn('No BSN found for user', user.preferred_username ?? '(no username)');
   return null;
 }

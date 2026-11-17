@@ -5,6 +5,7 @@ import { auditLog } from '../middleware/audit.middleware';
 import { createLogger } from '../utils/logger';
 import { sendProblem } from '../utils/problem';
 import { BRP_API_BASE_URL, transportErrorCode } from '../services/brp-upstream';
+import { brpAccess } from '../auth/brp-access';
 
 const router = express.Router();
 const logger = createLogger('brp-routes');
@@ -13,23 +14,32 @@ const logger = createLogger('brp-routes');
  * POST /v1/brp/personen
  * Proxy to BRP API to avoid CORS issues in frontend
  *
- * WHAT IT DOES AND DOES NOT CHECK, as of #312 item 6. It requires a valid
- * token (jwtMiddleware) and nothing else: no requireAssuranceLevel, unlike
- * decision evaluation (basis) and process start (midden), and no check that
- * the BSN in the body is the caller's. It forwards whatever BSN it is given.
- *
- * A subject check is not possible yet, not merely missing: the token carries
- * no BSN. The frontend picks the BSN from a demo table (services/bsn.mapping.ts)
- * that maps test users to test BSNs, and the upstream is the BRP mock with test
- * data. Documentation that claimed LoA "hoog" and "own data only" was removed
- * because this code never enforced either.
- *
- * The intended policy is an open question for the business owners (#312):
- * before this proxies a real BRP, it needs an assurance level, and either a
- * BSN claim to compare against or an explicit role for caseworkers who look
- * up any applicant.
+ * WHO MAY LOOK UP WHOM (#319, see auth/brp-access.ts). A brp-raadpleger --
+ * every caseworker, through the caseworker composite -- may look up anyone at
+ * assurance level substantieel. Anyone else may look up only their own record:
+ * level hoog, a `bsn` claim on the token, and a query by BSN naming that BSN
+ * only. Refusals are 403 with problem details, decided before the upstream is
+ * called, and audited with the subject that was asked for.
  */
 router.post('/personen', jwtMiddleware, async (req: Request, res: Response) => {
+  if (!req.user) {
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
+  }
+  const requested = (req.body as { burgerservicenummer?: unknown } | undefined)
+    ?.burgerservicenummer;
+  const access = brpAccess(req.user, requested);
+  if (!access.allowed) {
+    auditLog(req, 'brp.personen.fetch', 'failure', {
+      reason: access.code,
+      bsn: Array.isArray(requested) ? requested[0] : undefined,
+    });
+    return sendProblem(res, req, { status: 403, code: access.code, detail: access.detail });
+  }
+
   try {
     // Never log req.body or an upstream body: both carry BSNs (#241). The audit
     // log below records the subject on purpose; the application log must not.
@@ -70,6 +80,7 @@ router.post('/personen', jwtMiddleware, async (req: Request, res: Response) => {
     // Log successful request
     auditLog(req, 'brp.personen.fetch', 'success', {
       bsn: req.body.burgerservicenummer?.[0],
+      via: access.via,
     });
 
     res.json({

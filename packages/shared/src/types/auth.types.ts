@@ -28,6 +28,10 @@ export interface AuthenticatedUser {
   // internal spaces ("van der Berg") stays intact in lastName.
   givenName?: string;
   familyName?: string;
+  // The `bsn` claim (#319): a user attribute on the test realms, the DigiD
+  // subject where DigiD is real. Only a citizen's own-record BRP lookup
+  // needs it; absent for staff.
+  bsn?: string;
 }
 
 export interface KeycloakUser {
