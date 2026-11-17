@@ -226,183 +226,105 @@ describe('POST /v1/validsign/callback', () => {
     expect(mockCompleteSignature).not.toHaveBeenCalled();
   });
 
-  it('rejects a wrong shared secret without leaking timing', async () => {
-    const res = await request(app)
-      .post('/v1/validsign/callback')
-      .set('x-validsign-secret', 'wrong')
-      .send({ packageId: 'pkg-1' });
-    expect(res.status).toBe(401);
-  });
-
-  // ValidSign's callback handler is registered with security type "Bearer
-  // token", which sends the callback key as `Authorization: Bearer <key>`.
-  // The original x-validsign-secret header stays accepted.
-  it('accepts the shared secret as an Authorization Bearer token', async () => {
-    mockCompleteSignature.mockResolvedValue('completed');
-    const res = await request(app)
-      .post('/v1/validsign/callback')
-      .set('Authorization', 'Bearer secret')
-      .send({ packageId: 'pkg-1', name: 'PACKAGE_COMPLETE' });
-    expect(res.status).toBe(200);
-    expect(mockCompleteSignature).toHaveBeenCalledWith('pkg-1');
-  });
-
-  it('treats the Bearer scheme name case-insensitively', async () => {
-    mockCompleteSignature.mockResolvedValue('completed');
-    const res = await request(app)
-      .post('/v1/validsign/callback')
-      .set('Authorization', 'bearer secret')
-      .send({ packageId: 'pkg-1' });
-    expect(res.status).toBe(200);
-  });
-
-  it('rejects a wrong Bearer token', async () => {
-    const res = await request(app)
-      .post('/v1/validsign/callback')
-      .set('Authorization', 'Bearer wrong')
-      .send({ packageId: 'pkg-1' });
-    expect(res.status).toBe(401);
-    expect(mockCompleteSignature).not.toHaveBeenCalled();
-  });
-
-  it('rejects the right secret under an Authorization scheme it does not accept', async () => {
-    const res = await request(app)
-      .post('/v1/validsign/callback')
-      .set('Authorization', 'Digest secret')
-      .send({ packageId: 'pkg-1' });
-    expect(res.status).toBe(401);
-    expect(mockCompleteSignature).not.toHaveBeenCalled();
-  });
-
-  // Observed on ACC, 2026-09-14: a callback handler registered with security
-  // type "Bearer token" still sends `Authorization: Basic ...`. What follows
-  // Basic is not yet known, so each form that still requires the key is
-  // accepted, and the accepted form is logged (never the value) to settle it.
-  describe('Authorization: Basic', () => {
+  // #150: ValidSign sends `Authorization: Basic <raw callback key>` -- every
+  // callback of the ACC signing on 2026-09-14 matched as basic-raw. That is the
+  // only form accepted; the forms accepted while the header was unknown
+  // (#131, #132) are refused, and a rejection logs what was presented.
+  describe('credential forms', () => {
     const b64 = (v: string) => Buffer.from(v, 'utf8').toString('base64');
-    const infoLog = () =>
+    const log = () =>
       (
-        jest.requireMock('@utils/logger') as { createLogger: () => { info: jest.Mock } }
-      ).createLogger().info;
+        jest.requireMock('@utils/logger') as {
+          createLogger: () => { info: jest.Mock; warn: jest.Mock };
+        }
+      ).createLogger();
 
     beforeEach(() => {
       mockCompleteSignature.mockResolvedValue('completed');
-      infoLog().mockClear();
+      log().info.mockClear();
+      log().warn.mockClear();
     });
 
-    it.each([
-      ['the raw key', 'Basic secret', 'basic-raw'],
-      ['the base64-encoded key', `Basic ${b64('secret')}`, 'basic-base64'],
-      [
-        'the key as the password of a base64 pair',
-        `Basic ${b64('validsign:secret')}`,
-        'basic-base64-pair',
-      ],
-      ['the key as the user of a base64 pair', `Basic ${b64('secret:')}`, 'basic-base64-pair'],
-    ])('accepts %s and logs the form that matched', async (_label, header, form) => {
+    it('accepts the raw key under Basic and logs it as basic-raw, never the value', async () => {
       const res = await request(app)
         .post('/v1/validsign/callback')
-        .set('Authorization', header)
+        .set('Authorization', 'Basic secret')
         .send({ packageId: 'pkg-1', name: 'PACKAGE_COMPLETE' });
 
       expect(res.status).toBe(200);
       expect(mockCompleteSignature).toHaveBeenCalledWith('pkg-1');
-      expect(infoLog()).toHaveBeenCalledWith('ValidSign callback received', {
+      expect(log().info).toHaveBeenCalledWith('ValidSign callback received', {
         packageId: 'pkg-1',
         event: 'PACKAGE_COMPLETE',
-        credential: form,
+        credential: 'basic-raw',
       });
-      expect(JSON.stringify(infoLog().mock.calls)).not.toContain('secret');
+      expect(JSON.stringify(log().info.mock.calls)).not.toContain('secret');
+    });
+
+    it('treats the Basic scheme name case-insensitively', async () => {
+      const res = await request(app)
+        .post('/v1/validsign/callback')
+        .set('Authorization', 'basic secret')
+        .send({ packageId: 'pkg-1' });
+      expect(res.status).toBe(200);
     });
 
     it.each([
-      ['a wrong raw key', 'Basic wrong'],
-      ['a wrong base64-encoded key', `Basic ${b64('wrong')}`],
-      ['a base64 pair without the key', `Basic ${b64('validsign:wrong')}`],
-      ['a base64 value that only contains the key', `Basic ${b64('xsecretx')}`],
-    ])('rejects %s', async (_label, header) => {
+      ['a wrong raw key', { Authorization: 'Basic wrong' }],
+      ['the base64-encoded key', { Authorization: `Basic ${b64('secret')}` }],
+      [
+        'the key as the password of a base64 pair',
+        { Authorization: `Basic ${b64('validsign:secret')}` },
+      ],
+      ['the key as the user of a base64 pair', { Authorization: `Basic ${b64('secret:')}` }],
+      ['the key as a Bearer token', { Authorization: 'Bearer secret' }],
+      ['the key in x-validsign-secret', { 'x-validsign-secret': 'secret' }],
+      ['the key under another scheme', { Authorization: 'Digest secret' }],
+      ['the key with no scheme', { Authorization: 'secret' }],
+    ])('rejects %s', async (_label, headers) => {
       const res = await request(app)
         .post('/v1/validsign/callback')
-        .set('Authorization', header)
+        .set(headers as Record<string, string>)
         .send({ packageId: 'pkg-1' });
 
       expect(res.status).toBe(401);
+      expectToMatchOperation(res, 'post', '/validsign/callback');
       expect(mockCompleteSignature).not.toHaveBeenCalled();
     });
-  });
 
-  it('logs the credential form of an accepted Bearer or x-validsign-secret callback', async () => {
-    mockCompleteSignature.mockResolvedValue('completed');
-    const info = (
-      jest.requireMock('@utils/logger') as { createLogger: () => { info: jest.Mock } }
-    ).createLogger().info;
-    info.mockClear();
+    it('logs which credential form a rejected callback presented, never its value', async () => {
+      await request(app)
+        .post('/v1/validsign/callback')
+        .set('Authorization', 'Bearer s3cr3t-value')
+        .set('x-validsign-secret', 'other-value')
+        .send({ packageId: 'pkg-1' });
 
-    await request(app)
-      .post('/v1/validsign/callback')
-      .set('Authorization', 'Bearer secret')
-      .send({ packageId: 'pkg-1' });
-    await request(app)
-      .post('/v1/validsign/callback')
-      .set('x-validsign-secret', 'secret')
-      .send({ packageId: 'pkg-2' });
-
-    expect(info).toHaveBeenCalledWith('ValidSign callback received', {
-      packageId: 'pkg-1',
-      event: undefined,
-      credential: 'bearer',
+      expect(log().warn).toHaveBeenCalledWith('ValidSign callback rejected: bad shared secret', {
+        presented: 'authorization:Bearer,x-validsign-secret',
+      });
+      const logged = JSON.stringify(log().warn.mock.calls);
+      expect(logged).not.toContain('s3cr3t-value');
+      expect(logged).not.toContain('other-value');
     });
-    expect(info).toHaveBeenCalledWith('ValidSign callback received', {
-      packageId: 'pkg-2',
-      event: undefined,
-      credential: 'x-validsign-secret',
+
+    it('does not log a scheme-less Authorization value, which could be the key itself', async () => {
+      await request(app)
+        .post('/v1/validsign/callback')
+        .set('Authorization', 'raw-key-without-scheme')
+        .send({ packageId: 'pkg-1' });
+
+      expect(log().warn).toHaveBeenCalledWith('ValidSign callback rejected: bad shared secret', {
+        presented: 'authorization:(no scheme)',
+      });
+      expect(JSON.stringify(log().warn.mock.calls)).not.toContain('raw-key-without-scheme');
     });
-  });
-
-  it('logs which credential form a rejected callback presented, never its value', async () => {
-    // The first real callback on ACC is what confirms the header ValidSign
-    // sends; a rejection must say what arrived without logging the secret.
-    const log = (
-      jest.requireMock('@utils/logger') as { createLogger: () => { warn: jest.Mock } }
-    ).createLogger();
-    log.warn.mockClear();
-
-    await request(app)
-      .post('/v1/validsign/callback')
-      .set('Authorization', 'Basic s3cr3t-value')
-      .set('x-validsign-secret', 'other-value')
-      .send({ packageId: 'pkg-1' });
-
-    expect(log.warn).toHaveBeenCalledWith('ValidSign callback rejected: bad shared secret', {
-      presented: 'authorization:Basic,x-validsign-secret',
-    });
-    const logged = JSON.stringify(log.warn.mock.calls);
-    expect(logged).not.toContain('s3cr3t-value');
-    expect(logged).not.toContain('other-value');
-  });
-
-  it('does not log a scheme-less Authorization value, which could be the key itself', async () => {
-    const log = (
-      jest.requireMock('@utils/logger') as { createLogger: () => { warn: jest.Mock } }
-    ).createLogger();
-    log.warn.mockClear();
-
-    await request(app)
-      .post('/v1/validsign/callback')
-      .set('Authorization', 'raw-key-without-scheme')
-      .send({ packageId: 'pkg-1' });
-
-    expect(log.warn).toHaveBeenCalledWith('ValidSign callback rejected: bad shared secret', {
-      presented: 'authorization:(no scheme)',
-    });
-    expect(JSON.stringify(log.warn.mock.calls)).not.toContain('raw-key-without-scheme');
   });
 
   it('accepts a valid callback and drives completion', async () => {
     mockCompleteSignature.mockResolvedValue('completed');
     const res = await request(app)
       .post('/v1/validsign/callback')
-      .set('x-validsign-secret', 'secret')
+      .set('Authorization', 'Basic secret')
       .send({ packageId: 'pkg-1', name: 'PACKAGE_COMPLETE' });
     expect(res.status).toBe(200);
     expect(mockCompleteSignature).toHaveBeenCalledWith('pkg-1');
@@ -414,7 +336,7 @@ describe('POST /v1/validsign/callback', () => {
     mockCompleteSignature.mockResolvedValue('noop');
     const res = await request(app)
       .post('/v1/validsign/callback')
-      .set('x-validsign-secret', 'secret')
+      .set('Authorization', 'Basic secret')
       .send({ packageId: 'never-heard-of-it' });
     expect(res.status).toBe(200);
   });
@@ -423,7 +345,7 @@ describe('POST /v1/validsign/callback', () => {
     mockCompleteSignature.mockRejectedValue(new Error('operaton unreachable'));
     const res = await request(app)
       .post('/v1/validsign/callback')
-      .set('x-validsign-secret', 'secret')
+      .set('Authorization', 'Basic secret')
       .send({ packageId: 'pkg-1' });
     expect(res.status).toBe(200);
   });
@@ -431,7 +353,7 @@ describe('POST /v1/validsign/callback', () => {
   it('malformed JSON body: 400, not 500, so ValidSign does not retry forever', async () => {
     const res = await request(app)
       .post('/v1/validsign/callback')
-      .set('x-validsign-secret', 'secret')
+      .set('Authorization', 'Basic secret')
       .set('Content-Type', 'application/json')
       .send('{"broken"');
     expect(res.status).toBe(400);
@@ -442,7 +364,7 @@ describe('POST /v1/validsign/callback', () => {
     const oversized = JSON.stringify({ packageId: 'x'.repeat(20_000) });
     const res = await request(app)
       .post('/v1/validsign/callback')
-      .set('x-validsign-secret', 'secret')
+      .set('Authorization', 'Basic secret')
       .set('Content-Type', 'application/json')
       .send(oversized);
     expect(res.status).toBe(400);
@@ -460,7 +382,7 @@ describe('POST /v1/validsign/callback', () => {
       // dodge a secret-keyed limiter (the bug this test guards against).
       const res = await request(app)
         .post('/v1/validsign/callback')
-        .set('x-validsign-secret', `secret-${i}`)
+        .set('Authorization', `Basic secret-${i}`)
         .send({ packageId: 'pkg-1' });
       statuses.push(res.status);
     }
@@ -478,7 +400,7 @@ describe('POST /v1/validsign/callback', () => {
   it('a trailing slash still gets the parser exemption: malformed body is 400, not 500', async () => {
     const res = await request(app)
       .post('/v1/validsign/callback/')
-      .set('x-validsign-secret', 'secret')
+      .set('Authorization', 'Basic secret')
       .set('Content-Type', 'application/json')
       .send('{"broken"');
     expect(res.status).toBe(400);
@@ -487,7 +409,7 @@ describe('POST /v1/validsign/callback', () => {
   it('a different-case path still gets the parser exemption: malformed body is 400, not 500', async () => {
     const res = await request(app)
       .post('/V1/ValidSign/Callback')
-      .set('x-validsign-secret', 'secret')
+      .set('Authorization', 'Basic secret')
       .set('Content-Type', 'application/json')
       .send('{"broken"');
     expect(res.status).toBe(400);
@@ -664,6 +586,30 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
     expect(res.status).toBe(422);
     expect(res.body.code).toBe('MISSING_SIGNER_EMAIL');
     expect(mockValidsign.createPackage).not.toHaveBeenCalled();
+  });
+
+  // #340: ValidSign files a signer whose address is the sender's under the
+  // sender role and creates no signer role, so the package could never be
+  // signed and was left behind in ValidSign. Refused before anything is made.
+  it('409s when the signer is the configured sender, before creating anything', async () => {
+    const res = await request(app)
+      .post('/v1/validsign/task/task-1/package')
+      .set(authHeader)
+      .set('x-test-email', 'Sender@Flevoland.nl');
+    expect(res.status).toBe(409);
+    expectToMatchOperation(res, 'post', '/validsign/task/{taskId}/package');
+    expect(res.body.code).toBe('SIGNER_IS_SENDER');
+    expect(mockValidsign.createPackage).not.toHaveBeenCalled();
+    expect(mockGetTask).not.toHaveBeenCalled();
+  });
+
+  it('lets a signer through when no sender is configured (the signer then sends)', async () => {
+    mockConfig.validsign.senderEmail = '';
+    const res = await request(app)
+      .post('/v1/validsign/task/task-1/package')
+      .set(authHeader)
+      .set('x-test-email', 'sender@flevoland.nl');
+    expect(res.body.code).not.toBe('SIGNER_IS_SENDER');
   });
 
   it('creates and sends the package, returning packageId + signingUrl', async () => {
@@ -1521,7 +1467,7 @@ describe('POST /v1/validsign/callback, body edge cases', () => {
 
     const res = await request(app)
       .post('/v1/validsign/callback')
-      .set('x-validsign-secret', 'secret')
+      .set('Authorization', 'Basic secret')
       .send({ name: 'PACKAGE_COMPLETE' });
 
     expect(res.status).toBe(200);
@@ -1536,7 +1482,7 @@ describe('POST /v1/validsign/callback, body edge cases', () => {
     // that is not ValidSign learns nothing about the limit from it.
     const res = await request(app)
       .post('/v1/validsign/callback')
-      .set('x-validsign-secret', 'secret')
+      .set('Authorization', 'Basic secret')
       .set('content-type', 'application/json')
       .send(JSON.stringify({ packageId: 'pkg-1', pad: 'x'.repeat(20 * 1024) }));
 

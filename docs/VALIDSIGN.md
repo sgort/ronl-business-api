@@ -193,23 +193,20 @@ ValidSign posts one callback per package event. For the ACC test signing on
 `SIGNER_COMPLETE`. The task completed 1.2 s after `PACKAGE_COMPLETE`.
 
 **Authentication.** The callback key must equal `VALIDSIGN_CALLBACK_SECRET`,
-compared in constant time. Accepted forms, and the `credential` value logged
-with _"ValidSign callback received"_:
-
-| Header                                  | `credential`                                             |
-| --------------------------------------- | -------------------------------------------------------- |
-| `Authorization: Basic <key>`            | `basic-raw` — **what ValidSign sends** (observed on ACC) |
-| `Authorization: Basic base64(<key>)`    | `basic-base64`                                           |
-| `Authorization: Basic base64(name:key)` | `basic-base64-pair`                                      |
-| `Authorization: Bearer <key>`           | `bearer`                                                 |
-| `x-validsign-secret: <key>`             | `x-validsign-secret`                                     |
+compared in constant time. It is accepted in one form only:
+`Authorization: Basic <key>`, the raw key, logged as `credential: basic-raw`
+with _"ValidSign callback received"_. Every other form is refused with 401,
+including a base64-encoded key, a base64 `name:key` pair, `Authorization:
+Bearer <key>` and the `x-validsign-secret` header.
 
 ValidSign's handler is registered with security type _"Bearer token"_, yet it
 sends `Basic` with the raw key. #131 added Bearer; the first logged live
-callbacks were all rejected as `authorization:Basic`; #132 accepted every Basic
-form that still requires the key and logged which one matched. Only
-`basic-raw` has been seen, so the other Basic forms can be removed (see the
-to-do list).
+callbacks were all rejected as `authorization:Basic`; #132 accepted every form
+that still required the key and logged which one matched. Every callback of the
+ACC signing on 14 September 2026 matched as `basic-raw`, so #150 removed the
+other forms. Should ValidSign change what it sends, the rejection is logged
+with the presented form (header names and scheme, never the value), and the
+poller still completes the signature.
 
 **Behaviour.**
 

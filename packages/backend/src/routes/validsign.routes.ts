@@ -151,8 +151,7 @@ function secretMatches(provided: unknown): boolean {
 }
 
 /** Which accepted form carried the callback key; logged, never the value. */
-type CallbackCredential =
-  'bearer' | 'basic-raw' | 'basic-base64' | 'basic-base64-pair' | 'x-validsign-secret';
+type CallbackCredential = 'basic-raw';
 
 /** `<scheme> <value>` from an Authorization header; the scheme lower-cased (RFC 9110). */
 function authorizationParts(header: unknown): { scheme: string; value: string } | undefined {
@@ -162,38 +161,17 @@ function authorizationParts(header: unknown): { scheme: string; value: string } 
 }
 
 /**
- * The key under `Authorization: Basic`. Observed on ACC on 2026-09-14: a
- * callback handler registered with security type "Bearer token" still sends
- * Basic. What follows it is not yet confirmed, so every form that still
- * requires the key is accepted -- the raw key, the base64-encoded key, or a
- * base64 `name:key` pair with the key on either side -- and the callback log
- * records which one matched. Narrow this to that form once it is known.
+ * The one form ValidSign sends (#150): `Authorization: Basic <raw callback
+ * key>`, settled by the ACC signing of 2026-09-14, where all six callbacks
+ * matched as basic-raw. The forms accepted while the header was unknown
+ * (Bearer, base64 key, base64 name:key pair, x-validsign-secret; #131, #132)
+ * are refused. Should ValidSign ever change what it sends, a rejected callback
+ * logs the presented form (describePresented) and the poller still completes
+ * the signature, so nothing is lost while this is adjusted.
  */
-function basicCredential(value: string): CallbackCredential | undefined {
-  if (secretMatches(value)) return 'basic-raw';
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return undefined;
-  const decoded = Buffer.from(value, 'base64').toString('utf8');
-  if (secretMatches(decoded)) return 'basic-base64';
-  const colon = decoded.indexOf(':');
-  if (
-    colon >= 0 &&
-    (secretMatches(decoded.slice(colon + 1)) || secretMatches(decoded.slice(0, colon)))
-  ) {
-    return 'basic-base64-pair';
-  }
-  return undefined;
-}
-
-/** The form that carried a matching key, or undefined when none did. */
 function matchedCredential(req: express.Request): CallbackCredential | undefined {
   const auth = authorizationParts(req.headers.authorization);
-  if (auth?.scheme === 'bearer' && secretMatches(auth.value)) return 'bearer';
-  if (auth?.scheme === 'basic') {
-    const form = basicCredential(auth.value);
-    if (form) return form;
-  }
-  if (secretMatches(req.headers['x-validsign-secret'])) return 'x-validsign-secret';
-  return undefined;
+  return auth?.scheme === 'basic' && secretMatches(auth.value) ? 'basic-raw' : undefined;
 }
 
 /**
@@ -244,8 +222,7 @@ callbackRouter.post(
   callbackLimiter,
   express.json({ limit: CALLBACK_BODY_LIMIT }),
   async (req, res) => {
-    // Authorization Bearer or Basic (see basicCredential), or the
-    // x-validsign-secret header this route has always read.
+    // Authorization: Basic <raw key> only (see matchedCredential).
     const credential = matchedCredential(req);
     if (!credential) {
       logger.warn('ValidSign callback rejected: bad shared secret', {
@@ -796,6 +773,21 @@ router.post('/task/:taskId/package', async (req, res) => {
       code: 'MISSING_SIGNER_EMAIL',
       detail:
         'The signed-in user has no email claim on their token; cannot create a signature package',
+    });
+  }
+  // #340: ValidSign files a signer whose address equals the sender's under the
+  // package's sender role and creates no signer role, so createPackage's
+  // readback fails AFTER the package exists in ValidSign -- a bare 500 and an
+  // orphan package. Refused here, before anything is created; the sender is
+  // the ValidSign account and configured per environment, so the signer has
+  // to be someone else.
+  const senderEmail = config.validsign.senderEmail;
+  if (senderEmail && senderEmail.toLowerCase() === user.email.toLowerCase()) {
+    return sendProblem(res, req, {
+      status: 409,
+      code: 'SIGNER_IS_SENDER',
+      detail:
+        'The signer is the configured ValidSign sender; ValidSign cannot request a signature from its own sender',
     });
   }
 
