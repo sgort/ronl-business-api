@@ -109,6 +109,7 @@ function extractUser(payload: JWTPayload): AuthenticatedUser {
     preferredUsername: payload.preferred_username,
     employeeId: payload.employeeId,
     email: payload.email,
+    bsn: payload.bsn,
     givenName,
     familyName,
   };

@@ -31,6 +31,9 @@ export interface JWTPayload {
   family_name?: string;
   preferred_username?: string;
   employeeId?: string;
+  // #319: a user attribute on the test realms, the DigiD subject where DigiD
+  // is real. Absent for staff.
+  bsn?: string;
 }
 
 export interface AuthContext extends AuthenticatedUser {

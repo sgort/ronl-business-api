@@ -198,6 +198,13 @@ jobs:
         if: always()
         run: node scripts/keycloak-restrict-rba-client.test.mjs
 
+      - name: Test the BRP role and bsn script
+        # keycloak-add-brp-raadpleger.sh must refuse a TEST_BSN outside the
+        # reserved 99999xxxx range: it puts that value on test accounts (#319).
+        # Stops before any network call, like above.
+        if: always()
+        run: node scripts/keycloak-add-brp-raadpleger.test.mjs
+
       - name: Test the promotion targets
         # promotion-targets.sh decides which production deploys a promotion
         # runs; a wrong pattern means a deploy that silently does not happen

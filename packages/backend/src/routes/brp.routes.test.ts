@@ -19,7 +19,17 @@ jest.mock('@auth/jwt.middleware', () => {
         instance: req.originalUrl,
         code: 'MISSING_TOKEN',
       });
-    req.user = { userId: 'u', tenantId: 'flevoland' } as Request['user'];
+    // Default: a brp-raadpleger at substantieel (#319), who may look up anyone,
+    // so the upstream-behaviour tests below need no BSN of their own. The
+    // access tests set a citizen through these headers instead.
+    const header = (name: string) => req.headers[name] as string | undefined;
+    req.user = {
+      userId: 'u',
+      tenantId: 'flevoland',
+      roles: (header('x-test-roles') ?? 'caseworker,brp-raadpleger').split(','),
+      assuranceLevel: header('x-test-loa') ?? 'substantieel',
+      bsn: header('x-test-bsn'),
+    } as Request['user'];
     req.auth = { userId: 'u', tenantId: 'flevoland', requestId: 'r' } as Request['auth'];
     next();
   };
@@ -80,6 +90,7 @@ describe('POST /v1/brp/personen', () => {
     expect(res.body).toEqual({ success: true, data: { personen: [{ bsn: '1' }] } });
     expect(mockAuditLog).toHaveBeenCalledWith(expect.anything(), 'brp.personen.fetch', 'success', {
       bsn: '999990019',
+      via: 'brp-raadpleger',
     });
   });
 
@@ -161,6 +172,84 @@ describe('POST /v1/brp/personen', () => {
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/brp/personen');
     expect(res.body.detail).toBe('BRP API request failed');
+  });
+});
+
+// #319: who may look up whom. The rule itself is unit-tested in
+// auth/brp-access.test.ts; these check that the route applies it before the
+// upstream is called, answers with problem details and audits the refusal.
+describe('POST /v1/brp/personen access (#319)', () => {
+  const asCitizen = (r: request.Test, loa = 'hoog', bsn: string | null = '999990019') => {
+    const t = auth(r).set('x-test-roles', 'citizen').set('x-test-loa', loa);
+    return bsn === null ? t : t.set('x-test-bsn', bsn);
+  };
+
+  it('lets a citizen at hoog look up their own record', async () => {
+    mockPost.mockResolvedValue({ status: 200, data: { personen: [] } });
+    const res = await asCitizen(request(app).post('/v1/brp/personen')).send({
+      type: 'RaadpleegMetBurgerservicenummer',
+      burgerservicenummer: ['999990019'],
+    });
+    expect(res.status).toBe(200);
+    expect(mockPost).toHaveBeenCalled();
+    expect(mockAuditLog).toHaveBeenCalledWith(expect.anything(), 'brp.personen.fetch', 'success', {
+      bsn: '999990019',
+      via: 'own-record',
+    });
+  });
+
+  it.each([
+    ['someone else’s BSN', 'hoog', '999990019', ['999992235'], 'BRP_SUBJECT_MISMATCH'],
+    [
+      'a list mixing the own BSN with another',
+      'hoog',
+      '999990019',
+      ['999990019', '999992235'],
+      'BRP_SUBJECT_MISMATCH',
+    ],
+    ['a citizen below hoog', 'substantieel', '999990019', ['999990019'], 'INSUFFICIENT_ASSURANCE'],
+    ['a login without a bsn claim', 'hoog', null, ['999990019'], 'BSN_CLAIM_MISSING'],
+  ])('403 for %s, before the upstream is called', async (_label, loa, bsn, requested, code) => {
+    const res = await asCitizen(request(app).post('/v1/brp/personen'), loa, bsn).send({
+      type: 'RaadpleegMetBurgerservicenummer',
+      burgerservicenummer: requested,
+    });
+    expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'post', '/brp/personen');
+    expect(res.body.code).toBe(code);
+    expect(mockPost).not.toHaveBeenCalled();
+    // The refusal is audited with the subject asked for (the audit log keeps
+    // the BSN on purpose; the application log never does).
+    expect(mockAuditLog).toHaveBeenCalledWith(expect.anything(), 'brp.personen.fetch', 'failure', {
+      reason: code,
+      bsn: requested[0],
+    });
+  });
+
+  it('403 for a brp-raadpleger below substantieel', async () => {
+    const res = await auth(request(app).post('/v1/brp/personen'))
+      .set('x-test-loa', 'midden')
+      .send({ burgerservicenummer: ['999992235'] });
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('INSUFFICIENT_ASSURANCE');
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it('lets a brp-raadpleger at substantieel look up anyone', async () => {
+    mockPost.mockResolvedValue({ status: 200, data: { personen: [] } });
+    const res = await auth(request(app).post('/v1/brp/personen')).send({
+      burgerservicenummer: ['999992235'],
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('401 for an authenticated request with no user, before any check', async () => {
+    const res = await request(app)
+      .post('/v1/brp/personen')
+      .set('x-test-no-user', '1')
+      .send({ burgerservicenummer: ['999990019'] });
+    expect(res.status).toBe(401);
+    expect(mockPost).not.toHaveBeenCalled();
   });
 });
 

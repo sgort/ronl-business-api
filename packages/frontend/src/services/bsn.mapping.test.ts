@@ -1,41 +1,27 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getUserBSN, testUserBSNMapping } from './bsn.mapping';
+import { getUserBSN } from './bsn.mapping';
 
+// #319: the BSN comes from the token's `bsn` claim only. The backend checks a
+// citizen's BRP lookup against that same claim, so a BSN from anywhere else
+// (the old username table) would only be refused.
 describe('getUserBSN', () => {
-  it('prefers the BSN from the JWT when present', () => {
-    const result = getUserBSN({
-      sub: '1',
-      bsn: '123456789',
-      preferred_username: 'test-citizen-utrecht',
-    });
-    expect(result).toBe('123456789');
+  it('returns the BSN from the token', () => {
+    expect(
+      getUserBSN({ sub: '1', bsn: '999990019', preferred_username: 'test-citizen-utrecht' })
+    ).toBe('999990019');
   });
 
-  it('falls back to the test-user mapping when no BSN is on the JWT', () => {
-    const result = getUserBSN({ sub: '1', preferred_username: 'test-citizen-amsterdam' });
-    expect(result).toBe(testUserBSNMapping['test-citizen-amsterdam']);
-  });
-
-  it('maps the Caribisch Nederland test citizen to the shared test BSN', () => {
-    expect(getUserBSN({ sub: '1', preferred_username: 'test-citizen-bes' })).toBe('999992235');
-  });
-
-  it('returns null and warns when the username is not in the mapping', () => {
+  it('returns null for a test user whose token carries no BSN, without a username table', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const result = getUserBSN({ sub: '1', preferred_username: 'unknown-user' });
-
-    expect(result).toBeNull();
-    expect(warnSpy).toHaveBeenCalledWith('No BSN found for user', expect.anything());
+    expect(getUserBSN({ sub: '1', preferred_username: 'test-citizen-amsterdam' })).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith('No BSN found for user', 'test-citizen-amsterdam');
     warnSpy.mockRestore();
   });
 
   it('returns null when there is neither a BSN nor a username', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const result = getUserBSN({ sub: '1' });
-
-    expect(result).toBeNull();
+    expect(getUserBSN({ sub: '1' })).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith('No BSN found for user', '(no username)');
     warnSpy.mockRestore();
   });
 });

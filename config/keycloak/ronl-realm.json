@@ -68,6 +68,20 @@
           }
         },
         {
+          "name": "bsn",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "bsn",
+            "claim.name": "bsn",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
           "name": "organisation_type",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-usermodel-attribute-mapper",
@@ -313,7 +327,15 @@
       },
       {
         "name": "caseworker",
-        "description": "Municipality caseworker processing applications"
+        "description": "Municipality caseworker processing applications",
+        "composite": true,
+        "composites": {
+          "realm": ["brp-raadpleger"]
+        }
+      },
+      {
+        "name": "brp-raadpleger",
+        "description": "May look up any person in the BRP (#319); held by every caseworker through the caseworker composite"
       },
       {
         "name": "admin",
@@ -560,7 +582,8 @@
         "municipality": ["utrecht"],
         "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
-        "opaque_id": ["opaque-citizen-001"]
+        "opaque_id": ["opaque-citizen-001"],
+        "bsn": ["999992235"]
       },
       "realmRoles": ["citizen"]
     },
@@ -604,7 +627,8 @@
         "municipality": ["amsterdam"],
         "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
-        "opaque_id": ["opaque-citizen-002"]
+        "opaque_id": ["opaque-citizen-002"],
+        "bsn": ["999992235"]
       },
       "realmRoles": ["citizen"]
     },
@@ -648,7 +672,8 @@
         "municipality": ["heusden"],
         "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
-        "opaque_id": ["opaque-citizen-009"]
+        "opaque_id": ["opaque-citizen-009"],
+        "bsn": ["999992235"]
       },
       "realmRoles": ["citizen"]
     },
@@ -692,7 +717,8 @@
         "municipality": ["bes"],
         "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
-        "opaque_id": ["opaque-citizen-010"]
+        "opaque_id": ["opaque-citizen-010"],
+        "bsn": ["999992235"]
       },
       "realmRoles": ["citizen"]
     },
@@ -736,7 +762,8 @@
         "municipality": ["rotterdam"],
         "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
-        "opaque_id": ["opaque-citizen-003"]
+        "opaque_id": ["opaque-citizen-003"],
+        "bsn": ["999992235"]
       },
       "realmRoles": ["citizen"]
     },
@@ -780,7 +807,8 @@
         "municipality": ["denhaag"],
         "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
-        "opaque_id": ["opaque-citizen-004"]
+        "opaque_id": ["opaque-citizen-004"],
+        "bsn": ["999992235"]
       },
       "realmRoles": ["citizen"]
     },
@@ -868,7 +896,8 @@
         "municipality": ["flevoland"],
         "organisation_type": ["province"],
         "assurance_level": ["hoog"],
-        "opaque_id": ["opaque-citizen-005"]
+        "opaque_id": ["opaque-citizen-005"],
+        "bsn": ["999992235"]
       },
       "realmRoles": ["citizen"]
     },
