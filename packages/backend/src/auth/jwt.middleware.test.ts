@@ -136,6 +136,27 @@ describe('jwtMiddleware', () => {
     expect({ ...req.auth }).not.toHaveProperty('token');
   });
 
+  // #319: the BRP own-record check compares the query against this claim.
+  it('carries the bsn claim onto the user, and leaves it absent when the token has none', async () => {
+    mockVerify.mockImplementation((_t, _k, _o, cb) =>
+      cb(null, { ...basePayload, bsn: '999990019' })
+    );
+    const withBsn = {
+      headers: { authorization: 'Bearer good.token' },
+      path: '/x',
+    } as unknown as Request;
+    await jwtMiddleware(withBsn, makeRes(), jest.fn() as NextFunction);
+    expect(withBsn.user?.bsn).toBe('999990019');
+
+    mockVerify.mockImplementation((_t, _k, _o, cb) => cb(null, basePayload));
+    const without = {
+      headers: { authorization: 'Bearer good.token' },
+      path: '/x',
+    } as unknown as Request;
+    await jwtMiddleware(without, makeRes(), jest.fn() as NextFunction);
+    expect(without.user?.bsn).toBeUndefined();
+  });
+
   it('defaults roles to [] when realm_access is absent', async () => {
     mockVerify.mockImplementation((_t, _k, _o, cb) =>
       cb(null, { ...basePayload, realm_access: undefined })

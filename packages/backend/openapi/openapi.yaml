@@ -1290,8 +1290,11 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           description: |
-            Refused for one of two reasons, told apart by `code`:
+            Refused for one of three reasons, told apart by `code`:
 
+            - `PROCESS_NOT_OFFERED`: the caller is a citizen and the process
+              is not in the citizen services registry, under whatever tenant
+              (#350).
             - `TENANT_MISMATCH`: the process is deployed under another
               organisation than the caller may start for (see
               TenantMismatch).
@@ -4404,7 +4407,7 @@ paths:
                   success: { type: boolean, const: true }
                   data:
                     type: object
-                    description: 'Keyed by source: `tk`, `ob`, `eu`, `epTeksten`, `media`, `feeds`.'
+                    description: 'Keyed by source: `tk`, `ob`, `eu`, `media`, `feeds`.'
                     additionalProperties: true
           headers:
             API-Version:
@@ -5981,6 +5984,14 @@ paths:
 
         `jwtMiddleware` is applied on the route rather than the router, so this
         is authenticated — there is no `router.use` on this mount.
+
+        **Who may look up whom (#319).** A caller with the realm role
+        `brp-raadpleger` (every caseworker holds it through the `caseworker`
+        composite) may look up anyone, at assurance level `substantieel` or
+        higher. Anyone else may look up only their own record: assurance level
+        `hoog`, a `bsn` claim on the token, and a `burgerservicenummer` list
+        naming that BSN and nothing else. Every lookup, allowed or refused, is
+        audited with its subject.
       requestBody:
         required: true
         description: The upstream's request shape, forwarded as sent.
@@ -6033,6 +6044,23 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: |
+            Refused before the upstream is called (#319), told apart by `code`:
+
+            - `INSUFFICIENT_ASSURANCE`: below `substantieel` with the
+              `brp-raadpleger` role, or below `hoog` without it.
+            - `BSN_CLAIM_MISSING`: no `brp-raadpleger` role, and the token
+              carries no `bsn` claim to compare the query against.
+            - `BRP_SUBJECT_MISMATCH`: no `brp-raadpleger` role, and the query
+              is not a lookup of the caller's own BSN only (another BSN, a mixed
+              list, or a query that is not by BSN).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
         '500':
           description: The handler failed on something other than the upstream (`BRP_API_ERROR`).
           content:

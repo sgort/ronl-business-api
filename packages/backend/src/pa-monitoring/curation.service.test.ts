@@ -6,7 +6,7 @@
 
 jest.mock('@utils/config', () => ({
   config: {
-    pa: { euSourceEnabled: true, epTextsSubmittedEnabled: true, mediaSourceEnabled: true },
+    pa: { euSourceEnabled: true, mediaSourceEnabled: true },
   },
 }));
 
@@ -45,13 +45,6 @@ const mockRulesOverrides = { scoreItem: mockScoreItem };
 jest.mock('./rules', () => ({
   ...jest.requireActual('./rules'),
   ...mockRulesOverrides,
-}));
-
-const mockFetchAllNewSubmittedTexts = jest.fn();
-const mockEpTextsOverrides = { fetchAllNewSubmittedTexts: mockFetchAllNewSubmittedTexts };
-jest.mock('./sources/ep-texts-submitted.client', () => ({
-  ...jest.requireActual('./sources/ep-texts-submitted.client'),
-  ...mockEpTextsOverrides,
 }));
 
 const mockFetchFlevolandNews = jest.fn();
@@ -104,7 +97,6 @@ beforeEach(() => {
   mockFetchTkFeed.mockResolvedValue({ items: [], total: 0 });
   mockFetchObFeed.mockResolvedValue({ items: [], total: 0 });
   mockFetchEuFeed.mockResolvedValue({ items: [], total: 0 });
-  mockFetchAllNewSubmittedTexts.mockResolvedValue([]);
   mockFetchFlevolandNews.mockResolvedValue([]);
   mockDb.none.mockResolvedValue(undefined);
   // getSeenEpTekstenRefs calls db.any; default to empty seen-set
@@ -118,7 +110,6 @@ describe('the module mocks', () => {
     ['./sources/tk.client', mockTkOverrides],
     ['./sources/ob.client', mockObOverrides],
     ['./sources/eu.client', mockEuOverrides],
-    ['./sources/ep-texts-submitted.client', mockEpTextsOverrides],
     ['./sources/media.client', mockMediaOverrides],
     ['./rules', mockRulesOverrides],
   ])('%s mock only names real exports', (path, overrides) => {
@@ -447,61 +438,6 @@ describe('runCurationCycle — feed error resilience', () => {
   });
 });
 
-describe('runCurationCycle — EP Ingediende teksten routing', () => {
-  it('fetches ep-teksten when there are EU searches and flag is enabled', async () => {
-    mockDb.any.mockResolvedValue([savedSearch({ q: 'REPORT OR MOTION', sources: ['eu'] })]);
-    await runCurationCycle();
-    expect(mockFetchAllNewSubmittedTexts).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not fetch ep-teksten when there are no EU searches', async () => {
-    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['tk'] })]);
-    await runCurationCycle();
-    expect(mockFetchAllNewSubmittedTexts).not.toHaveBeenCalled();
-  });
-
-  it('does not fetch ep-teksten when the flag is disabled', async () => {
-    const { config } = jest.requireMock('@utils/config');
-    config.pa.epTextsSubmittedEnabled = false;
-    mockDb.any.mockResolvedValue([savedSearch({ q: 'REPORT OR MOTION', sources: ['eu'] })]);
-    await runCurationCycle();
-    expect(mockFetchAllNewSubmittedTexts).not.toHaveBeenCalled();
-    config.pa.epTextsSubmittedEnabled = true; // restore
-  });
-
-  it('ep-teksten items flow through scoring and are persisted', async () => {
-    const epItem = feedItem({
-      id: 'A-10-2026-0151',
-      source: 'eu',
-      subbron: 'ep-teksten',
-      commissie: 'ITRE',
-    });
-    mockFetchAllNewSubmittedTexts.mockResolvedValue([epItem]);
-    mockDb.any.mockResolvedValue([savedSearch({ q: 'REPORT OR MOTION', sources: ['eu'] })]);
-    await runCurationCycle();
-    expect(mockScoreItem).toHaveBeenCalledWith(epItem, expect.any(Array));
-    expect(mockDb.none).toHaveBeenCalledTimes(1);
-  });
-
-  it('ep-teksten fetch failure does not abort the cycle', async () => {
-    mockFetchAllNewSubmittedTexts.mockRejectedValue(new Error('EP listing unreachable'));
-    mockDb.any.mockResolvedValue([savedSearch({ q: 'REPORT OR MOTION', sources: ['eu'] })]);
-    await expect(runCurationCycle()).resolves.toBeUndefined();
-  });
-
-  it('ep-teksten items are deduplicated against eu-rss items with the same id', async () => {
-    const sharedId = 'A-10-2026-0151';
-    const rssItem = feedItem({ id: sharedId, source: 'eu', subbron: 'ep-rss' });
-    const tekstenItem = feedItem({ id: sharedId, source: 'eu', subbron: 'ep-teksten' });
-    mockFetchEuFeed.mockResolvedValue({ items: [rssItem], total: 1 });
-    mockFetchAllNewSubmittedTexts.mockResolvedValue([tekstenItem]);
-    mockDb.any.mockResolvedValue([savedSearch({ q: 'REPORT OR MOTION', sources: ['eu'] })]);
-    await runCurationCycle();
-    // Same source+id — only the first one (from RSS) should be persisted
-    expect(mockDb.none).toHaveBeenCalledTimes(1);
-  });
-});
-
 describe('runCurationCycle — media source routing', () => {
   it('fetches media when there are media searches and flag is enabled', async () => {
     mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['media'] })]);
@@ -604,18 +540,16 @@ describe('runCurationCycle — source label variants', () => {
   const persistedInsert = () =>
     mockDb.none.mock.calls.find((c) => String(c[0]).includes('INSERT INTO pa_signals'));
 
-  it('tags an EP submitted-texts item with its sub-source', async () => {
+  it('labels an EU item by its type alone, with no sub-source (#57)', async () => {
     mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['eu'] })]);
     mockFetchEuFeed.mockResolvedValue({
       items: [
-        feedItem({ id: 'eu-1', source: 'eu', subbron: 'ep-teksten', type: 'Verslag', date: null }),
+        feedItem({ id: 'eu-1', source: 'eu', subbron: 'ep-rss', type: 'Verslag', date: null }),
       ],
       total: 1,
     });
     await runCurationCycle();
-    expect(persistedInsert()![1][4]).toBe(
-      'Europees Parlement · Verslag · Ingediende teksten · onbekend'
-    );
+    expect(persistedInsert()![1][4]).toBe('Europees Parlement · Verslag · onbekend');
   });
 
   it('distinguishes regional from national news items', async () => {
@@ -675,35 +609,8 @@ describe('runCurationCycle — failures that are not Error instances', () => {
     mockFetchTkFeed.mockRejectedValue('socket hang up');
     mockFetchObFeed.mockRejectedValue('socket hang up');
     mockFetchEuFeed.mockRejectedValue('socket hang up');
-    mockFetchAllNewSubmittedTexts.mockRejectedValue('socket hang up');
     mockFetchFlevolandNews.mockRejectedValue('socket hang up');
     await expect(runCurationCycle()).resolves.toBeUndefined();
-  });
-});
-
-describe('runCurationCycle — press-release labelling', () => {
-  const persistedInsert = () =>
-    mockDb.none.mock.calls.find((c) => String(c[0]).includes('INSERT INTO pa_signals'));
-
-  it('does not name the sub-source when it would repeat the document type', async () => {
-    // The ep-persbericht arm is gone with the press-release feed (#55). What the
-    // suppression rule still guards is ep-teksten: an 'Ingediende teksten' item
-    // whose type already says the same thing must not render it twice.
-    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['eu'] })]);
-    mockFetchEuFeed.mockResolvedValue({
-      items: [
-        feedItem({
-          id: 'A-10-2026-0700',
-          source: 'eu',
-          subbron: 'ep-teksten',
-          type: 'Ingediende teksten',
-          date: null,
-        }),
-      ],
-      total: 1,
-    });
-    await runCurationCycle();
-    expect(persistedInsert()![1][4]).toBe('Europees Parlement · Ingediende teksten · onbekend');
   });
 });
 
@@ -715,7 +622,7 @@ describe('runCurationCycle — EP motion collapse', () => {
     feedItem({
       id,
       source: 'eu',
-      subbron: 'ep-teksten',
+      subbron: 'ep-rss',
       type: 'Ontwerpresolutie',
       title,
       date: null,

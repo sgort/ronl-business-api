@@ -6,18 +6,22 @@ import InfraCommandPalette from './InfraCommandPalette';
 import { getMockPortfolio } from '../../pages/infra-board/infra-board.data';
 
 const mockUseRipActiveAcrossPhases = vi.hoisted(() => vi.fn());
+const mockUseRipCompletedAcrossPhases = vi.hoisted(() => vi.fn());
 vi.mock('../../services/infra.api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../services/infra.api')>();
-  return { ...actual, useRipActiveAcrossPhases: mockUseRipActiveAcrossPhases };
+  return {
+    ...actual,
+    useRipActiveAcrossPhases: mockUseRipActiveAcrossPhases,
+    // The real hook throws outside RipActiveAcrossPhasesProvider.
+    useRipCompletedAcrossPhases: mockUseRipCompletedAcrossPhases,
+  };
 });
 
+const idle = (data: unknown = null) => ({ data, loading: false, error: false, reload: vi.fn() });
+
 beforeEach(() => {
-  mockUseRipActiveAcrossPhases.mockReturnValue({
-    data: null,
-    loading: false,
-    error: false,
-    reload: vi.fn(),
-  });
+  mockUseRipActiveAcrossPhases.mockReturnValue(idle());
+  mockUseRipCompletedAcrossPhases.mockReturnValue(idle());
 });
 
 afterEach(() => {
@@ -83,6 +87,43 @@ describe('InfraCommandPalette', () => {
     const liveItem = screen.getByText('99999 · Live project').closest('li')!;
     expect(container.contains(liveItem)).toBe(true);
     expect(liveItem).toHaveTextContent('live');
+  });
+
+  it('finds a live project waiting between phases and opens it on its instance (#382)', async () => {
+    mockUseRipCompletedAcrossPhases.mockReturnValue(
+      idle([
+        {
+          id: 'done-1',
+          businessKey: 'bk-1',
+          startTime: '2026-03-01T00:00:00Z',
+          endTime: '2026-06-01T00:00:00Z',
+          projectNumber: '88888',
+          projectName: 'Wachtend project',
+          leadRole: 'projectleider',
+          phaseCode: 'R2.1',
+        },
+      ])
+    );
+    const onSelectProject = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <InfraCommandPalette
+        open
+        onClose={vi.fn()}
+        onSelectView={vi.fn()}
+        onSelectProject={onSelectProject}
+      />
+    );
+
+    await user.type(
+      screen.getByPlaceholderText('Spring naar weergave of project (nr, naam)…'),
+      'wachtend'
+    );
+    const item = screen.getByText('88888 · Wachtend project').closest('li')!;
+    expect(item).toHaveTextContent('live');
+    await user.click(item);
+
+    expect(onSelectProject).toHaveBeenCalledWith({ nr: '88888', instanceId: 'done-1' });
   });
 
   it('labels a nameless R2.1 instance by its state instead of blanks', () => {

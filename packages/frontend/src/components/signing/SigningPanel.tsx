@@ -87,6 +87,13 @@ export default function SigningPanel({ taskId, spec, onCompleted, onDeclined }: 
           setError(
             'Uw account heeft geen e-mailadres geregistreerd. Dit moet eerst door een beheerder worden aangevuld — opnieuw proberen lost dit niet op.'
           );
+        } else if (code === 'SIGNER_IS_SENDER') {
+          // #340: the signer is the ValidSign account that sends the request,
+          // and ValidSign cannot ask its own sender to sign. Not fixable by
+          // retrying: a colleague has to sign.
+          setError(
+            'U bent de afzender van ValidSign-verzoeken en kunt daarom niet zelf ondertekenen. Laat een collega deze taak ondertekenen — opnieuw proberen lost dit niet op.'
+          );
         } else if (code === 'INVALID_DELIVERY') {
           setError(res.error?.message ?? 'Het verzoek was ongeldig.');
         } else {
@@ -239,18 +246,21 @@ export default function SigningPanel({ taskId, spec, onCompleted, onDeclined }: 
     );
   }
 
-  // error — MISSING_SIGNER_EMAIL and a persistently failing status poll both
-  // get no retry button: retrying can fix neither a token with no email
-  // claim (only an administrator can) nor an unreachable status endpoint
+  // error — MISSING_SIGNER_EMAIL, SIGNER_IS_SENDER and a persistently failing
+  // status poll get no retry button: retrying can fix neither a token with no
+  // email claim (only an administrator can), nor a signer who is the ValidSign
+  // sender (only a colleague can sign), nor an unreachable status endpoint
   // (only a fresh page load, which resumes polling, can).
   return (
     <div className="v2-taken-msg v2-taken-msg-error">
       <p>{error ?? 'Er ging iets mis bij het ondertekenverzoek.'}</p>
-      {errorCode !== 'MISSING_SIGNER_EMAIL' && errorCode !== POLL_FAILED_ERROR_CODE && (
-        <button type="button" className="v2-btn" onClick={() => setState('idle')}>
-          Opnieuw proberen
-        </button>
-      )}
+      {errorCode !== 'MISSING_SIGNER_EMAIL' &&
+        errorCode !== 'SIGNER_IS_SENDER' &&
+        errorCode !== POLL_FAILED_ERROR_CODE && (
+          <button type="button" className="v2-btn" onClick={() => setState('idle')}>
+            Opnieuw proberen
+          </button>
+        )}
     </div>
   );
 }

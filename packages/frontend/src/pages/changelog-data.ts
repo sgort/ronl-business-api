@@ -112,6 +112,119 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.11.5',
+      status: 'Released',
+      date: '17 nov 2026',
+      scope: ['frontend', 'backend', 'public-site', 'pa-demo', 'ci'],
+      commits: [
+        {
+          sha: 'b53cda5',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject:
+            'Every accepted Semgrep finding has its reason in git, and the certificate probe’s TLS false positive is suppressed inline',
+          details: [
+            'SECURITY-PIPELINE.md gains a register of accepted Semgrep Supply Chain findings: one row per package and advisory with the finding IDs, decision, reason and revisit condition, because the platform’s API does not return triage comments (iou-architectuur#132). The 30 September acceptances (react-router ×2, postcss-selector-parser) have their reasons re-derived from the code; minimatch 10 and 9 and playwright-core are new. playwright-core’s Brotli finding is a false positive: the npm package carries no Brotli code and runs on Node 22.23.4, the release that fixes CVE-2026-111497.',
+            'The daily certificate probe’s rejectUnauthorized: false gets an inline reason and a nosemgrep: it has to complete the handshake to describe a bad certificate, and judges by socket.authorized.',
+          ],
+        },
+        {
+          sha: 'f05d408',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'hono 4.13.16, @hono/node-server 2.1.6 and fast-xml-parser 5.12.0',
+          details: [
+            'Clears eight Dependabot alerts on runtime dependencies: hono’s mount, router, csrf, form-validator and css-helper advisories and @hono/node-server’s backslash path bypass and ECONNRESET crash (both reached through the MCP SDK and altcha-lib), and fast-xml-parser’s quadratic scan of unterminated tags. Resolved before 3 November, so every new version is past the 14-day cooldown.',
+          ],
+        },
+        {
+          sha: 'c9620c5',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Infra-board task surface and signing frame use defined colours, Ctrl+K finds projects waiting between phases, and the Faseladder data is fetched once',
+          details: [
+            '--v2-rule-1, --v2-bg-2 and --v2-primary were never defined, so the signing frame and the Infra-board task borders took the text colour and the task panel lost its background. They now use --v2-rule, --v2-bg and --v2-accent, and css-tokens.test.ts fails on any fallback-less var(--v2-*) that no stylesheet declares (#301).',
+            'The Infra-board’s Ctrl+K search builds its live projects from liveProjectRows, so projects waiting between phases are found and opened as the portfolio shows them (#382). useDeployedProcessKeys and useLivePhaseCounts read from RipActiveAcrossPhasesProvider instead of fetching per caller: two requests where there were six. The counts reload with the instances; the deployment status when the tab becomes visible (#78).',
+          ],
+        },
+        {
+          sha: '721bfc8',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject:
+            'The EP "Ingediende teksten" scrape and its flag are removed, and cheerio with it',
+          details: [
+            'Its host refuses ACC, and its reports and motions already arrive through the EP Open Data API. Removed: the client, its fixture and tests, EP_TEXTS_SUBMITTED_ENABLED, the fetch and its stored-refs query in the curation cycle, epTeksten in /pa/sources/status and in the cockpit’s sources overview, and cheerio, which only the scrape used. New EU signals no longer carry a committee on any tier; signals already stored with subbron ep-teksten keep their label (#57).',
+          ],
+        },
+        {
+          sha: '8448cf2',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject:
+            'supertest 7, no @types/uuid stub or second prettier pin, and the public-site prerender runs only as entry point',
+          details: [
+            'supertest 6 → 7.3.1 and @types/supertest → 7.2.1, resolved past the 14-day cooldown (#364). @types/uuid is a stub, since uuid 14 ships its types (#365). The backend no longer pins prettier itself; the hoisted root copy runs its format scripts, so the lockfile holds one prettier and Renovate cannot split the update (#287).',
+            'public-site’s prerender.ts runs main() only as the entry point, using check-bundle.mjs’s isMainModule, so importing it in tests no longer starts a production prerender that could overwrite a local dist/; a test fails if the guard is removed (#290).',
+          ],
+        },
+        {
+          sha: 'c615236',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'keycloak-add-entra-idp.sh runs on bash 3.2, a theme-only promotion runs the frontend suite, and the local image count is six',
+          details: [
+            'keycloak-add-entra-idp.sh lowercased the Entra GUIDs with ${VAR,,}, a substitution error on macOS’s bash 3.2; it now uses tr like keycloak-add-lde-clients.sh. promotion-targets.sh mirrors the frontend ACC filter’s keycloak-themes/ entry, so the theme’s guard tests run on main as they do on acc, with a test case. SECURITY-PIPELINE.md counts the six pinned images in docker-compose.yml (#457).',
+          ],
+        },
+        {
+          sha: '8d4d39b',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'BRP lookups by role or own record only, with a bsn claim and brp-raadpleger for caseworkers',
+          details: [
+            'A citizen may look up only their own record: assurance level hoog, a bsn claim on the token, and a query naming that BSN only. brp-raadpleger, a composite member of caseworker, may look up anyone at substantieel, the level Entra ID logins carry. Refusals are 403 problem details (INSUFFICIENT_ASSURANCE, BSN_CLAIM_MISSING, BRP_SUBJECT_MISMATCH), decided before the upstream is called and audited with the subject. The frontend takes the BSN from the token only; the username table is gone (#319).',
+            'scripts/keycloak-add-brp-raadpleger.sh adds the role, composite, bsn mapper and test BSNs to a live realm and reads them back; it has run on ACC and PROD. OpenAPI also documents PROCESS_NOT_OFFERED (#350) on the process start operation, and VALIDSIGN-PROD-TODO ticks the callback item after the ACC verification of #150.',
+          ],
+        },
+        {
+          sha: 'f6e8759',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Citizens start only registry processes, a signer who is the ValidSign sender is refused, and the callback accepts only the raw Basic key',
+          details: [
+            'resolveStartTenant refuses a citizen’s start of any process outside the citizen services registry, also under their own tenant, as 403 PROCESS_NOT_OFFERED; staff starts are unchanged (#350). The package route refuses 409 SIGNER_IS_SENDER when the signer’s e-mail equals the configured sender, before anything is created in ValidSign; the signing panel explains it and offers no retry (#340).',
+            'The ValidSign callback accepts only "Authorization: Basic <raw key>", the form ValidSign sends; the base64 forms, Bearer and x-validsign-secret are refused. Verified on ACC: one signing logged six basic-raw callbacks and no rejections (#150).',
+          ],
+        },
+        {
+          sha: '1334734',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'The ronl-business-api client accepts only its own redirect URIs, and the frontend sends PKCE',
+          details: [
+            'The client accepted every redirect URI and web origin, and the frontend sent no PKCE, so an authorization code sent to an attacker’s redirect URI could be exchanged for the user’s session. The frontend now sends PKCE (S256); the realm export allows only the local frontend, narrows web origins and post-logout to "+", and requires S256 (#188).',
+            'scripts/keycloak-restrict-rba-client.sh applies the same to a live realm and probes the result; RBA_PREVIEW_PREFIX adds the ACC-only preview wildcard (risk accepted on ACC) and is refused on production. Both realms were narrowed and PKCE is enforced on both. Already on main through #462, promoted without a release.',
+          ],
+        },
+        {
+          sha: '10f12ec',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A repeated stub ceremony sign shows the first result instead of a failure',
+          details: [
+            'A second click on "Onderteken" while the first was still archiving to eDOCS hit VALIDSIGN_ILLEGAL_TRANSITION (COMPLETED → COMPLETED) and replaced the page with "Ondertekenen mislukt" for a signature that was recorded. A repeat of the same outcome now waits for the first request and shows its result; a different outcome is still refused. Already on main through #462, promoted without a release.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.11.4',
       status: 'Released',
       date: '14 nov 2026',

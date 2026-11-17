@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import type { AuthenticatedUser } from '@ronl/shared';
-import { isCrossTenantProcess } from './citizen-services';
+import { isCitizenServiceProcess, isCrossTenantProcess } from './citizen-services';
 import { createLogger } from '@utils/logger';
 import { sendProblem } from '@utils/problem';
 
@@ -96,7 +96,8 @@ export function reservedVariablesIn(variables: Record<string, unknown>): string[
 }
 
 export type StartTenant =
-  { allowed: true; municipality: string; originTenantId: string } | { allowed: false };
+  | { allowed: true; municipality: string; originTenantId: string }
+  | { allowed: false; reason: 'TENANT_MISMATCH' | 'PROCESS_NOT_OFFERED' };
 
 /**
  * What a user start stamps (#218, #344). Under the caller's own tenant: the
@@ -106,22 +107,31 @@ export type StartTenant =
  * (an untenanted deployment, or a lookup that failed) a citizen is refused --
  * tenant is mandatory -- while staff keep stamping their own tenant, because
  * HR onboarding still runs untenanted.
+ *
+ * Before any of that (#350): a citizen may start only a process the citizen
+ * services registry offers, under whatever tenant. The registry is the full
+ * list of what a citizen may start; a staff process deployed under the
+ * citizen's own tenant is refused as PROCESS_NOT_OFFERED, not as a tenant
+ * mismatch, because the tenant is not what is wrong.
  */
 export function resolveStartTenant(
   user: Pick<AuthenticatedUser, 'tenantId' | 'roles'>,
   deployedTenant: string | null,
   processKey: string
 ): StartTenant {
+  if (isCitizen(user) && !isCitizenServiceProcess(processKey)) {
+    return { allowed: false, reason: 'PROCESS_NOT_OFFERED' };
+  }
   if (deployedTenant === user.tenantId) {
     return { allowed: true, municipality: user.tenantId, originTenantId: user.tenantId };
   }
   if (deployedTenant === null) {
     return isCitizen(user)
-      ? { allowed: false }
+      ? { allowed: false, reason: 'TENANT_MISMATCH' }
       : { allowed: true, municipality: user.tenantId, originTenantId: user.tenantId };
   }
   if (isCitizen(user) && isCrossTenantProcess(processKey)) {
     return { allowed: true, municipality: deployedTenant, originTenantId: user.tenantId };
   }
-  return { allowed: false };
+  return { allowed: false, reason: 'TENANT_MISMATCH' };
 }

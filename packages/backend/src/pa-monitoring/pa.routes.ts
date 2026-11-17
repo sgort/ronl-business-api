@@ -1132,7 +1132,6 @@ router.get('/sources/status', (_req, res) => {
       tk: true,
       ob: true,
       eu: config.pa.euSourceEnabled,
-      epTeksten: config.pa.epTextsSubmittedEnabled,
       media: config.pa.mediaSourceEnabled,
       feeds: MEDIA_FEEDS.map((f) => ({
         id: f.id,

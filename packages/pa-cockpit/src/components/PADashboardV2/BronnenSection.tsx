@@ -166,16 +166,6 @@ const BRON_GROEPEN: BronGroep[] = [
         cadence: 'cron · 6u',
         note: 'Plenaire documenten (Engelstalig) met NL-termexpansie.',
       },
-      {
-        name: 'Europees Parlement · Ingediende teksten',
-        provider: 'europarl.europa.eu/plenary',
-        protocol: 'HTML-scrape · Cheerio',
-        bron: 'eu · ep-teksten',
-        file: 'ep-texts-submitted.client.ts',
-        flagKey: 'epTeksten',
-        cadence: 'poll · 6u',
-        note: 'Verslagen + moties (beide tabs), met commissiecode. Wint van RSS in de dedup.',
-      },
     ],
   },
 ];
@@ -205,7 +195,6 @@ function resolveFlag(def: BronDef, flags: SourcesStatus): { label: string; on: b
     tk: '',
     ob: '',
     eu: 'EU_SOURCE_ENABLED',
-    epTeksten: 'EP_TEXTS_SUBMITTED_ENABLED',
     media: 'MEDIA_SOURCE_ENABLED',
   };
   return { label: envName[def.flagKey], on };

@@ -191,6 +191,18 @@ describe('SigningPanel', () => {
     expect(screen.queryByRole('button', { name: /Opnieuw proberen/ })).toBeNull();
   });
 
+  // #340: the signer is the ValidSign sender account; only someone else can sign.
+  it('explains a signer who is the ValidSign sender, and offers no retry', async () => {
+    mockCreatePackage.mockResolvedValue({
+      success: false,
+      error: { code: 'SIGNER_IS_SENDER', message: 'The signer is the configured ValidSign sender' },
+    });
+    render(<SigningPanel taskId="t1" spec={spec} onCompleted={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: /Onderteken nu/ }));
+    await waitFor(() => expect(screen.getByText(/afzender/i)).toBeTruthy());
+    expect(screen.queryByRole('button', { name: /Opnieuw proberen/ })).toBeNull();
+  });
+
   it('names the invalid request on a 400, and still offers retry', async () => {
     mockCreatePackage.mockResolvedValue({
       success: false,

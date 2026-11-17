@@ -38,11 +38,16 @@ set -euo pipefail
 # Anchored on purpose. `package.json` here means the ROOT manifest; a
 # workspace's own package.json matches through its `packages/<name>/` prefix.
 #
+# keycloak-themes/ is in the frontend pattern although the frontend deploy does
+# not ship the theme: the theme's guard tests (keycloak-theme.test.ts,
+# css-hex.test.ts) run in the frontend suite, so a theme-only promotion must
+# run that suite on main as it did on acc (#457).
+#
 # Renames: the caller is expected to feed BOTH names of a renamed file, which
 # is what GitHub's own path filters do.
 TARGETS=(
   'backend:^(packages/backend/|packages/shared/|\.github/workflows/azure-backend-prod\.yml$|package-lock\.json$|package\.json$|\.nvmrc$)'
-  'frontend:^(packages/frontend/|packages/shared/|packages/pa-cockpit/|\.github/workflows/azure-frontend-prod\.yml$|package-lock\.json$|package\.json$|\.nvmrc$)'
+  'frontend:^(packages/frontend/|packages/shared/|packages/pa-cockpit/|keycloak-themes/|\.github/workflows/azure-frontend-prod\.yml$|package-lock\.json$|package\.json$|\.nvmrc$)'
   'pa_demo:^(packages/pa-demo/|packages/shared/|packages/pa-cockpit/|\.github/workflows/azure-pa-demo-prod\.yml$|package-lock\.json$|package\.json$|\.nvmrc$)'
   'public_site:^(packages/public-site/|\.github/workflows/azure-publicsite-prod\.yml$|package-lock\.json$|package\.json$|\.nvmrc$)'
 )

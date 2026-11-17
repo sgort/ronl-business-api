@@ -468,3 +468,29 @@ function sourceFiles(dir: string): string[] {
     return /\.(css|tsx?)$/.test(name) ? [path] : [];
   });
 }
+
+// The surfaces' own --v2-* variables are declared per host (dashboard-v2.css,
+// v2-chrome.css and the board layers), not in the token file, so the
+// --rba-* check above does not see them. A var(--v2-*) with no fallback and no
+// declaration anywhere is the same silent failure: the border falls back to
+// currentColor, the background to transparent (#301). A use with a fallback
+// is a deliberate optional override and is left alone.
+describe('v2 surface variables', () => {
+  const sheets = [...CSS_ROOTS.flatMap(cssFiles), V2_CHROME_CSS];
+  const declared = new Set(
+    sheets.flatMap((file) =>
+      [...stripComments(readFileSync(file, 'utf8')).matchAll(/(--v2-[\w-]+)\s*:/g)].map((m) => m[1])
+    )
+  );
+
+  it('every var(--v2-*) without a fallback is declared in some stylesheet', () => {
+    const uses = sheets.flatMap((file) =>
+      [...stripComments(readFileSync(file, 'utf8')).matchAll(/var\(\s*(--v2-[\w-]+)\s*\)/g)].map(
+        (m) => ({ file: relative(REPO_ROOT, file).split('\\').join('/'), token: m[1] })
+      )
+    );
+    // Finding none means the extractor or the roots are broken.
+    expect(uses.length).toBeGreaterThan(50);
+    expect(uses.filter((u) => !declared.has(u.token))).toEqual([]);
+  });
+});
