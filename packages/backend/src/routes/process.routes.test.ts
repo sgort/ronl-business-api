@@ -180,6 +180,19 @@ describe('POST /:key/start', () => {
     expect(svc.startProcess).not.toHaveBeenCalled();
   });
 
+  // #350: a citizen may start only what the registry offers, also under their
+  // own tenant. Besluitvorming is a staff process deployed under flevoland.
+  it('403 PROCESS_NOT_OFFERED when a citizen starts a staff process of their own tenant', async () => {
+    svc.resolveDeployedTenant.mockResolvedValue('flevoland');
+    const res = await auth(request(app).post('/v1/process/GedelegeerdBesluitProcess/start'))
+      .set('x-test-roles', 'citizen')
+      .send({ variables: {} });
+    expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'post', '/process/{key}/start');
+    expect(res.body.code).toBe('PROCESS_NOT_OFFERED');
+    expect(svc.startProcess).not.toHaveBeenCalled();
+  });
+
   it('401 without a token', async () => {
     expect((await request(app).post('/v1/process/P/start').send({})).status).toBe(401);
   });
@@ -227,7 +240,8 @@ describe('POST /:key/start', () => {
 
   it('strips edocsAuthor from a citizen start', async () => {
     svc.startProcess.mockResolvedValue({ id: 'pi-c' });
-    await auth(request(app).post('/v1/process/P/start'))
+    // A citizen service (#350): a citizen may start nothing else.
+    await auth(request(app).post('/v1/process/AwbShellProcess/start'))
       .set('x-test-roles', 'citizen')
       .set('x-test-email', 'c@example.nl')
       .send({ variables: { edocsAuthor: 'a@flevoland.nl' } });

@@ -45,10 +45,11 @@ Work top to bottom: each phase assumes the previous one is done.
 
 ## Phase 1 — Tidy the callback before it ships
 
-- [ ] **Narrow the callback check to the form ValidSign sends.** Only
-      `credential: basic-raw` has been observed. Remove `basic-base64` and
-      `basic-base64-pair`; decide whether `bearer` and `x-validsign-secret`
-      stay. Small PR on `acc`, deployed and re-tested on ACC with one signing.
+- [ ] **Narrow the callback check to the form ValidSign sends.** Code done
+      (#150): only `Authorization: Basic <key>` is accepted; the base64
+      forms, `bearer` and `x-validsign-secret` are removed. Still to do:
+      deploy to ACC and sign once, expecting six _"ValidSign callback
+      received"_ lines with `credential: "basic-raw"` and no rejections.
 - [ ] **Rotate ACC's callback key** (agreed test value) — see
       [VALIDSIGN.md §8](VALIDSIGN.md#rotate-the-callback-key).
 - [ ] Optional: the Dutch package name, if decided in phase 0.

@@ -99,27 +99,32 @@ describe('resolveStartTenant', () => {
   it('another tenant, citizen, own-tenant service: refused', () => {
     expect(resolveStartTenant(citizen('amsterdam'), 'flevoland', 'AwbShellProcess')).toEqual({
       allowed: false,
+      reason: 'TENANT_MISMATCH',
     });
   });
 
   it('another tenant, citizen, a process the registry does not know: refused', () => {
     expect(resolveStartTenant(citizen('amsterdam'), 'flevoland', 'HrOnboardingProcess')).toEqual({
       allowed: false,
+      reason: 'PROCESS_NOT_OFFERED',
     });
   });
 
   it('another tenant, staff: refused, even for a cross-tenant service', () => {
     expect(resolveStartTenant(staff('utrecht'), 'flevoland', 'AwbShellProcess')).toEqual({
       allowed: false,
+      reason: 'TENANT_MISMATCH',
     });
     expect(resolveStartTenant(staff('utrecht'), 'toeslagen', 'AwbZorgtoeslagProcess')).toEqual({
       allowed: false,
+      reason: 'TENANT_MISMATCH',
     });
   });
 
   it('no deployed tenant (untenanted, or the lookup failed): refused for a citizen', () => {
     expect(resolveStartTenant(citizen('unive'), null, 'AwbZorgtoeslagProcess')).toEqual({
       allowed: false,
+      reason: 'TENANT_MISMATCH',
     });
   });
 
@@ -131,10 +136,33 @@ describe('resolveStartTenant', () => {
     });
   });
 
+  // #350: the registry is the full list of what a citizen may start, also
+  // under their own tenant. A staff process deployed there (HR onboarding,
+  // Besluitvorming) is refused, while staff starts are unchanged.
+  it('own tenant, citizen, a process the registry does not know: refused as not offered', () => {
+    expect(
+      resolveStartTenant(citizen('flevoland'), 'flevoland', 'GedelegeerdBesluitProcess')
+    ).toEqual({ allowed: false, reason: 'PROCESS_NOT_OFFERED' });
+    expect(resolveStartTenant(citizen('flevoland'), null, 'HrOnboardingProcess')).toEqual({
+      allowed: false,
+      reason: 'PROCESS_NOT_OFFERED',
+    });
+  });
+
+  it('own tenant, staff, a process the registry does not know: allowed as before', () => {
+    expect(
+      resolveStartTenant(staff('flevoland'), 'flevoland', 'GedelegeerdBesluitProcess')
+    ).toEqual({
+      allowed: true,
+      municipality: 'flevoland',
+      originTenantId: 'flevoland',
+    });
+  });
+
   it('another tenant, no roles claim: treated as staff and refused', () => {
     expect(
       resolveStartTenant({ tenantId: 'utrecht' } as never, 'flevoland', 'AwbShellProcess')
-    ).toEqual({ allowed: false });
+    ).toEqual({ allowed: false, reason: 'TENANT_MISMATCH' });
   });
 });
 

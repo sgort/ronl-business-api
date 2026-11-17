@@ -115,9 +115,17 @@ router.post(
       const startTenant = resolveStartTenant(req.user, deployedTenant, key);
       if (!startTenant.allowed) {
         auditLog(req, `process.start.${key}`, 'failure', {
-          reason: 'TENANT_MISMATCH',
+          reason: startTenant.reason,
           deployedTenant,
         });
+        if (startTenant.reason === 'PROCESS_NOT_OFFERED') {
+          // #350: not a citizen service; the registry is the full list.
+          return sendProblem(res, req, {
+            status: 403,
+            code: 'PROCESS_NOT_OFFERED',
+            detail: 'Dit proces is niet beschikbaar voor burgers.',
+          });
+        }
         return denyTenant(req, res, { processKey: key, deployedTenant });
       }
 

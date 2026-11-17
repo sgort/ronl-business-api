@@ -32,6 +32,11 @@ export function citizenServicesAvailable(
   }).map((service) => service.id);
 }
 
+/** Whether the registry offers this process to citizens at all (#350). */
+export function isCitizenServiceProcess(processKey: string): boolean {
+  return CITIZEN_SERVICE_PROCESS_KEYS.includes(processKey);
+}
+
 /** Whether a citizen may start this process under another tenant than their own. */
 export function isCrossTenantProcess(processKey: string): boolean {
   return CITIZEN_SERVICES.some((s) => s.processKey === processKey && s.scope === 'cross-tenant');
