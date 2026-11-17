@@ -7,7 +7,9 @@ import {
   groupTasksByHorizon,
   useActivityHistory,
   useDeployedProcessKeys,
+  useDeployedProcessKeysResource,
   useLivePhaseCounts,
+  useLivePhaseCountsResource,
   useOpenTasks,
   usePhaseSwimlane,
   useRipActiveAcrossPhases,
@@ -23,8 +25,9 @@ const mockBusinessApi = vi.hoisted(() => ({
     phaseCompleted: vi.fn(),
     phaseModel: vi.fn(),
     instanceDocuments: vi.fn(),
-    deploymentStatus: vi.fn(),
-    phasesCounts: vi.fn(),
+    // Defaults, because RipActiveAcrossPhasesProvider fetches both (#78).
+    deploymentStatus: vi.fn().mockResolvedValue({ success: true, data: { deployedKeys: [] } }),
+    phasesCounts: vi.fn().mockResolvedValue({ success: true, data: { counts: {} } }),
     phasesActive: vi.fn(),
     phasesCompleted: vi.fn().mockResolvedValue({ success: true, data: [] }),
   },
@@ -167,7 +170,7 @@ describe('useOpenTasks', () => {
   });
 });
 
-describe('useDeployedProcessKeys', () => {
+describe('useDeployedProcessKeysResource', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -178,7 +181,7 @@ describe('useDeployedProcessKeys', () => {
       data: { deployedKeys: ['RipR21Process'] },
     });
 
-    const { result } = renderHook(() => useDeployedProcessKeys());
+    const { result } = renderHook(() => useDeployedProcessKeysResource());
 
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -190,7 +193,7 @@ describe('useDeployedProcessKeys', () => {
   it('sets error state when the call rejects', async () => {
     mockBusinessApi.rip.deploymentStatus.mockRejectedValue(new Error('network down'));
 
-    const { result } = renderHook(() => useDeployedProcessKeys());
+    const { result } = renderHook(() => useDeployedProcessKeysResource());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -198,7 +201,7 @@ describe('useDeployedProcessKeys', () => {
   });
 });
 
-describe('useLivePhaseCounts', () => {
+describe('useLivePhaseCountsResource', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -209,7 +212,7 @@ describe('useLivePhaseCounts', () => {
       data: { counts: { RipR21Process: { wip: 3, gereed: 7 } } },
     });
 
-    const { result } = renderHook(() => useLivePhaseCounts());
+    const { result } = renderHook(() => useLivePhaseCountsResource());
 
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -222,11 +225,59 @@ describe('useLivePhaseCounts', () => {
   it('sets error state when the call rejects', async () => {
     mockBusinessApi.rip.phasesCounts.mockRejectedValue(new Error('network down'));
 
-    const { result } = renderHook(() => useLivePhaseCounts());
+    const { result } = renderHook(() => useLivePhaseCountsResource());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.error).toBe(true);
+  });
+});
+
+describe('useDeployedProcessKeys and useLivePhaseCounts under the provider (#78)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('throws when either is read outside RipActiveAcrossPhasesProvider', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => renderHook(() => useDeployedProcessKeys())).toThrow(
+      'useDeployedProcessKeys must be used inside RipActiveAcrossPhasesProvider'
+    );
+    expect(() => renderHook(() => useLivePhaseCounts())).toThrow(
+      'useLivePhaseCounts must be used inside RipActiveAcrossPhasesProvider'
+    );
+    consoleError.mockRestore();
+  });
+
+  it('three consumers under one provider share one request each', async () => {
+    mockBusinessApi.rip.deploymentStatus.mockClear();
+    mockBusinessApi.rip.phasesCounts.mockClear();
+    // The page root, FaseladderOverview and PhaseDetail each read both hooks.
+    const { result } = renderHook(
+      () => [0, 1, 2].map(() => ({ d: useDeployedProcessKeys(), c: useLivePhaseCounts() })),
+      { wrapper: RipActiveAcrossPhasesProvider }
+    );
+    await waitFor(() =>
+      expect(result.current.every((r) => !r.d.loading && !r.c.loading)).toBe(true)
+    );
+
+    expect(mockBusinessApi.rip.deploymentStatus).toHaveBeenCalledTimes(1);
+    expect(mockBusinessApi.rip.phasesCounts).toHaveBeenCalledTimes(1);
+  });
+
+  it("the board's reload refreshes the counts with the instances, not the deployment status", async () => {
+    mockBusinessApi.rip.deploymentStatus.mockClear();
+    mockBusinessApi.rip.phasesCounts.mockClear();
+    mockBusinessApi.rip.phasesActive.mockResolvedValue({ success: true, data: [] });
+    const { result } = renderHook(() => useRipActiveAcrossPhases(), {
+      wrapper: RipActiveAcrossPhasesProvider,
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    result.current.reload();
+
+    await waitFor(() => expect(mockBusinessApi.rip.phasesCounts).toHaveBeenCalledTimes(2));
+    expect(mockBusinessApi.rip.deploymentStatus).toHaveBeenCalledTimes(1);
   });
 });
 

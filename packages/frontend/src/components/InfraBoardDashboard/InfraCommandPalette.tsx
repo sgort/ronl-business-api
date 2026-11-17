@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  getMockPortfolio,
-  liveProjectName,
-  liveProjectNumber,
-} from '../../pages/infra-board/infra-board.data';
-import { useRipActiveAcrossPhases } from '../../services/infra.api';
+import { getMockPortfolio, liveProjectRows } from '../../pages/infra-board/infra-board.data';
+import { useRipActiveAcrossPhases, useRipCompletedAcrossPhases } from '../../services/infra.api';
 import type { InfraModeId } from '../../pages/infra-board/modes.config';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 
@@ -29,6 +25,9 @@ export default function InfraCommandPalette({
   const [hi, setHi] = useState(0);
   const ref = useRef<HTMLInputElement>(null);
   const { data: live } = useRipActiveAcrossPhases();
+  // Finished instances too, so projects waiting between phases are found (#382).
+  // Both come from RipActiveAcrossPhasesProvider: no request of its own.
+  const { data: completed } = useRipCompletedAcrossPhases();
 
   const items: Hit[] = useMemo(() => {
     const views: Hit[] = [
@@ -36,15 +35,14 @@ export default function InfraCommandPalette({
       { kind: 'view', id: 'portfolio', label: 'Portfolio', tag: 'weergave' },
       { kind: 'view', id: 'beheer', label: 'Beheer · Faseladder', tag: 'weergave' },
     ];
-    const liveRows: Hit[] = (live ?? []).map((i) => {
-      const nr = liveProjectNumber(i.projectNumber, i.id);
-      return {
-        kind: 'project',
-        ref: { nr, instanceId: i.id },
-        label: `${nr} · ${liveProjectName(i.projectName, i.phaseCode)}`,
-        tag: 'live',
-      };
-    });
+    // The same rows the portfolio shows, running and waiting alike, opened the
+    // same way: by number and instance.
+    const liveRows: Hit[] = liveProjectRows(live, completed).map((p) => ({
+      kind: 'project',
+      ref: { nr: p.nr, instanceId: p.instanceId },
+      label: `${p.nr} · ${p.naam}`,
+      tag: 'live',
+    }));
     const mockRows: Hit[] = getMockPortfolio().map((p) => ({
       kind: 'project',
       ref: { nr: p.nr },
@@ -52,7 +50,7 @@ export default function InfraCommandPalette({
       tag: 'project',
     }));
     return [...views, ...liveRows, ...mockRows];
-  }, [live]);
+  }, [live, completed]);
 
   const hits = useMemo(() => {
     const s = q.trim().toLowerCase();

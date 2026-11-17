@@ -1,13 +1,19 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import {
+  DeployedProcessKeysContext,
+  LivePhaseCountsContext,
   RipActiveAcrossPhasesContext,
   RipCompletedAcrossPhasesContext,
+  useDeployedProcessKeysResource,
+  useLivePhaseCountsResource,
   useRipActiveAcrossPhasesResource,
   useRipCompletedAcrossPhasesResource,
 } from '../../services/infra.api';
 
 /**
  * Fetches active RIP instances across every modelled phase ONCE and shares
+ * (together with the finished instances, the deployment status and the live
+ * phase counts, each likewise fetched once)
  * the result with every consumer under it, instead of each one calling
  * `useRipActiveAcrossPhases` and firing its own request — the fan-out this
  * whole change removes (see infra.api.ts's `fetchActiveAcrossPhases`).
@@ -38,20 +44,32 @@ export function RipActiveAcrossPhasesProvider({ children }: { children: ReactNod
   // The finished instances ride along: a project between phases has no
   // running instance, so the portfolio needs both lists, refreshed together.
   const completed = useRipCompletedAcrossPhasesResource();
+  // The Faseladder's deployment status and live counts, read by the page root,
+  // FaseladderOverview and PhaseDetail, which each fetched their own (#78).
+  const deployment = useDeployedProcessKeysResource();
+  const counts = useLivePhaseCountsResource();
   // A reload of the running list (e.g. the board's mode switch) refreshes
-  // the finished list too, so the two never disagree about a project.
+  // the finished list and the counts too, so none of them disagree about a
+  // project. Before #78 the counts were refetched whenever the Faseladder
+  // mounted; this keeps them as fresh. The deployment status only changes
+  // with a deploy, so it is refreshed with the tab instead (below).
   const resource = {
     ...active,
     reload: () => {
       active.reload();
       completed.reload();
+      counts.reload();
     },
   };
 
   // `reload` is a new function on every render; the listener reads the latest
   // through a ref so it is attached once rather than on every render.
-  const reloadRef = useRef(resource.reload);
-  reloadRef.current = resource.reload;
+  const reloadAll = () => {
+    resource.reload();
+    deployment.reload();
+  };
+  const reloadRef = useRef(reloadAll);
+  reloadRef.current = reloadAll;
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') reloadRef.current();
@@ -63,7 +81,11 @@ export function RipActiveAcrossPhasesProvider({ children }: { children: ReactNod
   return (
     <RipActiveAcrossPhasesContext.Provider value={resource}>
       <RipCompletedAcrossPhasesContext.Provider value={completed}>
-        {children}
+        <DeployedProcessKeysContext.Provider value={deployment}>
+          <LivePhaseCountsContext.Provider value={counts}>
+            {children}
+          </LivePhaseCountsContext.Provider>
+        </DeployedProcessKeysContext.Provider>
       </RipCompletedAcrossPhasesContext.Provider>
     </RipActiveAcrossPhasesContext.Provider>
   );
