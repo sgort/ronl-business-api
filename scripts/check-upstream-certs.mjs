@@ -102,6 +102,13 @@ export function probe(host, { port = 443, connectHost = host, timeoutMs = 10_000
       resolve({ host, ...result });
     };
     const socket = tls.connect(
+      // Not a TLS bypass: the point of this probe is to describe a BAD
+      // certificate, which a rejecting handshake would hide behind a bare
+      // error. Node still verifies, and socket.authorized and
+      // authorizationError (hostname included) are what the report judges by.
+      // Nothing is sent over this socket; it is destroyed once the certificate
+      // has been read.
+      // nosemgrep: problem-based-packs.insecure-transport.js-node.bypass-tls-verification.bypass-tls-verification
       { host: connectHost, port, servername: host, rejectUnauthorized: false },
       () => {
         const cert = socket.getPeerCertificate();

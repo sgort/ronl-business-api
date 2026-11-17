@@ -179,6 +179,38 @@ the citizen timeline went blank on ACC and PROD, and nothing reported it (#446).
 | Hosts               | `brp-api-mock.open-regels.nl`; add any other upstream served from outside Azure  |
 | Node                | an exact literal, like the daily audit                                           |
 
+## Semgrep findings we accept, and why
+
+Semgrep has two places to record a decision, and only one of them is in git.
+
+- **Code findings** that are false positives are suppressed inline: a comment
+  with the reason, then `// nosemgrep: <full rule id>` above the line. The
+  reason is reviewed in the pull request and holds for every Semgrep project
+  that scans the repository.
+- **Supply Chain findings** have no inline mechanism. They are triaged in the
+  Semgrep UI with a comment, and the platform's API does not return that
+  comment (iou-architectuur#132). **This table is the record**: each row is the
+  reason, and the comment in the UI repeats it. A finding marked ignored in the
+  UI without a row here is a gap.
+
+Last triaged on 17 November 2026, from the exports of `acc` at `2e21d4a`. The
+three rows dated 30 September were accepted in the UI then; their comments
+cannot be read back, so the reasons below were re-derived from the code on 17
+November and checked against it, and the UI comments now repeat them.
+
+| Package (version)                | Advisory                                                                          | Semgrep finding IDs                             | Decision                            | Reason                                                                                                                                                                                                                                                     | Revisit when                                                                           |
+| -------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `react-router` 6.x               | unsafe reflection in SSR `deserializeErrors`                                      | acc 964887364, main 965053595                   | accepted, 30 Sep 2026               | All four apps are client-rendered: no server rendering or hydration data anywhere, so the vulnerable path is never reached. The fix is in 7.18, a major upgrade (#395). Also Dependabot #126.                                                              | React Router 7 lands (#395, Phase 3)                                                   |
+| `react-router` 6.x               | open redirect via backslash in `<Link>`                                           | acc 964887362, main 965053593                   | accepted, 30 Sep 2026               | Every `<Link>` and `navigate()` target is a route constant, a board from our own list (the stored post-login redirect), or `/<tenant>` for a tenant id found in our registry; none passes user input through. Fix is in 7.18 (#395). Also Dependabot #128. | React Router 7 lands (#395, Phase 3)                                                   |
+| `postcss-selector-parser` 6.0.10 | quadratic flat-selector parsing                                                   | acc 1006253194, main 1010302896                 | accepted, 30 Sep 2026               | Build time only, parsing our own CSS. `@tailwindcss/typography` 0.5.20, the latest, pins exactly 6.0.10, so no update can move it. Dependabot #251 dismissed with the same reason on 17 Nov 2026.                                                          | `@tailwindcss/typography` drops the exact pin                                          |
+| `minimatch` 10.2.6               | globparts amplification (DoS)                                                     | acc 1055948512                                  | accepted, 17 Nov 2026               | Development only: `typescript-eslint` 8 requires `^10.2.2`, and the fix is only in 11.0.1. It matches our own lint configuration's globs. Dependabot #262 dismissed with the same reason.                                                                  | `typescript-eslint` allows minimatch 11                                                |
+| `minimatch` 9.0.3                | globparts amplification (DoS); ReDoS ×2 and globstar backtracking (High)          | acc 1055948513, 964887742, 964887743, 964887744 | accepted until Phase 3, 17 Nov 2026 | Development only, through `@typescript-eslint` 6 in the frontend workspaces; matches our own lint globs. Dependabot #5 (ReDoS, same package) stays open as the reminder.                                                                                   | The typescript-eslint 8 / ESLint 10 move (#363, Phase 3)                               |
+| `playwright-core` 1.64.1         | Brotli decoder out-of-bounds write (CVE-2026-111497; Semgrep GHSA-cust-0000-0034) | acc 1063438103                                  | false positive, 17 Nov 2026         | The npm package carries no Brotli C code: it runs on the host's Node, pinned in `.nvmrc` to 22.23.4, the October 2026 security release that fixes this CVE. Used only by the e2e suite, whose browsers load our own local and ACC sites.                   | `.nvmrc` moves to a Node line without the fix, or Playwright starts bundling a runtime |
+
+Not in the table, because they are fixed rather than accepted: the seven `hono`
+and `@hono/node-server` findings and the `fast-xml-parser` one, cleared by #469
+(Semgrep marked them fixed on the scan of `acc` at `4df16af`).
+
 ## Exceptions
 
 ### `mcr.microsoft.com/appsvc/staticappsclient:stable` — cannot be pinned
