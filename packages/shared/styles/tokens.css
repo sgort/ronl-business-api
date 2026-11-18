@@ -23,6 +23,9 @@
   --rba-flevoland-blue:   #0046ad;
   --rba-flevoland-blue-d: #033b8e;
   --rba-flevoland-pink:   #e70077;
+  /* Flevoland's accent as a fill, white text on it (4.53:1). Replaces their
+     yellow #fec612 for the accent until step 2 (#405). */
+  --rba-flevoland-pink-fill: #e60078;
 
   /* Brand, themed: services/tenant.ts sets --color-primary/-primary-dark/
      -secondary on :root per tenant; Flevoland is the fallback. */
@@ -32,8 +35,8 @@
 
   /* The accent as a filled area (tag, badge, chip, label) and the text on it.
      Same as the accent for every tenant but Flevoland, whose accent fill is
-     yellow with dark text (see the block at the end). Small markers and text
-     keep --rba-accent. */
+     --rba-flevoland-pink-fill (see the block at the end). Small markers and
+     text keep --rba-accent. */
   --rba-accent-fill:    var(--rba-accent);
   --rba-on-accent-fill: var(--rba-ink-inverse);
 
@@ -101,10 +104,11 @@
    docs/superpowers/specs/2026-10-30-flevoland-colours-step1-design.md).
    services/tenant.ts sets data-tenant on <html>. Every value is one of
    Flevoland IT's semantic tokens (./flevoland/tokens.css), never their palette,
-   with one exception: --rba-idle, for which their file has no semantic token.
-   Pink stays for accent text and lines (--rba-accent, from tenants.json);
-   yellow is only a fill, always with dark text. Warning text and markers are
-   brown; yellow would fail 3:1 there. */
+   with two exceptions: --rba-idle, for which their file has no semantic token,
+   and the accent fill, pink #e60078 with white text instead of their yellow.
+   Pink stays for accent text and lines (--rba-accent, from tenants.json).
+   Yellow is left for the warning fill, always with dark text. Warning text and
+   markers are brown; yellow would fail 3:1 there. */
 :root[data-tenant="flevoland"] {
   --rba-flevoland-blue-d: var(--flevoland-color-brand-primary-active);
 
@@ -124,8 +128,8 @@
   --rba-on-warn-fill: var(--flevoland-color-text-on-accent);
   --rba-idle:      var(--flevoland-color-neutral-400);
 
-  --rba-accent-fill:    var(--flevoland-color-brand-accent);
-  --rba-on-accent-fill: var(--flevoland-color-text-on-accent);
+  --rba-accent-fill:    var(--rba-flevoland-pink-fill);
+  --rba-on-accent-fill: var(--rba-ink-inverse);
 
   --rba-ink-strong:  var(--flevoland-color-text-default);
   --rba-bad-bg:      var(--flevoland-color-status-error-background);
