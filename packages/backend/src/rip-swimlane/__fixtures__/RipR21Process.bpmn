@@ -103,7 +103,7 @@
       <bpmn:outgoing>Flow_Akkoord2Approved_InitierenPSU</bpmn:outgoing>
       <bpmn:outgoing>Flow_Akkoord2Rejected_Aanvullen2</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:userTask id="Task_UitvoerenPSU" name="Uitvoeren PSU en aanvullen&#10;Projectplan 3. PSU-verslag" camunda:formRef="rip-psu-execution" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-deelnemers-psu" ronl:documentRef="rip-psu-report">
+    <bpmn:userTask id="Task_UitvoerenPSU" name="Uitvoeren PSU en aanvullen&#10;Projectplan 3. PSU-verslag" camunda:formRef="rip-psu-execution" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-psu-report" ronl:linkedDocumentRef="rip-psu-presentatie:3325975">
       <bpmn:incoming>Flow_Risicodossier_UitvoerenPSU</bpmn:incoming>
       <bpmn:outgoing>Flow_UitvoerenPSU_Planning</bpmn:outgoing>
     </bpmn:userTask>

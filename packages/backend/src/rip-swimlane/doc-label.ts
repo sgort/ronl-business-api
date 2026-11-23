@@ -18,6 +18,19 @@ const DOC_LABELS: Record<string, string> = {
   'rip-psu-report': 'PSU-verslag',
   'rip-pdp': 'Uitgangspunten VO-fase',
   example_treefelling_beschikking: 'Beschikking kapvergunning',
+  // Infra-board documenten (R2.1-R2.4): the names in the RIP-team's overview.
+  'rip-psu-presentatie': 'PSU-presentatie',
+  'rip-ontwerptoelichting': 'Ontwerptoelichting',
+  'rip-bevindingenformulier': 'Bevindingenformulier',
+  'rip-hoeveelheidsbepaling': 'Hoeveelheidsbepaling',
+  'rip-projectraming': 'Projectraming VO',
+  'rip-ssk-rekenmodel': 'SSK-rekenmodel Provincie Flevoland UAV',
+  'rip-inkoopplan': 'Inkoopplan reguliere projecten',
+  'rip-inkoopplan-vol': 'Inkoopplan (format 2640968)',
+  'rip-memo-projectkrediet': 'Memo projectkrediet',
+  'rip-projectraming-do': 'Projectraming DO',
+  'rip-ils-flevoland': 'ILS Flevoland',
+  'rip-verzamelmap-vg': 'Verzamelmap documenten V&G',
 };
 
 export function docLabel(slug: string): string {

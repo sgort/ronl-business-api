@@ -41,6 +41,13 @@ export interface SwimNode {
    * Ontwerptoelichting and an Objectenboom.
    */
   docs?: string[];
+  /**
+   * Resolved labels of the documents from `ronl:linkedDocumentRef`: documents
+   * that stay in eDOCS and are linked rather than generated (werkwijze B/B+).
+   * Kept apart from `docs` because the task cannot complete until each
+   * non-optional one is linked, which a view may want to show differently.
+   */
+  linkedDocs?: string[];
   /** BPMN flowNode id — maps live activity history onto the node. */
   bpmnId: string;
   /** decisionRef of a `rule` node. */

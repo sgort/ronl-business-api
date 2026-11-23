@@ -17,8 +17,15 @@ describe('docLabel', () => {
     // 77 documentRefs exist across the twelve phases and only a few have
     // curated Dutch labels. An unmapped one must still read as a document
     // name, not as an identifier.
-    expect(docLabel('rip-projectraming')).toBe('Projectraming');
+    expect(docLabel('rip-evaluatie-vo')).toBe('Evaluatie vo');
     expect(docLabel('rip-nota-besluitvorming-ao')).toBe('Nota besluitvorming ao');
+  });
+
+  it('uses the RIP-team names for the Infra-board documents (R2.1-R2.4)', () => {
+    expect(docLabel('rip-projectraming')).toBe('Projectraming VO');
+    expect(docLabel('rip-ssk-rekenmodel')).toBe('SSK-rekenmodel Provincie Flevoland UAV');
+    expect(docLabel('rip-verzamelmap-vg')).toBe('Verzamelmap documenten V&G');
+    expect(docLabel('rip-inkoopplan-vol')).toBe('Inkoopplan (format 2640968)');
   });
 
   it('leaves a slug without the rip- prefix alone apart from casing', () => {

@@ -15,11 +15,15 @@ import type { DocumentTemplate } from '@services/document/documentTemplate.types
 import type { EdocsAuthor } from '@services/edocs.service';
 import { edocsAuthorFrom } from '@services/edocs-author';
 import { parseSwimlane } from '../rip-swimlane/bpmn-swimlane';
+import { decodeXmlEntities } from '../rip-swimlane/linked-docs';
 import { engineSegment } from '@utils/engine-segment';
 import { hasStartForm, parseStarterGroups } from '@utils/starter-groups';
 import { fromJsonVariableText } from '@utils/operaton-variables';
 
 const logger = createLogger('operaton-service');
+
+/** The ronl: task attributes readTaskRonlAttribute may be asked for. */
+type RonlTaskAttribute = 'ronl:signatureRef' | 'ronl:documentRef';
 
 /** A latest process definition, with what a caseworker's start list decides on. */
 export interface StartCandidate {
@@ -951,19 +955,21 @@ export class OperatonService {
   private readTaskRonlAttribute(
     bpmnXml: string,
     taskDefinitionKey: string,
-    attribute: string
+    attribute: RonlTaskAttribute
   ): string | null {
     const escaped = taskDefinitionKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // `taskDefinitionKey` is regex-escaped on the line above.
     // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     const element = new RegExp(`<bpmn:userTask\\b[^>]*\\bid="${escaped}"[^>]*>`).exec(bpmnXml);
     if (!element) return null;
-    // `attribute` is not escaped. The method is private and its callers pass
-    // only the literals 'ronl:signatureRef' and 'ronl:documentRef' -- no
-    // metacharacter in either. Escape it here if a caller ever passes input.
+    // `attribute` is not escaped. Its type admits only the RonlTaskAttribute
+    // literals -- ronl: plus letters, no metacharacter among them. Escape it
+    // here if that type is ever widened to take input.
     // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     const attr = new RegExp(`\\b${attribute}="([^"]+)"`).exec(element[0]);
-    return attr ? attr[1] : null;
+    // Decoded so a value reads the same here as through the swimlane parser
+    // (a checklist item like "V&amp;G-plan" is "V&G-plan" to both).
+    return attr ? decodeXmlEntities(attr[1]) : null;
   }
 
   /**

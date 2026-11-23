@@ -1251,15 +1251,15 @@ describe('getPhaseSwimlaneModel', () => {
   );
 
   /**
-   * The same phase as it stood BEFORE ronl:documentRef became a list: one
-   * document on "Opstellen concept VO" instead of two. Derived from the
-   * fixture rather than kept as a second file, so it cannot drift from it --
-   * and asserted below, because a silent no-op replace would make the
-   * redeploy test prove nothing.
+   * The same phase as it stood BEFORE the Ontwerptoelichting became a linked
+   * document: both documents generated on "Opstellen concept VO", none
+   * linked. Derived from the fixture rather than kept as a second file, so it
+   * cannot drift from it -- and asserted below, because a silent no-op
+   * replace would make the redeploy test prove nothing.
    */
   const r22XmlBefore = r22Xml.replace(
-    'ronl:documentRef="rip-ontwerptoelichting,rip-objectenboom"',
-    'ronl:documentRef="rip-ontwerptoelichting"'
+    'ronl:documentRef="rip-objectenboom" ronl:linkedDocumentRef="rip-ontwerptoelichting:3226401"',
+    'ronl:documentRef="rip-ontwerptoelichting,rip-objectenboom"'
   );
 
   const routeDefinition = (id: string, xml: string) =>
@@ -1269,7 +1269,7 @@ describe('getPhaseSwimlaneModel', () => {
       [`/process-definition/${id}/xml`, { data: { bpmn20Xml: xml } }],
     ]);
 
-  it('the fixture still carries the two-document attribute the before-state is derived from', () => {
+  it('the fixture still carries the linked-document attribute the before-state is derived from', () => {
     expect(r22XmlBefore).not.toBe(r22Xml);
   });
 
@@ -1305,18 +1305,22 @@ describe('getPhaseSwimlaneModel', () => {
    * The ACC defect of 28 September 2026, in one test. The model was cached
    * under `${tenantId}::${processKey}`, which a redeploy does not change, so
    * the second document on "Opstellen concept VO" never appeared however
-   * often the page was reloaded -- only a restart cleared it.
+   * often the page was reloaded -- only a restart cleared it. Replayed here
+   * with the change this model has since had: a generated document becoming
+   * a linked one.
    */
   it('picks up a redeploy under the same key, without a restart', async () => {
     routeDefinition('RipR22Process:1:aaa', r22XmlBefore);
     const before = await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland');
     const taskBefore = before.nodes.find((n) => n.label.includes('Opstellen concept VO'));
-    expect(taskBefore?.docs).toEqual(['Ontwerptoelichting']);
+    expect(taskBefore?.docs).toEqual(['Ontwerptoelichting', 'Objectenboom']);
+    expect(taskBefore?.linkedDocs).toBeUndefined();
 
     routeDefinition('RipR22Process:2:bbb', r22Xml);
     const after = await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland');
     const taskAfter = after.nodes.find((n) => n.label.includes('Opstellen concept VO'));
-    expect(taskAfter?.docs).toEqual(['Ontwerptoelichting', 'Objectenboom']);
+    expect(taskAfter?.docs).toEqual(['Objectenboom']);
+    expect(taskAfter?.linkedDocs).toEqual(['Ontwerptoelichting']);
   });
 
   it('keeps tenant-scoped and untenanted deployments of one key apart', async () => {
