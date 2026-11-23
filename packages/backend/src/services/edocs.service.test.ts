@@ -120,6 +120,14 @@ describe('EdocsService — stub mode', () => {
     expect(res.documentId).toMatch(/^stub-doc-/);
   });
 
+  it('listContents returns a canned workspace with a folder, and a canned folder', async () => {
+    const ws = await svc.listContents('workspace', 'ws-1');
+    expect(ws.some((i) => i.isFolder)).toBe(true);
+    const folder = await svc.listContents('folder', 'f-1');
+    expect(folder.every((i) => !i.isFolder)).toBe(true);
+    expect(mockClient.get).not.toHaveBeenCalled();
+  });
+
   it('getWorkspaceDocuments returns the canned two-document list', async () => {
     const docs = await svc.getWorkspaceDocuments('ws-1');
     expect(docs).toHaveLength(2);
@@ -526,6 +534,85 @@ describe('EdocsService — live mode', () => {
         { id: 'd1', name: 'one.pdf', documentNumber: '111' },
         { id: 'd2', name: 'two.pdf', documentNumber: '222' },
       ]);
+    });
+  });
+
+  describe('listContents()', () => {
+    const list = (items: unknown[]) => ({ data: { data: { list: items } } });
+
+    it('lists a workspace through workspaces/{id}', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce(
+        list([
+          // The item shape confirmed on the test library, 23 Nov 2026.
+          {
+            id: 'd1',
+            DOCNAME: 'Raming.xlsx',
+            DOCNUM: 111,
+            type: 'documents',
+            ITEM_TYPE: 'D',
+            'VS.VERSION_LABEL': '3',
+            LAST_EDIT_DATE: '2026-11-20 10:00:00 UTC',
+            AUTHOR_ID: 'GEEN',
+            TYPIST_ID: 'TESTUSER001',
+          },
+          {
+            id: 'f1',
+            DOCNAME: 'V&G',
+            DOCNUM: '222',
+            type: 'folders',
+            ITEM_TYPE: 'F',
+            FULL_NAME: 'J. de Vries',
+            TYPIST_ID: 'TESTUSER001',
+          },
+        ])
+      );
+      const items = await svc.listContents('workspace', 'ws-1');
+      expect(mockClient.get).toHaveBeenCalledWith('workspaces/ws-1', expect.anything());
+      expect(items).toEqual([
+        {
+          id: 'd1',
+          name: 'Raming.xlsx',
+          documentNumber: '111',
+          isFolder: false,
+          version: '3',
+          modified: '2026-11-20 10:00:00 UTC',
+          author: 'TESTUSER001',
+        },
+        {
+          id: 'f1',
+          name: 'V&G',
+          documentNumber: '222',
+          isFolder: true,
+          version: null,
+          modified: null,
+          author: 'J. de Vries',
+        },
+      ]);
+    });
+
+    it('lists a folder through folders/{id}, falling back to the id for name and number', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce(list([{ id: 'd9' }]));
+      const items = await svc.listContents('folder', 'f1');
+      expect(mockClient.get).toHaveBeenCalledWith('folders/f1', expect.anything());
+      expect(items).toEqual([
+        {
+          id: 'd9',
+          name: 'd9',
+          documentNumber: 'd9',
+          isFolder: false,
+          version: null,
+          modified: null,
+          author: null,
+        },
+      ]);
+    });
+
+    it('is empty without a list in the response', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce({ data: {} });
+      await expect(svc.listContents('folder', 'f1')).resolves.toEqual([]);
     });
   });
 

@@ -144,6 +144,16 @@ interface Config {
     allowServiceFallback: boolean;
     /** Machine clients (token `azp`) allowed on /v1/edocs. */
     allowedClients: string[];
+    /**
+     * Uploads of linked (B / B+) RIP documents. Uploading INTO a workspace is
+     * still broken on the DM server, so by default an upload goes to eDOCS
+     * standalone and is then linked; flip this once workspace uploads work.
+     */
+    workspaceUploadEnabled: boolean;
+    /** eDOCS profile form for those uploads; empty = the service's default. */
+    linkedUploadForm: string;
+    /** Largest file accepted for those uploads, in bytes (before base64). */
+    linkedUploadMaxBytes: number;
   };
   /** Provincie Flevoland's Entra ID, for refreshing a person's brokered ID token. */
   entra: {
@@ -364,6 +374,16 @@ export const config: Config = {
       'copilot-studio-edocs',
       'operaton-mcp-client',
     ]),
+    workspaceUploadEnabled: parseEnvBool(process.env.EDOCS_WORKSPACE_UPLOAD_ENABLED, false),
+    // Which eDOCS document type the secretariaat and archive expect for these
+    // uploads is still open (handoff PROPOSAL.md, "Still open").
+    linkedUploadForm: process.env.EDOCS_LINKED_UPLOAD_FORM ?? '',
+    linkedUploadMaxBytes:
+      (Number(process.env.EDOCS_LINKED_UPLOAD_MAX_MB) > 0
+        ? Number(process.env.EDOCS_LINKED_UPLOAD_MAX_MB)
+        : 20) *
+      1024 *
+      1024,
   },
 
   entra: {

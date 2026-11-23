@@ -1960,6 +1960,51 @@ export class OperatonService {
   }
 
   /**
+   * What the RIP document views need of one instance, running or finished:
+   * its model, its variables (history, so a finished instance answers too)
+   * and its activity history. The model is read through the per-definition
+   * cache, so a redeploy is seen and a repeat costs nothing.
+   */
+  async getRipDocumentContext(processInstanceId: string): Promise<{
+    processDefinitionId: string;
+    bpmnXml: string;
+    variables: Record<string, unknown>;
+    activities: ActivityHistoryItem[];
+  }> {
+    const histRes = await this.client.get(
+      `/history/process-instance/${engineSegment(processInstanceId)}`
+    );
+    const processDefinitionId: string = histRes.data.processDefinitionId;
+    const [bpmnXml, varsRes, activities] = await Promise.all([
+      this.getCachedBpmnXml(processDefinitionId),
+      this.getHistoryVariables({ processInstanceId }),
+      this.getActivityHistory(processInstanceId),
+    ]);
+    const variables: Record<string, unknown> = {};
+    for (const v of varsRes.data as { name: string; value: unknown }[]) {
+      variables[v.name] = v.value;
+    }
+    return { processDefinitionId, bpmnXml, variables, activities };
+  }
+
+  /** The model of a process definition, through the same cache. */
+  async getProcessDefinitionXml(processDefinitionId: string): Promise<string> {
+    return this.getCachedBpmnXml(processDefinitionId);
+  }
+
+  /** Open user tasks of one instance: which steps can act right now. */
+  async getOpenTasksOfInstance(
+    processInstanceId: string
+  ): Promise<Array<{ id: string; taskDefinitionKey: string; name: string }>> {
+    const res = await this.client.get('/task', { params: { processInstanceId } });
+    return (res.data as Task[]).map((t) => ({
+      id: t.id,
+      taskDefinitionKey: t.taskDefinitionKey,
+      name: t.name,
+    }));
+  }
+
+  /**
    * List completed (finished) instances of one RIP phase process for a
    * municipality. Takes the process-definition key, not the phase code.
    */

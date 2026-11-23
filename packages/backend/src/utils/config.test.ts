@@ -92,6 +92,9 @@ const ALL_OVERRIDES: Record<string, string> = {
   EDOCS_DEPARTMENT: 'OTHERAFD',
   EDOCS_ALLOW_SERVICE_FALLBACK: 'true',
   EDOCS_ALLOWED_CLIENTS: 'client-a,client-b',
+  EDOCS_WORKSPACE_UPLOAD_ENABLED: 'true',
+  EDOCS_LINKED_UPLOAD_FORM: 'D_RIP_PROJECT',
+  EDOCS_LINKED_UPLOAD_MAX_MB: '5',
   // Live eDOCS (EDOCS_STUB_MODE=false above) requires the Entra settings.
   ENTRA_TENANT_ID: 'tenant-x',
   ENTRA_CLIENT_ID: 'client-x',
@@ -224,6 +227,9 @@ describe('config defaults (empty environment)', () => {
       department: 'IVR',
       allowServiceFallback: false,
       allowedClients: ['edocs-mcp-client', 'copilot-studio-edocs', 'operaton-mcp-client'],
+      workspaceUploadEnabled: false,
+      linkedUploadForm: '',
+      linkedUploadMaxBytes: 20 * 1024 * 1024,
     });
     expect(config.entra).toEqual({
       tenantId: '',
@@ -354,6 +360,9 @@ describe('config overrides (every variable set)', () => {
       department: 'OTHERAFD',
       allowServiceFallback: true,
       allowedClients: ['client-a', 'client-b'],
+      workspaceUploadEnabled: true,
+      linkedUploadForm: 'D_RIP_PROJECT',
+      linkedUploadMaxBytes: 5 * 1024 * 1024,
     });
     expect(config.entra).toEqual({
       tenantId: 'tenant-x',

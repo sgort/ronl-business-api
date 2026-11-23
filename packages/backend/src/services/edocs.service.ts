@@ -36,6 +36,18 @@ export interface EdocsDocumentMetadata {
   author?: EdocsAuthor;
 }
 
+/** One item of a workspace's or folder's content (see listContents). */
+export interface EdocsContainerItem {
+  id: string;
+  name: string;
+  documentNumber: string;
+  isFolder: boolean;
+  /** VS.VERSION_LABEL: the current version, without a versions call. */
+  version: string | null;
+  modified: string | null;
+  author: string | null;
+}
+
 /** The employee who caused a background write (spec §6). */
 export interface EdocsAuthor {
   email: string;
@@ -67,6 +79,8 @@ export interface EdocsDocumentVersion {
   id: string;
   /** VERSION — the human-facing label ("1", "2", ...), not usable for download. */
   version: string;
+  /** LASTEDITDATE of this version, when the server sends it. */
+  modified?: string;
 }
 
 export interface EdocsDownloadResult {
@@ -675,6 +689,96 @@ export class EdocsService {
     });
   }
 
+  /**
+   * The content of a workspace or of a folder inside one, with what a person
+   * needs to pick the right item: name, number, whether it is a folder, its
+   * version, the last edit date and who stored it.
+   *
+   * Confirmed live on the test library (23 Nov 2026): `GET /folders/{id}`
+   * lists a folder's content like `GET /workspaces/{id}` lists a workspace's,
+   * as flat items. A folder carries `type: "folders"` (`ITEM_TYPE: "F"`), a
+   * document `type: "documents"` (`ITEM_TYPE: "D"`). AUTHOR_ID reads "GEEN"
+   * on this server, so the person is the typist (TYPIST_ID), named by
+   * FULL_NAME when the server fills it.
+   */
+  async listContents(kind: 'workspace' | 'folder', id: string): Promise<EdocsContainerItem[]> {
+    if (this.stubMode) {
+      logger.info('[stub] listContents()', { kind, id });
+      if (kind === 'folder') {
+        return [
+          {
+            id: 'stub-vg-1',
+            name: 'V&G-plan ontwerpfase',
+            documentNumber: '3600101',
+            isFolder: false,
+            version: '1',
+            modified: null,
+            author: null,
+          },
+          {
+            id: 'stub-vg-2',
+            name: 'Risico-inventarisatie V&G',
+            documentNumber: '3600102',
+            isFolder: false,
+            version: '1',
+            modified: null,
+            author: null,
+          },
+        ];
+      }
+      return [
+        {
+          id: 'stub-doc-1',
+          name: 'rip-intake-report.pdf',
+          documentNumber: '2993898',
+          isFolder: false,
+          version: '1',
+          modified: null,
+          author: null,
+        },
+        {
+          id: 'stub-doc-2',
+          name: 'rip-psu-report.pdf',
+          documentNumber: '2993899',
+          isFolder: false,
+          version: '1',
+          modified: null,
+          author: null,
+        },
+        {
+          id: 'stub-folder-1',
+          name: 'Aanbestedingsstukken / V&G',
+          documentNumber: '3600100',
+          isFolder: true,
+          version: '1',
+          modified: null,
+          author: null,
+        },
+      ];
+    }
+
+    return this.withAuth(async () => {
+      const response = await this.client.get(
+        kind === 'workspace' ? `workspaces/${id}` : `folders/${id}`,
+        {
+          params: { library: config.edocs.library },
+        }
+      );
+      const list: Array<Record<string, unknown>> = response.data?.data?.list ?? [];
+      const str = (v: unknown): string | null =>
+        typeof v === 'string' && v !== '' ? v : typeof v === 'number' ? String(v) : null;
+      return list.map((item) => ({
+        id: String(item.id),
+        name: str(item.DOCNAME) ?? str(item.name) ?? String(item.id),
+        documentNumber: str(item.DOCNUM) ?? String(item.id),
+        isFolder: item.type === 'folders' || item.ITEM_TYPE === 'F',
+        version: str(item['VS.VERSION_LABEL']),
+        modified: str(item.LAST_EDIT_DATE),
+        author: str(item.FULL_NAME) ?? str(item.TYPIST_ID),
+      }));
+    });
+  }
+
   async getDocumentProfile(documentId: string): Promise<Record<string, unknown>> {
     if (this.stubMode) {
       logger.info('[stub] getDocumentProfile()', { documentId });
@@ -702,8 +806,13 @@ export class EdocsService {
       // Flat list item shape, confirmed live — no nested `.data`, and no `id`
       // field at all. VERSION_ID is the real identifier the download endpoint
       // needs; VERSION is just the human-facing label ("1", "2", ...).
-      const list: Array<{ VERSION_ID: string; VERSION: string }> = response.data?.data?.list ?? [];
-      return list.map((item) => ({ id: item.VERSION_ID, version: item.VERSION }));
+      const list: Array<{ VERSION_ID: string; VERSION: string; LASTEDITDATE?: string }> =
+        response.data?.data?.list ?? [];
+      return list.map((item) => ({
+        id: item.VERSION_ID,
+        version: item.VERSION,
+        ...(item.LASTEDITDATE ? { modified: item.LASTEDITDATE } : {}),
+      }));
     });
   }
 
