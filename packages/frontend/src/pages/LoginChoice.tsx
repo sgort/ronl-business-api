@@ -9,7 +9,7 @@ import BoardCard from '../components/LoginChoice/BoardCard';
 import SingleBoardLanding from '../components/LoginChoice/SingleBoardLanding';
 import type { AccessDeniedState } from '../services/board-request';
 import { FLEVOLAND_IDP } from '../services/identity-providers';
-import keycloak from '../services/keycloak';
+import { logoutTo } from '../services/keycloak';
 import {
   applyTenantTheme,
   loadTenantConfigs,
@@ -82,14 +82,20 @@ export default function LoginChoice() {
   const denied = readAccessDenied(state);
   // The no-access dialog, over whichever layout this URL shows. Closing it
   // drops the router state, so a refresh or Back does not bring it back.
+  const closeDenied = () => navigate(pathname + search, { replace: true, state: null });
   const deniedDialog = denied && (
     <AccessDeniedDialog
       board={denied.board}
       name={denied.name}
       home={denied.home}
       onHome={() => denied.home && navigate(denied.home)}
-      onLogout={() => keycloak.logout({ redirectUri: window.location.origin + pathname })}
-      onClose={() => navigate(pathname + search, { replace: true, state: null })}
+      onLogout={() => {
+        // Close first: the dialog lives in this history entry, and the logout
+        // round trip can land back on it, which showed the dialog again.
+        closeDenied();
+        logoutTo(window.location.origin + pathname);
+      }}
+      onClose={closeDenied}
     />
   );
 

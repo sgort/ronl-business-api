@@ -88,6 +88,16 @@
         "claim.value": "IOU_INFRA",
         "role": "infra-projectteam"
       }
+    },
+    {
+      "name": "role-iou-woo",
+      "identityProviderMapper": "oidc-role-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "claim": "roles",
+        "claim.value": "IOU_WOO",
+        "role": "woo-coordinatie"
+      }
     }
   ],
   "clientMapper": {
