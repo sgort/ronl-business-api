@@ -8,6 +8,7 @@ import {
   kredietSuggestion,
   linkVariables,
   parseLinkRecord,
+  prefillVariableNames,
   taskState,
   toWholeNumber,
   type LinkRecord,
@@ -130,12 +131,22 @@ describe('buildInstanceDocuments', () => {
   it('a linked document shows its number and the live version', () => {
     const docs = build(
       R21,
-      { 'linkedDoc_rip-psu-presentatie': link({ documentNumber: '3500999' }) },
+      {
+        'linkedDoc_rip-psu-presentatie': link({
+          documentNumber: '3500999',
+          name: '25008 — PSU-presentatie — N23',
+        }),
+      },
       [act('Task_UitvoerenPSU', null)]
     );
     expect(docs.find((d) => d.slug === 'rip-psu-presentatie')).toMatchObject({
       status: 'linked',
-      edocs: { documentNumber: '3500999', version: '3', modified: '2026-11-20' },
+      edocs: {
+        documentNumber: '3500999',
+        name: '25008 — PSU-presentatie — N23',
+        version: '3',
+        modified: '2026-11-20',
+      },
     });
   });
 
@@ -398,5 +409,75 @@ describe('checkCompletion', () => {
       expect(r.variables.ramingBinnenKrediet_voorstel).toEqual({ value: 'nee', type: 'String' });
       expect(r.variables.raming_do_totaal).toEqual({ value: 1100, type: 'Long' });
     });
+  });
+});
+
+describe('prefill from an earlier phase (DO raming from the VO raming)', () => {
+  const r24 = () => readDocumentSpecs(R24);
+  const ramingDo = (docs: ReturnType<typeof buildInstanceDocuments>) =>
+    docs.find((d) => d.slug === 'rip-projectraming-do');
+
+  it('names the VO figures and the projectkrediet as what R2.4 prefills from', () => {
+    expect(prefillVariableNames(r24()).sort()).toEqual([
+      'beschikbaarProjectkrediet',
+      'raming_onvoorzien',
+      'raming_prijspeil',
+      'raming_totaal',
+    ]);
+  });
+
+  it('suggests the VO figures while the DO raming has none of its own', () => {
+    const docs = buildInstanceDocuments({
+      specs: r24(),
+      vars: {},
+      activities: [],
+      live: new Map(),
+      checklists: new Map(),
+      projectVars: { raming_totaal: 40000, raming_onvoorzien: '4500', raming_prijspeil: 2026 },
+    });
+    expect(ramingDo(docs)?.prefill).toEqual({ totaal: 40000, onvoorzien: 4500, prijspeil: 2026 });
+  });
+
+  it('suggests nothing once the DO raming has its own figures, or when nothing was recorded', () => {
+    const own = buildInstanceDocuments({
+      specs: r24(),
+      vars: { raming_do_totaal: 50000 },
+      activities: [],
+      live: new Map(),
+      checklists: new Map(),
+      projectVars: { raming_totaal: 40000 },
+    });
+    expect(ramingDo(own)?.prefill).toBeNull();
+    const none = buildInstanceDocuments({
+      specs: r24(),
+      vars: {},
+      activities: [],
+      live: new Map(),
+      checklists: new Map(),
+    });
+    expect(ramingDo(none)?.prefill).toBeNull();
+  });
+
+  it('documents without a source prefill nothing', () => {
+    const docs = buildInstanceDocuments({
+      specs: readDocumentSpecs(R23),
+      vars: {},
+      activities: [],
+      live: new Map(),
+      checklists: new Map(),
+      projectVars: { raming_totaal: 1 },
+    });
+    expect(docs.every((d) => d.prefill === null)).toBe(true);
+  });
+
+  it('suggests the projectkrediet an earlier phase recorded, only while this one has none', () => {
+    const [suggested] = buildKredietChecks(r24(), {}, { beschikbaarProjectkrediet: 60000 });
+    expect(suggested).toMatchObject({ krediet: null, kredietPrefill: 60000, voorstel: null });
+    const [own] = buildKredietChecks(
+      r24(),
+      { beschikbaarProjectkrediet: 70000 },
+      { beschikbaarProjectkrediet: 60000 }
+    );
+    expect(own).toMatchObject({ krediet: 70000, kredietPrefill: null });
   });
 });

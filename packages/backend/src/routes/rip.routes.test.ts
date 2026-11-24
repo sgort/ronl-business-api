@@ -61,6 +61,9 @@ jest.mock('./edocs.access', () => ({
     });
   },
   edocsOf: (req: Request) => (req as unknown as { edocs?: unknown }).edocs,
+  // A person with an eDOCS client keeps it; the fallback rule itself is
+  // edocs.access.test.ts's to test.
+  applyServiceFallback: (req: Request) => !!(req as unknown as { edocs?: unknown }).edocs,
   sendEdocsError: (req: Request, res: Response) =>
     res.status(502).type('application/problem+json').json({
       type: 'about:blank',
@@ -633,6 +636,14 @@ describe('linked documents (Infra-board, werkwijze B / B+)', () => {
         request(app).get('/v1/rip/instances/pi-1/documents').set('x-test-no-edocs', '1')
       );
       expect(res.status).toBe(200);
+      expect(docs.listInstanceDocuments).toHaveBeenCalledWith('pi-1', null);
+    });
+
+    it('skips eDOCS with ?edocs=false', async () => {
+      svc.getRipInstanceDocuments.mockResolvedValue(r21Docs());
+      const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents?edocs=false'));
+      expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/documents');
       expect(docs.listInstanceDocuments).toHaveBeenCalledWith('pi-1', null);
     });
 

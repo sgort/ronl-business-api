@@ -31,6 +31,7 @@
       </bpmn:lane>
       <bpmn:lane id="Lane_Projectondersteuner" name="Projectondersteuner">
         <bpmn:flowNodeRef>Task_AanmakenWorkspaceRelatics</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AanmakenProjectmapEdocs</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Projectleider" name="Projectleider">
         <bpmn:flowNodeRef>Task_AanvullenProjectplan2</bpmn:flowNodeRef>
@@ -59,7 +60,7 @@
       <bpmn:outgoing>Flow_Organiseren_Uitvoeren</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:userTask id="Task_OpstellenRisicodossier" name="Opstellen risicossier&#10;en versturen aan PL" camunda:formRef="rip-risk-file" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-manager-pb">
-      <bpmn:incoming>Flow_Relatics_Risicodossier</bpmn:incoming>
+      <bpmn:incoming>Flow_Projectmap_Risicodossier</bpmn:incoming>
       <bpmn:outgoing>Flow_Risicodossier_UitvoerenPSU</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:userTask id="Task_OpstellenPlanning" name="Opstellen planning en&#10;informeren PL en ondersteuner" camunda:formRef="rip-planning" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-manager-pb">
@@ -82,7 +83,15 @@
     </bpmn:userTask>
     <bpmn:serviceTask id="Task_AanmakenWorkspaceRelatics" name="Laten aanmaken&#10;workspace Relatics" camunda:type="external" camunda:topic="rip-relatics-workspace">
       <bpmn:incoming>Flow_InitierenPSU_Relatics</bpmn:incoming>
-      <bpmn:outgoing>Flow_Relatics_Risicodossier</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Relatics_Projectmap</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <!-- Finds the project's eDOCS workspace (the projectmap) by project number,
+         or tries to create it, and records edocsWorkspaceId. Never stops the
+         process: creating a workspace still fails on the DM server, so a
+         project without one goes on without, and linking says so. -->
+    <bpmn:serviceTask id="Task_AanmakenProjectmapEdocs" name="Aanmaken&#10;projectmap eDOCS" camunda:type="external" camunda:topic="rip-edocs-projectmap">
+      <bpmn:incoming>Flow_Relatics_Projectmap</bpmn:incoming>
+      <bpmn:outgoing>Flow_Projectmap_Risicodossier</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:userTask id="Task_UitvoerenIntakeoverleg" name="Uitvoeren intake-overleg" camunda:formRef="rip-uitvoer-intake" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ao,rip-aandrager,rip-projectleider">
       <bpmn:incoming>Flow_Organiseren_Uitvoeren</bpmn:incoming>
@@ -130,7 +139,8 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_Verbeteren_Accorderen2" sourceRef="Task_VerberenKwaliteit" targetRef="Task_AccorderenProjectplan2" />
     <bpmn:sequenceFlow id="Flow_Organiseren_Uitvoeren" sourceRef="Task_OrganiserenIntakeoverleg" targetRef="Task_UitvoerenIntakeoverleg" />
-    <bpmn:sequenceFlow id="Flow_Relatics_Risicodossier" sourceRef="Task_AanmakenWorkspaceRelatics" targetRef="Task_OpstellenRisicodossier" />
+    <bpmn:sequenceFlow id="Flow_Relatics_Projectmap" sourceRef="Task_AanmakenWorkspaceRelatics" targetRef="Task_AanmakenProjectmapEdocs" />
+    <bpmn:sequenceFlow id="Flow_Projectmap_Risicodossier" sourceRef="Task_AanmakenProjectmapEdocs" targetRef="Task_OpstellenRisicodossier" />
     <bpmn:sequenceFlow id="Flow_Risicodossier_UitvoerenPSU" sourceRef="Task_OpstellenRisicodossier" targetRef="Task_UitvoerenPSU" />
     <bpmn:sequenceFlow id="Flow_UitvoerenPSU_Planning" sourceRef="Task_UitvoerenPSU" targetRef="Task_OpstellenPlanning" />
     <bpmn:sequenceFlow id="Flow_Planning_Aanvullen4" sourceRef="Task_OpstellenPlanning" targetRef="Task_AanvullenProjectplan4" />
@@ -164,35 +174,35 @@
   <bpmndi:BPMNDiagram id="BPMNDiagram_RipPhase1">
     <bpmndi:BPMNPlane id="BPMNPlane_RipPhase1" bpmnElement="Collaboration_RipPhase1">
       <bpmndi:BPMNShape id="Participant_RipPhase1_di" bpmnElement="Participant_RipPhase1" isHorizontal="true">
-        <dc:Bounds x="155" y="80" width="3600" height="1440" />
+        <dc:Bounds x="155" y="80" width="3800" height="1440" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_PL_Aandrager_AO_di" bpmnElement="Lane_PL_Aandrager_AO" isHorizontal="true">
-        <dc:Bounds x="185" y="1360" width="3570" height="160" />
+        <dc:Bounds x="185" y="1360" width="3770" height="160" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_RIPteam_di" bpmnElement="Lane_RIPteam" isHorizontal="true">
-        <dc:Bounds x="185" y="1200" width="3570" height="160" />
+        <dc:Bounds x="185" y="1200" width="3770" height="160" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Aandrager_di" bpmnElement="Lane_Aandrager" isHorizontal="true">
-        <dc:Bounds x="185" y="1040" width="3570" height="160" />
+        <dc:Bounds x="185" y="1040" width="3770" height="160" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_DeelnemersPSU_di" bpmnElement="Lane_DeelnemersPSU" isHorizontal="true">
-        <dc:Bounds x="185" y="880" width="3570" height="160" />
+        <dc:Bounds x="185" y="880" width="3770" height="160" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Aandrager_PL_di" bpmnElement="Lane_Aandrager_PL" isHorizontal="true">
-        <dc:Bounds x="185" y="720" width="3570" height="160" />
+        <dc:Bounds x="185" y="720" width="3770" height="160" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_AO_Aandrager_PL_di" bpmnElement="Lane_AO_Aandrager_PL" isHorizontal="true">
-        <dc:Bounds x="185" y="560" width="3570" height="160" />
+        <dc:Bounds x="185" y="560" width="3770" height="160" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Projectondersteuner_di" bpmnElement="Lane_Projectondersteuner" isHorizontal="true">
-        <dc:Bounds x="185" y="400" width="3570" height="160" />
+        <dc:Bounds x="185" y="400" width="3770" height="160" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Projectleider_di" bpmnElement="Lane_Projectleider" isHorizontal="true">
-        <dc:Bounds x="185" y="240" width="3570" height="160" />
+        <dc:Bounds x="185" y="240" width="3770" height="160" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_ManagerPB_di" bpmnElement="Lane_ManagerPB" isHorizontal="true">
-        <dc:Bounds x="185" y="80" width="3570" height="160" />
+        <dc:Bounds x="185" y="80" width="3770" height="160" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="StartEvent_RipPhase1_di" bpmnElement="StartEvent_RipPhase1">
         <dc:Bounds x="287" y="1102" width="36" height="36" />
@@ -217,10 +227,10 @@
         <dc:Bounds x="625" y="120" width="160" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_OpstellenRisicodossier_di" bpmnElement="Task_OpstellenRisicodossier">
-        <dc:Bounds x="2135" y="120" width="160" height="80" />
+        <dc:Bounds x="2335" y="120" width="160" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_OpstellenPlanning_di" bpmnElement="Task_OpstellenPlanning">
-        <dc:Bounds x="2535" y="120" width="160" height="80" />
+        <dc:Bounds x="2735" y="120" width="160" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_AanvullenProjectplan2_di" bpmnElement="Task_AanvullenProjectplan2">
         <dc:Bounds x="1175" y="280" width="160" height="80" />
@@ -229,7 +239,7 @@
         <dc:Bounds x="1735" y="280" width="160" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_AanvullenProjectplan4_di" bpmnElement="Task_AanvullenProjectplan4">
-        <dc:Bounds x="2735" y="280" width="160" height="80" />
+        <dc:Bounds x="2935" y="280" width="160" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_AanmakenWorkspaceRelatics_di" bpmnElement="Task_AanmakenWorkspaceRelatics">
         <dc:Bounds x="1925" y="440" width="160" height="80" />
@@ -253,24 +263,24 @@
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_UitvoerenPSU_di" bpmnElement="Task_UitvoerenPSU">
-        <dc:Bounds x="2335" y="920" width="160" height="80" />
+        <dc:Bounds x="2535" y="920" width="160" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_HoudenOverlegVO_di" bpmnElement="Task_HoudenOverlegVO">
-        <dc:Bounds x="2935" y="1240" width="160" height="80" />
+        <dc:Bounds x="3135" y="1240" width="160" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_AccorderenProjectplan4_di" bpmnElement="Task_AccorderenProjectplan4">
-        <dc:Bounds x="3135" y="1400" width="160" height="80" />
+        <dc:Bounds x="3335" y="1400" width="160" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_Akkoord4_di" bpmnElement="Gateway_Akkoord4" isMarkerVisible="true">
-        <dc:Bounds x="3370" y="1415" width="50" height="50" />
+        <dc:Bounds x="3570" y="1415" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3372" y="1472" width="46" height="14" />
+          <dc:Bounds x="3572" y="1472" width="46" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_Phase1Complete_di" bpmnElement="EndEvent_Phase1Complete">
-        <dc:Bounds x="3527" y="1422" width="36" height="36" />
+        <dc:Bounds x="3727" y="1422" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3508" y="1465" width="75" height="27" />
+          <dc:Bounds x="3708" y="1465" width="75" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_Start_Aanlevren_di" bpmnElement="Flow_Start_Aanlevren">
@@ -303,29 +313,36 @@
         <di:waypoint x="805" y="640" />
         <di:waypoint x="825" y="640" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Relatics_Risicodossier_di" bpmnElement="Flow_Relatics_Risicodossier">
+      <bpmndi:BPMNShape id="Task_AanmakenProjectmapEdocs_di" bpmnElement="Task_AanmakenProjectmapEdocs">
+        <dc:Bounds x="2125" y="440" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Relatics_Projectmap_di" bpmnElement="Flow_Relatics_Projectmap">
         <di:waypoint x="2085" y="480" />
-        <di:waypoint x="2115" y="480" />
-        <di:waypoint x="2115" y="160" />
-        <di:waypoint x="2135" y="160" />
+        <di:waypoint x="2125" y="480" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Projectmap_Risicodossier_di" bpmnElement="Flow_Projectmap_Risicodossier">
+        <di:waypoint x="2285" y="480" />
+        <di:waypoint x="2315" y="480" />
+        <di:waypoint x="2315" y="160" />
+        <di:waypoint x="2335" y="160" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Risicodossier_UitvoerenPSU_di" bpmnElement="Flow_Risicodossier_UitvoerenPSU">
-        <di:waypoint x="2295" y="160" />
-        <di:waypoint x="2315" y="160" />
-        <di:waypoint x="2315" y="960" />
-        <di:waypoint x="2335" y="960" />
+        <di:waypoint x="2495" y="160" />
+        <di:waypoint x="2515" y="160" />
+        <di:waypoint x="2515" y="960" />
+        <di:waypoint x="2535" y="960" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_UitvoerenPSU_Planning_di" bpmnElement="Flow_UitvoerenPSU_Planning">
-        <di:waypoint x="2495" y="960" />
-        <di:waypoint x="2515" y="960" />
-        <di:waypoint x="2515" y="160" />
-        <di:waypoint x="2535" y="160" />
+        <di:waypoint x="2695" y="960" />
+        <di:waypoint x="2715" y="960" />
+        <di:waypoint x="2715" y="160" />
+        <di:waypoint x="2735" y="160" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Planning_Aanvullen4_di" bpmnElement="Flow_Planning_Aanvullen4">
-        <di:waypoint x="2695" y="160" />
-        <di:waypoint x="2715" y="160" />
-        <di:waypoint x="2715" y="320" />
-        <di:waypoint x="2735" y="320" />
+        <di:waypoint x="2895" y="160" />
+        <di:waypoint x="2915" y="160" />
+        <di:waypoint x="2915" y="320" />
+        <di:waypoint x="2935" y="320" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_IntakeJa_Aanvullen2_di" bpmnElement="Flow_IntakeJa_Aanvullen2">
         <di:waypoint x="1065" y="615" />
@@ -365,19 +382,19 @@
         <di:waypoint x="1925" y="480" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Akkoord4Rejected_Aanvullen4_di" bpmnElement="Flow_Akkoord4Rejected_Aanvullen4">
-        <di:waypoint x="3395" y="1465" />
-        <di:waypoint x="3395" y="1530" />
-        <di:waypoint x="2815" y="1530" />
-        <di:waypoint x="2815" y="360" />
+        <di:waypoint x="3595" y="1465" />
+        <di:waypoint x="3595" y="1530" />
+        <di:waypoint x="3015" y="1530" />
+        <di:waypoint x="3015" y="360" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3046" y="1512" width="60" height="14" />
+          <dc:Bounds x="3246" y="1512" width="60" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Aanvullen4_OverlegVO_di" bpmnElement="Flow_Aanvullen4_OverlegVO">
-        <di:waypoint x="2895" y="320" />
-        <di:waypoint x="2915" y="320" />
-        <di:waypoint x="2915" y="1280" />
-        <di:waypoint x="2935" y="1280" />
+        <di:waypoint x="3095" y="320" />
+        <di:waypoint x="3115" y="320" />
+        <di:waypoint x="3115" y="1280" />
+        <di:waypoint x="3135" y="1280" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Uitvoeren_Gateway_di" bpmnElement="Flow_Uitvoeren_Gateway">
         <di:waypoint x="985" y="640" />
@@ -388,20 +405,20 @@
         <di:waypoint x="1600" y="800" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_OverlegVO_Accorderen4_di" bpmnElement="Flow_OverlegVO_Accorderen4">
-        <di:waypoint x="3095" y="1280" />
-        <di:waypoint x="3115" y="1280" />
-        <di:waypoint x="3115" y="1440" />
-        <di:waypoint x="3135" y="1440" />
+        <di:waypoint x="3295" y="1280" />
+        <di:waypoint x="3315" y="1280" />
+        <di:waypoint x="3315" y="1440" />
+        <di:waypoint x="3335" y="1440" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Accorderen4_Gateway_di" bpmnElement="Flow_Accorderen4_Gateway">
-        <di:waypoint x="3295" y="1440" />
-        <di:waypoint x="3370" y="1440" />
+        <di:waypoint x="3495" y="1440" />
+        <di:waypoint x="3570" y="1440" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Akkoord4Approved_End_di" bpmnElement="Flow_Akkoord4Approved_End">
-        <di:waypoint x="3420" y="1440" />
-        <di:waypoint x="3527" y="1440" />
+        <di:waypoint x="3620" y="1440" />
+        <di:waypoint x="3727" y="1440" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3450" y="1422" width="40" height="14" />
+          <dc:Bounds x="3650" y="1422" width="40" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>

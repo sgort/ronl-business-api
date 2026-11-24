@@ -1,7 +1,7 @@
 {
   "RipR21Process.bpmn": {
     "source": "examples/organizations/flevoland/rip-phase-21/RipR21Process.bpmn",
-    "sha256": "33346adca2efe5270143a4adccee5692bd6279750e4f4d72f92fdd4970115fab"
+    "sha256": "7c07c13199611c338a36f252a7c57d09e68d68410792eb172b5f307e4c432f6a"
   },
   "RipR22Process.bpmn": {
     "source": "examples/organizations/flevoland/rip-phase-22/RipR22Process.bpmn",

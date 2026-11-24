@@ -1967,6 +1967,7 @@ export class OperatonService {
    */
   async getRipDocumentContext(processInstanceId: string): Promise<{
     processDefinitionId: string;
+    businessKey: string | null;
     bpmnXml: string;
     variables: Record<string, unknown>;
     activities: ActivityHistoryItem[];
@@ -1975,6 +1976,7 @@ export class OperatonService {
       `/history/process-instance/${engineSegment(processInstanceId)}`
     );
     const processDefinitionId: string = histRes.data.processDefinitionId;
+    const businessKey: string | null = histRes.data.businessKey ?? null;
     const [bpmnXml, varsRes, activities] = await Promise.all([
       this.getCachedBpmnXml(processDefinitionId),
       this.getHistoryVariables({ processInstanceId }),
@@ -1984,7 +1986,65 @@ export class OperatonService {
     for (const v of varsRes.data as { name: string; value: unknown }[]) {
       variables[v.name] = v.value;
     }
-    return { processDefinitionId, bpmnXml, variables, activities };
+    return { processDefinitionId, businessKey, bpmnXml, variables, activities };
+  }
+
+  /**
+   * Values an earlier phase of the project recorded, for prefilling a later
+   * one (the DO raming starts from the VO raming). Every phase instance of a
+   * project shares its R2.1 businessKey. For each name, the value of the most
+   * recently started instance that holds it; the instance asking is left out.
+   */
+  async getProjectVariables(
+    businessKey: string,
+    names: string[],
+    excludeInstanceId: string
+  ): Promise<Record<string, unknown>> {
+    if (names.length === 0) return {};
+    const instances = await this.client.get('/history/process-instance', {
+      params: { processInstanceBusinessKey: businessKey, sortBy: 'startTime', sortOrder: 'desc' },
+    });
+    const ids = (instances.data as Array<{ id: string }>)
+      .map((i) => i.id)
+      .filter((id) => id !== excludeInstanceId);
+    if (ids.length === 0) return {};
+    const vars = await this.client.get('/history/variable-instance', {
+      params: { variableNameIn: names.join(','), processInstanceIdIn: ids.join(',') },
+    });
+    const rank = new Map(ids.map((id, i) => [id, i]));
+    const best = new Map<string, { at: number; value: unknown }>();
+    for (const v of vars.data as Array<{
+      name: string;
+      value: unknown;
+      processInstanceId: string;
+    }>) {
+      if (v.value === null || v.value === undefined || v.value === '') continue;
+      const at = rank.get(v.processInstanceId) ?? Number.MAX_SAFE_INTEGER;
+      const prev = best.get(v.name);
+      if (!prev || at < prev.at) best.set(v.name, { at, value: v.value });
+    }
+    return Object.fromEntries([...best].map(([name, { value }]) => [name, value]));
+  }
+
+  /**
+   * The project's eDOCS workspace as an earlier phase recorded it. Every phase
+   * instance of a project shares the businessKey its R2.1 run minted; R2.1's
+   * "Aanmaken projectmap eDOCS" step records edocsWorkspaceId there. Null when
+   * no instance of the project holds one.
+   */
+  async getProjectWorkspaceId(businessKey: string): Promise<string | null> {
+    const instances = await this.client.get('/history/process-instance', {
+      params: { processInstanceBusinessKey: businessKey },
+    });
+    const ids = (instances.data as Array<{ id: string }>).map((i) => i.id);
+    if (ids.length === 0) return null;
+    const vars = await this.client.get('/history/variable-instance', {
+      params: { variableName: 'edocsWorkspaceId', processInstanceIdIn: ids.join(',') },
+    });
+    const found = (vars.data as Array<{ value: unknown }>)
+      .map((v) => (typeof v.value === 'string' ? v.value : ''))
+      .find((v) => v !== '' && v !== '—');
+    return found ?? null;
   }
 
   /** The model of a process definition, through the same cache. */

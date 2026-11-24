@@ -21,6 +21,7 @@ import {
   buildKredietChecks,
   checkCompletion,
   linkVariables,
+  prefillVariableNames,
   parseLinkRecord,
   type ChecklistEntry,
   type CompletionCheck,
@@ -57,6 +58,74 @@ const workspaceIdOf = (vars: Record<string, unknown>): string | null => {
   const v = vars.edocsWorkspaceId;
   return typeof v === 'string' && v !== '' && v !== '—' ? v : null;
 };
+
+type DocumentContext = Awaited<ReturnType<typeof operatonService.getRipDocumentContext>>;
+
+/**
+ * The project's eDOCS workspace (projectmap) for an instance. In order: the
+ * instance's own edocsWorkspaceId; the one an earlier phase of the project
+ * recorded (same businessKey; R2.1's "Aanmaken projectmap eDOCS" sets it);
+ * an eDOCS search by project number, when there is an eDOCS client. Each
+ * phase is its own instance and Beheer starts the next with only the project
+ * number and name, so without this a later phase would never find its map.
+ * Never creates one. A failing lookup counts as no workspace.
+ */
+export async function resolveWorkspaceId(
+  ctx: Pick<DocumentContext, 'businessKey' | 'variables'>,
+  edocs: EdocsService | null
+): Promise<{ workspaceId: string | null; recorded: boolean }> {
+  const own = workspaceIdOf(ctx.variables);
+  if (own) return { workspaceId: own, recorded: true };
+  try {
+    if (ctx.businessKey) {
+      const shared = await operatonService.getProjectWorkspaceId(ctx.businessKey);
+      if (shared) return { workspaceId: shared, recorded: false };
+    }
+    const projectNumber = String(ctx.variables.projectNumber ?? '');
+    if (edocs && projectNumber) {
+      const found = await edocs.findWorkspace(projectNumber);
+      if (found) return { workspaceId: found.workspaceId, recorded: false };
+    }
+  } catch (error) {
+    logger.warn('Could not look up the project workspace', {
+      businessKey: ctx.businessKey,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return { workspaceId: null, recorded: false };
+}
+
+/** The workspace found by lookup, written to the instance so the next read is direct. */
+const workspaceVariable = (resolved: {
+  workspaceId: string | null;
+  recorded: boolean;
+}): Record<string, { value: string; type: 'String' }> =>
+  resolved.workspaceId && !resolved.recorded
+    ? { edocsWorkspaceId: { value: resolved.workspaceId, type: 'String' } }
+    : {};
+
+/**
+ * What earlier phases of the project recorded that this instance's model
+ * prefills from (figures, the projectkrediet). A failing lookup prefills
+ * nothing: the fields just start empty.
+ */
+async function earlierPhaseValues(
+  ctx: Pick<DocumentContext, 'businessKey'>,
+  instanceId: string,
+  specs: TaskDocumentSpec[]
+): Promise<Record<string, unknown>> {
+  const names = prefillVariableNames(specs);
+  if (!ctx.businessKey || names.length === 0) return {};
+  try {
+    return await operatonService.getProjectVariables(ctx.businessKey, names, instanceId);
+  } catch (error) {
+    logger.warn('Could not read earlier phase values for prefilling', {
+      businessKey: ctx.businessKey,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {};
+  }
+}
 
 /** Highest version label of a document; null when eDOCS cannot say. */
 async function latestVersion(
@@ -141,19 +210,25 @@ export async function listInstanceDocuments(
     );
   }
   const checklists = await mapChecklists(specs, ctx.variables, edocs);
+  const workspace = await resolveWorkspaceId(ctx, edocs);
+  const projectVars = await earlierPhaseValues(ctx, instanceId, specs);
 
   return {
     municipality: ctx.variables.municipality,
-    edocsWorkspaceId: workspaceIdOf(ctx.variables),
-    uploadTarget: config.edocs.workspaceUploadEnabled ? 'workspace' : 'edocs',
+    edocsWorkspaceId: workspace.workspaceId,
+    // Uploads reach the map directly (flag on) or as a reference once the
+    // project has a map; without one they stay standalone in eDOCS.
+    uploadTarget:
+      config.edocs.workspaceUploadEnabled || workspace.workspaceId ? 'workspace' : 'edocs',
     documents: buildInstanceDocuments({
       specs,
       vars: ctx.variables,
       activities: ctx.activities,
       live,
       checklists,
+      projectVars,
     }),
-    kredietChecks: buildKredietChecks(specs, ctx.variables),
+    kredietChecks: buildKredietChecks(specs, ctx.variables, projectVars),
   };
 }
 
@@ -164,7 +239,7 @@ export async function listInstanceWorkspace(
   folderId?: string
 ): Promise<{ municipality: unknown; workspaceId: string; items: EdocsContainerItem[] }> {
   const ctx = await operatonService.getRipDocumentContext(instanceId);
-  const workspaceId = workspaceIdOf(ctx.variables);
+  const { workspaceId } = await resolveWorkspaceId(ctx, edocs);
   if (!workspaceId) {
     throw new RipDocumentError(
       409,
@@ -253,7 +328,8 @@ export async function linkDocument(
   if (!found) return null;
   const { ctx, ref } = found;
 
-  const workspaceId = workspaceIdOf(ctx.variables);
+  const workspace = await resolveWorkspaceId(ctx, edocs);
+  const { workspaceId } = workspace;
   if (!workspaceId) {
     throw new RipDocumentError(
       409,
@@ -285,7 +361,10 @@ export async function linkDocument(
     linkedBy: caller.userId,
     ...(ref.map ? { map: true } : {}),
   };
-  await operatonService.setProcessVariables(instanceId, linkVariables(slug, link));
+  await operatonService.setProcessVariables(instanceId, {
+    ...linkVariables(slug, link),
+    ...workspaceVariable(workspace),
+  });
   return { municipality: ctx.variables.municipality, slug, link };
 }
 
@@ -322,9 +401,15 @@ export async function uploadDocument(
     throw new RipDocumentError(413, 'FILE_TOO_LARGE', 'Het bestand is te groot.');
   }
 
-  const inWorkspace = config.edocs.workspaceUploadEnabled;
-  const workspaceId = workspaceIdOf(ctx.variables);
-  if (inWorkspace && !workspaceId) {
+  // Two ways into the projectmap. With EDOCS_WORKSPACE_UPLOAD_ENABLED the
+  // upload itself names the workspace (broken on the DM server today).
+  // Without it the file goes up standalone and is then filed into the map
+  // as a reference, which works; if that second call fails the upload still
+  // stands, linked to the task, just not in the map.
+  const direct = config.edocs.workspaceUploadEnabled;
+  const workspace = await resolveWorkspaceId(ctx, edocs);
+  const { workspaceId } = workspace;
+  if (direct && !workspaceId) {
     throw new RipDocumentError(
       409,
       'NO_PROJECT_WORKSPACE',
@@ -333,27 +418,50 @@ export async function uploadDocument(
   }
   const projectNumber = String(ctx.variables.projectNumber ?? '');
   const projectName = String(ctx.variables.projectName ?? '');
+  // The name eDOCS shows; recorded on the link so the IOU shows the same.
+  const docName = [projectNumber, docLabel(slug), projectName].filter(Boolean).join(' — ');
   const result = await edocs.uploadDocument(
-    inWorkspace ? workspaceId : null,
+    direct ? workspaceId : null,
     file.filename,
     file.contentBase64,
     {
-      docName: [projectNumber, docLabel(slug), projectName].filter(Boolean).join(' — '),
+      docName,
       department: config.edocs.department,
       ...(config.edocs.linkedUploadForm ? { formName: config.edocs.linkedUploadForm } : {}),
     }
   );
 
+  let inWorkspace = direct;
+  if (!direct && workspaceId) {
+    try {
+      const name =
+        typeof ctx.variables.edocsWorkspaceName === 'string'
+          ? ctx.variables.edocsWorkspaceName
+          : workspaceId;
+      await edocs.addReference(result.documentId, workspaceId, name);
+      inWorkspace = true;
+    } catch (error) {
+      logger.warn('Uploaded, but could not file the document into the projectmap', {
+        documentId: result.documentId,
+        workspaceId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   const link: LinkRecord = {
     documentId: result.documentId,
     documentNumber: result.documentNumber,
-    name: file.filename,
+    name: docName,
     linkedAt: new Date().toISOString(),
     linkedBy: caller.userId,
     uploadedVia: 'ronl',
     inWorkspace,
   };
-  await operatonService.setProcessVariables(instanceId, linkVariables(slug, link));
+  await operatonService.setProcessVariables(instanceId, {
+    ...linkVariables(slug, link),
+    ...workspaceVariable(workspace),
+  });
   return { municipality: ctx.variables.municipality, slug, link };
 }
 

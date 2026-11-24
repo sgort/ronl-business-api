@@ -5736,6 +5736,13 @@ paths:
           in: path
           required: true
           schema: { type: string }
+        - name: edocs
+          in: query
+          required: false
+          description: |
+            `false` skips every eDOCS read: versions are null and map
+            checklists unchecked. For lists of many instances.
+          schema: { type: string, enum: ['true', 'false'] }
       responses:
         '200':
           description: The documents and the variables they came from.
@@ -5765,9 +5772,11 @@ paths:
                             type: string
                             enum: [workspace, edocs]
                             description: |
-                              Where an upload through the IOU lands. `edocs` while
-                              uploads into a workspace are broken on the DM server
-                              (`EDOCS_WORKSPACE_UPLOAD_ENABLED=false`).
+                              Where an upload through the IOU lands. `workspace` when the
+                              project has a projectmap: the file is uploaded to eDOCS and
+                              then filed into the map as a reference (or uploaded into it
+                              directly with `EDOCS_WORKSPACE_UPLOAD_ENABLED`). `edocs` when
+                              the project has no map: the file stays standalone in eDOCS.
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -5910,11 +5919,13 @@ paths:
       summary: Upload a file to eDOCS and link it
       description: |
         Uploads the file as the person and links the result, under the same
-        task and candidate-group checks as linking. While uploads into a
-        workspace are broken on the DM server
-        (`EDOCS_WORKSPACE_UPLOAD_ENABLED=false`) the file goes to eDOCS
-        standalone and the link records `inWorkspace: false`. The body limit
-        follows `EDOCS_LINKED_UPLOAD_MAX_MB` (default 20 MB of file).
+        task and candidate-group checks as linking. Uploading into a workspace
+        is broken on the DM server, so while `EDOCS_WORKSPACE_UPLOAD_ENABLED` is
+        false the file goes to eDOCS standalone and is then filed into the
+        project's projectmap as a reference (`POST /documents/{id}/references`).
+        The link records `inWorkspace`: false when the project has no map or
+        filing failed; the upload and the link stand either way. The body
+        limit follows `EDOCS_LINKED_UPLOAD_MAX_MB` (default 20 MB of file).
       parameters:
         - name: instanceId
           in: path
@@ -7749,12 +7760,20 @@ components:
           properties:
             documentId: { type: string }
             documentNumber: { type: string }
+            name: { type: string, description: The document's name in eDOCS. }
             version: { type: [string, 'null'] }
             modified: { type: [string, 'null'] }
             uploadedVia: { type: string, enum: [ronl] }
             inWorkspace: { type: boolean }
         figures:
           type: [object, 'null']
+          additionalProperties: { type: [integer, 'null'] }
+        prefill:
+          type: [object, 'null']
+          description: |
+            Suggested figures from an earlier phase of the project while this
+            document has none of its own (the DO raming starts from the VO
+            raming). Stored only when the task completes with them.
           additionalProperties: { type: [integer, 'null'] }
         checklist:
           type: [array, 'null']
@@ -7779,6 +7798,9 @@ components:
         taskName: { type: string }
         raming: { type: [integer, 'null'] }
         krediet: { type: [integer, 'null'] }
+        kredietPrefill:
+          type: [integer, 'null']
+          description: The projectkrediet an earlier phase recorded, while this instance has none.
         voorstel: { type: [string, 'null'] }
         answer: { type: [string, 'null'] }
         afwijking: { type: [string, 'null'] }

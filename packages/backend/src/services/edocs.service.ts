@@ -486,6 +486,69 @@ export class EdocsService {
     });
   }
 
+  /**
+   * The project's workspace, by the project number its name starts with.
+   * Search only: never creates one. Null when there is none (or in stub mode
+   * no project has one, so linking behaves as it does without eDOCS).
+   */
+  async findWorkspace(
+    projectNumber: string
+  ): Promise<{ workspaceId: string; workspaceName: string } | null> {
+    if (this.stubMode) {
+      logger.info('[stub] findWorkspace()', { projectNumber });
+      return {
+        workspaceId: `stub-ws-${projectNumber.replace(/[^a-zA-Z0-9]/g, '-')}`,
+        workspaceName: projectNumber,
+      };
+    }
+    return this.withAuth(async () => {
+      const found = await this.searchWorkspace(projectNumber);
+      return found ? { workspaceId: String(found.id), workspaceName: found.DOCNAME } : null;
+    });
+  }
+
+  /**
+   * The workspace named after the project: its name is the project number,
+   * or starts with it followed by a space or a dash ("P-1 — Name"), so P-1
+   * never matches P-10. An exact name wins over a prefix. Call inside withAuth.
+   *
+   * Matched here rather than by the server: the DM server ignores the
+   * `filter` parameter on GET /workspaces (confirmed on the test library, 24
+   * Nov 2026: every filter, also one matching nothing, returned all four
+   * workspaces, and the response echoed an empty filter). The search used to
+   * send `DOCNAME like 'P-1%'` with max 1, which on that server returned the
+   * first workspace for every project. So the list is paged through instead.
+   */
+  private async searchWorkspace(
+    projectNumber: string
+  ): Promise<{ id: string; DOCNAME: string } | null> {
+    const wanted = projectNumber.trim().toLowerCase();
+    if (!wanted) return null;
+    const PAGE = 200;
+    const MAX_PAGES = 50;
+    let prefixMatch: { id: string; DOCNAME: string } | null = null;
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const response = await this.client.get('workspaces', {
+        params: { library: config.edocs.library, start: page * PAGE, max: PAGE },
+      });
+      // List items are flat (DOCNAME/id directly on the item), not nested
+      // under a `.data` property — confirmed live.
+      const list: Array<{ id: string; DOCNAME: string }> = response.data?.data?.list ?? [];
+      for (const item of list) {
+        const name = String(item.DOCNAME ?? '')
+          .trim()
+          .toLowerCase();
+        if (name === wanted) return { id: String(item.id), DOCNAME: item.DOCNAME };
+        if (!prefixMatch && name.startsWith(wanted) && /^[\s—–-]/.test(name.slice(wanted.length))) {
+          prefixMatch = { id: String(item.id), DOCNAME: item.DOCNAME };
+        }
+      }
+      const total = Number(response.data?.data?.set?.total);
+      if (list.length < PAGE || (Number.isFinite(total) && (page + 1) * PAGE >= total)) break;
+    }
+    return prefixMatch;
+  }
+
   async ensureWorkspace(projectNumber: string, projectName: string): Promise<EdocsWorkspaceResult> {
     if (this.stubMode) {
       const stubId = `stub-ws-${projectNumber.replace(/[^a-zA-Z0-9]/g, '-')}`;
@@ -500,21 +563,8 @@ export class EdocsService {
     return this.withAuth(async () => {
       const workspaceName = `${projectNumber} — ${projectName}`;
 
-      const searchResponse = await this.client.get('workspaces', {
-        params: {
-          library: config.edocs.library,
-          filter: `DOCNAME like '${projectNumber}%'`,
-          max: 1,
-        },
-      });
-
-      // List items are flat (DOCNAME/id directly on the item), not nested under
-      // a `.data` property — confirmed live; the previous `existing.data.DOCNAME`
-      // read threw "Cannot read properties of undefined" on every real match.
-      const list: Array<{ id: string; DOCNAME: string }> = searchResponse.data?.data?.list ?? [];
-
-      if (list.length > 0) {
-        const existing = list[0];
+      const existing = await this.searchWorkspace(projectNumber);
+      if (existing) {
         logger.info('Found existing eDOCS workspace', {
           projectNumber,
           workspaceId: existing.id,
@@ -550,6 +600,41 @@ export class EdocsService {
   }
 
   // ─── Documents ───────────────────────────────────────────────────────────────
+
+  /**
+   * Files an existing document into a workspace, as a reference: the way to
+   * get a standalone upload into a projectmap while uploading INTO a
+   * workspace is broken. POST /documents/{id}/references, confirmed on the
+   * test library (24 Nov 2026): 200, and the document then lists in the
+   * workspace's content.
+   */
+  async addReference(
+    documentId: string,
+    workspaceId: string,
+    workspaceName: string
+  ): Promise<void> {
+    if (this.stubMode) {
+      logger.info('[stub] addReference()', { documentId, workspaceId });
+      return;
+    }
+    return this.withAuth(async () => {
+      await this.client.post(
+        `documents/${documentId}/references`,
+        {
+          data: [
+            {
+              id: workspaceId,
+              type: 'workspaces',
+              lib: config.edocs.library,
+              docname: workspaceName,
+            },
+          ],
+        },
+        { params: { library: config.edocs.library } }
+      );
+      logger.info('Document filed into workspace', { documentId, workspaceId });
+    });
+  }
 
   /**
    * Uploads a document. `workspaceId: null` uploads standalone (no workspace
@@ -767,7 +852,7 @@ export class EdocsService {
       const list: Array<Record<string, unknown>> = response.data?.data?.list ?? [];
       const str = (v: unknown): string | null =>
         typeof v === 'string' && v !== '' ? v : typeof v === 'number' ? String(v) : null;
-      return list.map((item) => ({
+      const items = list.map((item) => ({
         id: String(item.id),
         name: str(item.DOCNAME) ?? str(item.name) ?? String(item.id),
         documentNumber: str(item.DOCNUM) ?? String(item.id),
@@ -776,6 +861,11 @@ export class EdocsService {
         modified: str(item.LAST_EDIT_DATE),
         author: str(item.FULL_NAME) ?? str(item.TYPIST_ID),
       }));
+      // A workspace can hold several references to one document (seen on the
+      // test library, 24 Nov 2026: six entries for document 3349683, each its
+      // own FI.SYSTEM_ID). They are one document to pick, so each id once.
+      const seen = new Set<string>();
+      return items.filter((i) => !seen.has(i.id) && seen.add(i.id));
     });
   }
 

@@ -22,6 +22,12 @@ const mockBusinessApi = vi.hoisted(() => ({
   validsign: {
     taskSpec: vi.fn(),
   },
+  rip: {
+    instanceDocuments: vi.fn(),
+    workspace: vi.fn(),
+    linkDocument: vi.fn(),
+    uploadDocument: vi.fn(),
+  },
 }));
 vi.mock('../../services/api', () => ({ businessApi: mockBusinessApi }));
 
@@ -71,6 +77,22 @@ beforeEach(() => {
   mockBusinessApi.validsign.taskSpec.mockResolvedValue({
     success: true,
     data: { required: false },
+  });
+  // By default a task declares no linked documents: no documents block.
+  mockBusinessApi.rip.instanceDocuments.mockResolvedValue({
+    success: true,
+    data: {
+      variables: {},
+      intakeReport: null,
+      psuReport: null,
+      pdp: null,
+      documents: [],
+      kredietChecks: [],
+    },
+  });
+  mockBusinessApi.rip.workspace.mockResolvedValue({
+    success: true,
+    data: { workspaceId: '77', folderId: null, items: [] },
   });
 });
 
@@ -760,5 +782,74 @@ describe('TakenInbox Procesgegevens', () => {
     expect(
       screen.getByRole('button', { name: /Procesgegevens/ }).getAttribute('aria-expanded')
     ).toBe('false');
+  });
+});
+
+describe('TakenInbox — linked documents (Infra-board)', () => {
+  it('shows what a claimed task still needs from eDOCS above its form', async () => {
+    const user = userEvent.setup();
+    mockBusinessApi.task.list.mockResolvedValue({
+      success: true,
+      data: [
+        makeTask({
+          assignee: 'user-1',
+          name: 'Uitvoeren PSU',
+          processInstanceId: 'pi-9',
+          taskDefinitionKey: 'Task_UitvoerenPSU',
+        }),
+      ],
+    });
+    mockBusinessApi.rip.instanceDocuments.mockResolvedValue({
+      success: true,
+      data: {
+        variables: {},
+        intakeReport: null,
+        psuReport: null,
+        pdp: null,
+        kredietChecks: [],
+        uploadTarget: 'edocs',
+        documents: [
+          {
+            slug: 'rip-psu-presentatie',
+            label: 'PSU-presentatie',
+            kind: 'B',
+            format: '3325975',
+            taskKey: 'Task_UitvoerenPSU',
+            taskName: 'Uitvoeren PSU',
+            candidateGroups: ['rip-projectleider'],
+            optional: false,
+            map: false,
+            status: 'missing',
+            edocs: null,
+            figures: null,
+            checklist: null,
+          },
+        ],
+      },
+    });
+
+    render(<TakenInbox user={{ sub: 'user-1' } as never} />);
+    await user.click(await screen.findByText('Uitvoeren PSU', { selector: '*:not(h2)' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Documenten bij deze taak' })
+    ).toBeInTheDocument();
+    expect(mockBusinessApi.rip.instanceDocuments).toHaveBeenCalledWith('pi-9');
+    expect(screen.getByText('Nog nodig: PSU-presentatie koppelen')).toBeInTheDocument();
+    expect(screen.getByText('task-form')).toBeInTheDocument();
+  });
+
+  it('shows no documents block for a task without linked documents', async () => {
+    const user = userEvent.setup();
+    mockBusinessApi.task.list.mockResolvedValue({
+      success: true,
+      data: [makeTask({ assignee: 'user-1' })],
+    });
+    render(<TakenInbox user={{ sub: 'user-1' } as never} />);
+    await user.click(await screen.findByText('Aanvraag beoordelen'));
+    expect(await screen.findByText('task-form')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Documenten bij deze taak' })
+    ).not.toBeInTheDocument();
   });
 });

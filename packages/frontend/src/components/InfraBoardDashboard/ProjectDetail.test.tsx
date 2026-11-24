@@ -874,3 +874,102 @@ describe('ProjectDetail — shared process view', () => {
     expect(container.querySelector('.pb-swim-inprogress')).toBeNull();
   });
 });
+
+describe('ProjectDetail — Documenten (Infra-board documenten)', () => {
+  const psuTask = {
+    id: 'task-psu',
+    name: 'Uitvoeren PSU',
+    created: '2026-01-01T00:00:00Z',
+    executionId: 'e1',
+    processDefinitionId: 'RipR21Process:2:def',
+    processDefinitionKey: 'RipR21Process',
+    processInstanceId: 'pi-1',
+    taskDefinitionKey: 'Task_UitvoerenPSU',
+    suspended: false,
+    assignee: 'sub-me',
+  };
+  const presentatie = {
+    slug: 'rip-psu-presentatie',
+    label: 'PSU-presentatie',
+    kind: 'B',
+    format: '3325975',
+    taskKey: 'Task_UitvoerenPSU',
+    taskName: 'Uitvoeren PSU',
+    candidateGroups: ['rip-projectleider'],
+    optional: false,
+    map: false,
+    status: 'missing',
+    edocs: null,
+    figures: null,
+    checklist: null,
+  };
+
+  beforeEach(() => {
+    mockUseOpenTasks.mockReturnValue({
+      data: [psuTask],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    mockUsePhaseSwimlane.mockReturnValue({
+      data: { phaseCode: 'R2.1', lanes: [], nodes: [], edges: [] },
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    mockUseInstanceDocuments.mockReturnValue({
+      data: {
+        variables: {},
+        intakeReport: null,
+        psuReport: null,
+        pdp: null,
+        documents: [presentatie],
+        kredietChecks: [],
+        uploadTarget: 'edocs',
+      },
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    Object.assign(mockBusinessApi, {
+      rip: {
+        workspace: vi.fn().mockResolvedValue({
+          success: true,
+          data: { workspaceId: '77', folderId: null, items: [] },
+        }),
+        linkDocument: vi.fn(),
+        uploadDocument: vi.fn(),
+      },
+    });
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  it('lists the phase documents and opens the task that waits on a missing one', async () => {
+    const user = userEvent.setup();
+    render(<ProjectDetail projectRef={{ nr: '99999', instanceId: 'pi-1' }} onBack={vi.fn()} />);
+
+    expect(screen.getByText('Documenten R2.1')).toBeInTheDocument();
+    const row = screen.getByText('PSU-presentatie', { selector: 'td' }).closest('tr')!;
+    expect(within(row).getByText('Ontbreekt — taak wacht')).toBeInTheDocument();
+
+    await user.click(within(row).getByRole('button', { name: 'Taak openen' }));
+
+    // The task panel opens with the documents block above the form.
+    expect(
+      await screen.findByRole('heading', { name: 'Documenten bij deze taak' })
+    ).toBeInTheDocument();
+    expect(screen.getByText('Nog nodig: PSU-presentatie koppelen')).toBeInTheDocument();
+    expect(screen.getByText('task-form')).toBeInTheDocument();
+  });
+
+  it('reads the documents again after a task is completed here', async () => {
+    const user = userEvent.setup();
+    render(<ProjectDetail projectRef={{ nr: '99999', instanceId: 'pi-1' }} onBack={vi.fn()} />);
+    expect(mockUseInstanceDocuments).toHaveBeenCalledWith('pi-1', 0);
+
+    await user.click(screen.getByRole('button', { name: 'Taak openen' }));
+    await user.click(await screen.findByRole('button', { name: 'stub-complete' }));
+
+    await waitFor(() => expect(mockUseInstanceDocuments).toHaveBeenCalledWith('pi-1', 1));
+  });
+});

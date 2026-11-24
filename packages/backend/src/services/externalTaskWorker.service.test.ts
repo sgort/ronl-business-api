@@ -43,6 +43,7 @@ type WorkerInternals = {
   fetchAndLock(): Promise<Task[]>;
   handleTask(task: Task): Promise<void>;
   handleEnsureWorkspace(task: Task): Promise<Vars>;
+  handleProjectmap(task: Task): Promise<Vars>;
   handleCreateRelaticsWorkspace(task: Task): Vars;
   handleUploadDocument(task: Task): Promise<Vars>;
   completeTask(id: string, vars: Vars): Promise<void>;
@@ -89,6 +90,62 @@ describe('handleEnsureWorkspace', () => {
       internals(new ExternalTaskWorker()).handleEnsureWorkspace(task('rip-edocs-workspace', {}))
     ).rejects.toThrow(/missing required variables/);
     expect(mockEnsure).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleProjectmap (R2.1 Aanmaken projectmap eDOCS)', () => {
+  const run = (variables: Record<string, unknown>) =>
+    internals(new ExternalTaskWorker()).handleProjectmap(task('rip-edocs-projectmap', variables));
+
+  it('records the workspace eDOCS finds or creates', async () => {
+    mockEnsure.mockResolvedValue({
+      workspaceId: 3349682,
+      workspaceName: 'P-1 — Proj',
+      created: false,
+    });
+    expect(await run({ projectNumber: 'P-1', projectName: 'Proj' })).toEqual({
+      edocsWorkspaceId: { value: '3349682', type: 'String' },
+      edocsWorkspaceName: { value: 'P-1 — Proj', type: 'String' },
+      edocsWorkspaceCreated: { value: false, type: 'Boolean' },
+    });
+  });
+
+  it('completes without a workspace when eDOCS fails, recording why', async () => {
+    mockEnsure.mockRejectedValue(new Error('Request failed with status code 500'));
+    expect(await run({ projectNumber: 'P-1', projectName: 'Proj' })).toEqual({
+      edocsWorkspaceId: { value: '', type: 'String' },
+      edocsWorkspaceCreated: { value: false, type: 'Boolean' },
+      edocsWorkspaceError: { value: 'Request failed with status code 500', type: 'String' },
+    });
+  });
+
+  it('records a non-Error failure as text', async () => {
+    mockEnsure.mockRejectedValue('socket hang up');
+    expect((await run({ projectNumber: 'P-1' })).edocsWorkspaceError.value).toBe('socket hang up');
+  });
+
+  it('names the project after its number when it has no name yet', async () => {
+    mockEnsure.mockResolvedValue({ workspaceId: 'w', workspaceName: 'P-1', created: true });
+    await run({ projectNumber: 'P-1' });
+    expect(mockEnsure).toHaveBeenCalledWith('P-1', 'P-1');
+  });
+
+  it('goes on without a workspace when eDOCS returns no id, or there is no project number', async () => {
+    mockEnsure.mockResolvedValue({ workspaceId: undefined, workspaceName: 'x', created: true });
+    expect((await run({ projectNumber: 'P-1' })).edocsWorkspaceId.value).toBe('');
+    mockEnsure.mockClear();
+    expect((await run({})).edocsWorkspaceError.value).toBe('Geen projectnummer bekend.');
+    expect(mockEnsure).not.toHaveBeenCalled();
+  });
+
+  it('is dispatched by handleTask and always completes the task', async () => {
+    mockEnsure.mockRejectedValue(new Error('500'));
+    const w = internals(new ExternalTaskWorker());
+    const complete = jest.spyOn(w, 'completeTask').mockResolvedValue(undefined);
+    const fail = jest.spyOn(w, 'failTask').mockResolvedValue(undefined);
+    await w.handleTask(task('rip-edocs-projectmap', { projectNumber: 'P-1' }));
+    expect(complete).toHaveBeenCalled();
+    expect(fail).not.toHaveBeenCalled();
   });
 });
 
@@ -332,6 +389,7 @@ describe('fetchAndLock', () => {
     expect(url).toBe('http://operaton/engine-rest/external-task/fetchAndLock');
     expect(body.topics.map((x: { topicName: string }) => x.topicName)).toEqual([
       'rip-edocs-workspace',
+      'rip-edocs-projectmap',
       'rip-relatics-workspace',
       'rip-edocs-document',
     ]);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ActivityHistoryItem } from '@ronl/shared';
+import type { InstanceDocument } from '../../services/rip-documents.types';
 import {
   countReworkLoops,
   FASE1_DOCS,
@@ -280,31 +281,46 @@ describe('countReworkLoops', () => {
 });
 
 describe('getDocProgress', () => {
-  it('counts FASE1_DOCS whose produceNode has finished', () => {
-    // t_aanleveren (doc 1, bpmnId Task_AanlevrenProjectplan) and
-    // t_aanvullen2 (doc 2, bpmnId Task_AanvullenProjectplan2) finished;
-    // t_psu (doc 3) and t_aanvullen4 (doc 4) have not been reached.
-    const history: ActivityHistoryItem[] = [
-      activity({ activityId: 'Task_AanlevrenProjectplan', endTime: '2026-08-01T00:00:00Z' }),
-      activity({ activityId: 'Task_AanvullenProjectplan2', endTime: '2026-08-02T00:00:00Z' }),
-    ];
-    const result = getDocProgress(history);
-    expect(result.docsDone).toBe(2);
-    expect(result.docsTotal).toBe(4);
+  const doc = (
+    status: InstanceDocument['status'],
+    kind: InstanceDocument['kind'] = 'B'
+  ): InstanceDocument => ({
+    slug: `rip-${status}-${kind}`,
+    label: 'x',
+    kind,
+    format: null,
+    taskKey: 'T',
+    taskName: 'T',
+    candidateGroups: [],
+    optional: false,
+    map: false,
+    status,
+    edocs: null,
+    figures: null,
+    checklist: null,
   });
 
-  it('returns 0/4 for an empty history', () => {
-    expect(getDocProgress([])).toEqual({ docsDone: 0, docsTotal: 4 });
+  it('counts generated and linked documents as done, for any phase', () => {
+    expect(
+      getDocProgress([
+        doc('linked'),
+        doc('generated', 'A'),
+        doc('missing'),
+        doc('pending', 'A'),
+        doc('later'),
+      ])
+    ).toEqual({ docsDone: 2, docsTotal: 5 });
   });
 
-  it('returns 4/4 when every produceNode has finished', () => {
-    const history: ActivityHistoryItem[] = [
-      activity({ activityId: 'Task_AanlevrenProjectplan', endTime: '2026-08-01T00:00:00Z' }),
-      activity({ activityId: 'Task_AanvullenProjectplan2', endTime: '2026-08-02T00:00:00Z' }),
-      activity({ activityId: 'Task_UitvoerenPSU', endTime: '2026-08-03T00:00:00Z' }),
-      activity({ activityId: 'Task_AanvullenProjectplan4', endTime: '2026-08-04T00:00:00Z' }),
-    ];
-    expect(getDocProgress(history).docsDone).toBe(4);
+  it('leaves a document that is not needed out of both counts', () => {
+    expect(getDocProgress([doc('linked'), doc('not-needed')])).toEqual({
+      docsDone: 1,
+      docsTotal: 1,
+    });
+  });
+
+  it('returns 0/0 for an instance without documents', () => {
+    expect(getDocProgress([])).toEqual({ docsDone: 0, docsTotal: 0 });
   });
 });
 

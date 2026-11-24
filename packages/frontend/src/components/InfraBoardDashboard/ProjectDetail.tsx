@@ -24,7 +24,8 @@ import { businessApi } from '../../services/api';
 import type { SwimNode, Task } from '@ronl/shared';
 import ProcessView from '../process/ProcessView';
 import PhaseStepper from '../process/PhaseStepper';
-import TaskFormViewer from '../CaseworkerDashboard/TaskFormViewer';
+import TaskCompletion from '../rip-documents/TaskCompletion';
+import DocumentsPanel from '../rip-documents/DocumentsPanel';
 import ProcessVarsDisclosure from '../process/ProcessVarsDisclosure';
 import SigningPanel from '../signing/SigningPanel';
 import { useTaskSignature } from '../signing/useTaskSignature';
@@ -181,8 +182,8 @@ function TaskWorkPanel({
             onDeclined={() => onDone(task)}
           />
         ) : (
-          <TaskFormViewer
-            taskId={task.id}
+          <TaskCompletion
+            task={task}
             variables={variables}
             // No success message here: onDone unmounts this panel, so anything
             // set alongside it is destroyed in the same tick and never paints.
@@ -213,7 +214,22 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   /** Last completed task, kept so the confirmation outlives the panel. */
   const [justCompleted, setJustCompleted] = useState<string | null>(null);
+  /** Bumped on every completion, so the Documenten panel reads the new statuses. */
+  const [docsTick, setDocsTick] = useState(0);
   const selectedTask = instanceTasks.find((t) => t.id === selectedTaskId) ?? null;
+  const openTaskKeys = new Set(instanceTasks.map((t) => t.taskDefinitionKey));
+  /** "Taak openen" in the Documenten panel: select that task and bring its panel into view. */
+  const openTaskByKey = (taskKey: string) => {
+    const t = instanceTasks.find((x) => x.taskDefinitionKey === taskKey);
+    if (!t) return;
+    setJustCompleted(null);
+    setSelectedTaskId(t.id);
+    requestAnimationFrame(() =>
+      document
+        .getElementById('pb-taken-section')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    );
+  };
 
   // A live instance's phase is the phase whose process it is an instance OF,
   // so it has to be looked up rather than assumed: this used to hard-code
@@ -391,6 +407,15 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
               </div>
             </div>
           )}
+          <DocumentsPanel
+            instanceId={
+              isOtherPhaseSelected ? (pastInstance?.id ?? null) : (projectRef.instanceId ?? null)
+            }
+            phaseCode={selPhase}
+            openTaskKeys={isOtherPhaseSelected ? undefined : openTaskKeys}
+            onOpenTask={openTaskByKey}
+            refreshKey={docsTick}
+          />
         </>
       ) : phaseModelLoading ? (
         <div className="pb-phase-empty">
@@ -413,7 +438,7 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
 
       {/* Live task work surface — only shown for live instances with open tasks. */}
       {isLive && instanceTasks.length > 0 && (
-        <div className="pb-taken-section">
+        <div className="pb-taken-section" id="pb-taken-section">
           <div className="pb-taken-head">
             <h3>Open taken ({instanceTasks.length})</h3>
           </div>
@@ -447,6 +472,7 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
               onClaimed={reloadTasks}
               onDone={(completed) => {
                 setJustCompleted(completed.name);
+                setDocsTick((t) => t + 1);
                 setSelectedTaskId(null);
                 reloadTasks();
                 reloadHistory();

@@ -55,13 +55,55 @@ export interface InstanceDocument {
   edocs: {
     documentId: string;
     documentNumber: string;
+    /** The document's name in eDOCS, as recorded when it was linked or uploaded. */
+    name?: string;
     version: string | null;
     modified: string | null;
     uploadedVia?: 'ronl';
     inWorkspace?: boolean;
   } | null;
   figures: Record<string, number | null> | null;
+  /**
+   * Suggested figures from an earlier phase, while this document has none of
+   * its own (the DO raming starts from the VO raming). Shown in the form to
+   * confirm or change; stored only when the task completes with them.
+   */
+  prefill: Record<string, number | null> | null;
   checklist: ChecklistEntry[] | null;
+}
+
+/** A B+ document whose figures start from another document's, recorded in an earlier phase. */
+export const PREFILL_FROM: Record<string, string> = {
+  'rip-projectraming-do': 'rip-projectraming',
+};
+
+/** The variables to read from earlier phases to prefill these specs. */
+export function prefillVariableNames(specs: TaskDocumentSpec[]): string[] {
+  const names = new Set<string>();
+  for (const s of specs) {
+    for (const ref of s.linked) {
+      const source = PREFILL_FROM[ref.slug];
+      if (source) for (const fig of ref.figures) names.add(figureVariable(source, fig));
+    }
+    if (s.kredietCheck) names.add(KREDIET_VARIABLE);
+  }
+  return [...names];
+}
+
+/** Prefill for one document: the source's figures, while it has none of its own. */
+function readPrefill(
+  slug: string,
+  figures: string[],
+  vars: Record<string, unknown>,
+  projectVars: Record<string, unknown>
+): Record<string, number | null> | null {
+  const source = PREFILL_FROM[slug];
+  if (!source || figures.length === 0) return null;
+  if (figures.some((f) => toWholeNumber(vars[figureVariable(slug, f)]) !== null)) return null;
+  const values = Object.fromEntries(
+    figures.map((f) => [f, toWholeNumber(projectVars[figureVariable(source, f)])])
+  );
+  return Object.values(values).some((v) => v !== null) ? values : null;
 }
 
 /**
@@ -169,8 +211,11 @@ export function buildInstanceDocuments(input: {
   activities: Array<{ activityId: string; endTime: string | null; canceled?: boolean }>;
   live: Map<string, LiveEdocsInfo | null>;
   checklists: Map<string, ChecklistEntry[]>;
+  /** Values earlier phases of the project recorded (getProjectVariables). */
+  projectVars?: Record<string, unknown>;
 }): InstanceDocument[] {
   const { specs, vars, activities, live, checklists } = input;
+  const projectVars = input.projectVars ?? {};
   const out = new Map<string, InstanceDocument>();
   const rank: Record<TaskState, number> = { active: 2, done: 1, 'not-reached': 0 };
   const stateOf = new Map(specs.map((s) => [s.taskKey, taskState(activities, s.taskKey)]));
@@ -203,6 +248,7 @@ export function buildInstanceDocuments(input: {
         status: state === 'done' ? 'generated' : state === 'active' ? 'pending' : 'later',
         edocs: null,
         figures: null,
+        prefill: null,
         checklist: null,
       });
     }
@@ -230,6 +276,7 @@ export function buildInstanceDocuments(input: {
           ? {
               documentId: link.documentId,
               documentNumber: link.documentNumber,
+              ...(link.name ? { name: link.name } : {}),
               version: info?.version ?? null,
               modified: info?.modified ?? null,
               ...(link.uploadedVia ? { uploadedVia: link.uploadedVia } : {}),
@@ -237,6 +284,7 @@ export function buildInstanceDocuments(input: {
             }
           : null,
         figures: readFigures(ref.slug, ref.figures, vars),
+        prefill: readPrefill(ref.slug, ref.figures, vars, projectVars),
         checklist: ref.map
           ? (checklists.get(ref.slug) ?? ref.checklist.map((item) => ({ item, present: false })))
           : null,
@@ -266,6 +314,11 @@ export interface KredietCheckState {
   taskName: string;
   raming: number | null;
   krediet: number | null;
+  /**
+   * The projectkrediet an earlier phase recorded, while this instance has
+   * none: prefilled in the form to confirm or change.
+   */
+  kredietPrefill: number | null;
   /** The suggestion in the variable's own values (binnen/buiten or ja/nee). */
   voorstel: string | null;
   /** The confirmed answer, once given. */
@@ -277,7 +330,8 @@ export interface KredietCheckState {
 /** The kredietcheck of every task that declares one, as the instance stands. */
 export function buildKredietChecks(
   specs: TaskDocumentSpec[],
-  vars: Record<string, unknown>
+  vars: Record<string, unknown>,
+  projectVars: Record<string, unknown> = {}
 ): KredietCheckState[] {
   const out: KredietCheckState[] = [];
   for (const s of specs) {
@@ -296,6 +350,7 @@ export function buildKredietChecks(
       taskName: s.taskName,
       raming,
       krediet,
+      kredietPrefill: krediet === null ? toWholeNumber(projectVars[KREDIET_VARIABLE]) : null,
       voorstel: suggestion ? values[suggestion] : null,
       answer,
       afwijking: typeof afw === 'string' && afw !== '' ? afw : null,

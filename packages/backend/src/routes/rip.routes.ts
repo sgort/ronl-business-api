@@ -16,7 +16,13 @@ import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
 import { sendProblem } from '@utils/problem';
 import { RIP_PHASE_KEYS } from '@ronl/shared';
-import { edocsAccess, edocsOf, requireEdocsPrincipal, sendEdocsError } from './edocs.access';
+import {
+  applyServiceFallback,
+  edocsAccess,
+  edocsOf,
+  requireEdocsPrincipal,
+  sendEdocsError,
+} from './edocs.access';
 
 const router = express.Router();
 const logger = createLogger('rip-routes');
@@ -319,6 +325,8 @@ router.get('/phases/counts', async (req, res) => {
  * eDOCS is read as the person when they have an eDOCS identity, for the live
  * version of each linked document. Without one the list still answers, with
  * the versions left empty: the panel matters more than the version number.
+ * `?edocs=false` skips eDOCS altogether -- for a list of many instances (the
+ * Beheer WIP table), which needs statuses, not versions.
  */
 router.get('/instances/:instanceId/documents', edocsAccess, async (req, res) => {
   if (!req.user) {
@@ -340,7 +348,13 @@ router.get('/instances/:instanceId/documents', edocsAccess, async (req, res) => 
       });
     }
 
-    const docs = await listInstanceDocuments(instanceId, req.edocs ?? null);
+    const readEdocs = req.query.edocs !== 'false';
+    // The same service-account fallback the link and upload routes apply, so a
+    // person who could link a document also sees its version afterwards.
+    const docs = await listInstanceDocuments(
+      instanceId,
+      readEdocs && applyServiceFallback(req) ? (req.edocs ?? null) : null
+    );
     res.json({
       success: true,
       data: {

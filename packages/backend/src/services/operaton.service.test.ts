@@ -2715,3 +2715,149 @@ describe('getProcessVariables with a malformed Json value', () => {
     expect(mockLogger.warn).toHaveBeenCalled();
   });
 });
+
+// ── RIP documents (Infra-board, werkwijze A / B / B+) ──────────────────────
+describe('getRipDocumentContext', () => {
+  it('reads the model, variables, activity history and businessKey of one instance', async () => {
+    routeGet([
+      [
+        '/history/process-instance/pi-1',
+        { data: { processDefinitionId: 'RipR21Process:14:abc', businessKey: 'flevoland-1' } },
+      ],
+      ['/process-definition/RipR21Process:14:abc/xml', { data: { bpmn20Xml: '<xml/>' } }],
+      [
+        '/history/variable-instance',
+        { data: [{ name: 'municipality', value: 'flevoland', type: 'String' }] },
+      ],
+      [
+        '/history/activity-instance',
+        { data: [{ id: 'a', activityId: 'Task_X', activityType: 'userTask', endTime: null }] },
+      ],
+    ]);
+    const ctx = await svc.getRipDocumentContext('pi-1');
+    expect(ctx).toMatchObject({
+      processDefinitionId: 'RipR21Process:14:abc',
+      businessKey: 'flevoland-1',
+      bpmnXml: '<xml/>',
+      variables: { municipality: 'flevoland' },
+    });
+    expect(ctx.activities.map((a) => a.activityId)).toEqual(['Task_X']);
+  });
+
+  it('reports a missing businessKey as null', async () => {
+    routeGet([
+      ['/history/process-instance/pi-2', { data: { processDefinitionId: 'd:1:x' } }],
+      ['/process-definition/d:1:x/xml', { data: { bpmn20Xml: '<xml/>' } }],
+      ['/history/variable-instance', { data: [] }],
+      ['/history/activity-instance', { data: [] }],
+    ]);
+    await expect(svc.getRipDocumentContext('pi-2')).resolves.toMatchObject({ businessKey: null });
+  });
+});
+
+describe('getProcessDefinitionXml / getOpenTasksOfInstance', () => {
+  it('reads a model through the cache', async () => {
+    routeGet([['/process-definition/d:1:x/xml', { data: { bpmn20Xml: '<a/>' } }]]);
+    await expect(svc.getProcessDefinitionXml('d:1:x')).resolves.toBe('<a/>');
+    await svc.getProcessDefinitionXml('d:1:x');
+    expect(mockClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists the open user tasks of one instance', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [
+        { id: 't1', taskDefinitionKey: 'Task_UitvoerenPSU', name: 'Uitvoeren PSU', assignee: null },
+      ],
+    });
+    await expect(svc.getOpenTasksOfInstance('pi-1')).resolves.toEqual([
+      { id: 't1', taskDefinitionKey: 'Task_UitvoerenPSU', name: 'Uitvoeren PSU' },
+    ]);
+    expect(mockClient.get).toHaveBeenCalledWith('/task', { params: { processInstanceId: 'pi-1' } });
+  });
+});
+
+describe('getProjectWorkspaceId', () => {
+  it('takes the workspace an instance of the same project recorded', async () => {
+    routeGet([
+      ['/history/process-instance', { data: [{ id: 'r21' }, { id: 'r22' }] }],
+      [
+        '/history/variable-instance',
+        { data: [{ value: '' }, { value: '—' }, { value: '3349682' }] },
+      ],
+    ]);
+    await expect(svc.getProjectWorkspaceId('flevoland-1')).resolves.toBe('3349682');
+    expect(mockClient.get).toHaveBeenCalledWith('/history/process-instance', {
+      params: { processInstanceBusinessKey: 'flevoland-1' },
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/history/variable-instance', {
+      params: { variableName: 'edocsWorkspaceId', processInstanceIdIn: 'r21,r22' },
+    });
+  });
+
+  it('is null when no instance of the project holds one', async () => {
+    routeGet([
+      ['/history/process-instance', { data: [{ id: 'r21' }] }],
+      ['/history/variable-instance', { data: [{ value: '' }, { value: 42 }] }],
+    ]);
+    await expect(svc.getProjectWorkspaceId('flevoland-1')).resolves.toBeNull();
+  });
+
+  it('asks nothing more when the project has no instances', async () => {
+    routeGet([['/history/process-instance', { data: [] }]]);
+    await expect(svc.getProjectWorkspaceId('flevoland-9')).resolves.toBeNull();
+    expect(mockClient.get).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('getProjectVariables', () => {
+  it('takes each value from the most recently started instance of the project, leaving the asker out', async () => {
+    routeGet([
+      [
+        '/history/process-instance',
+        { data: [{ id: 'r24' }, { id: 'r23-again' }, { id: 'r23' }, { id: 'r21' }] },
+      ],
+      [
+        '/history/variable-instance',
+        {
+          data: [
+            { name: 'raming_totaal', value: 40000, processInstanceId: 'r23' },
+            { name: 'raming_totaal', value: 45000, processInstanceId: 'r23-again' },
+            { name: 'beschikbaarProjectkrediet', value: 60000, processInstanceId: 'r23' },
+            { name: 'raming_onvoorzien', value: '', processInstanceId: 'r23-again' },
+            { name: 'raming_onvoorzien', value: 4500, processInstanceId: 'r23' },
+            { name: 'raming_prijspeil', value: null, processInstanceId: 'r23' },
+          ],
+        },
+      ],
+    ]);
+    await expect(
+      svc.getProjectVariables(
+        'flevoland-1',
+        ['raming_totaal', 'raming_onvoorzien', 'raming_prijspeil', 'beschikbaarProjectkrediet'],
+        'r24'
+      )
+    ).resolves.toEqual({
+      raming_totaal: 45000,
+      raming_onvoorzien: 4500,
+      beschikbaarProjectkrediet: 60000,
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/history/process-instance', {
+      params: { processInstanceBusinessKey: 'flevoland-1', sortBy: 'startTime', sortOrder: 'desc' },
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/history/variable-instance', {
+      params: {
+        variableNameIn:
+          'raming_totaal,raming_onvoorzien,raming_prijspeil,beschikbaarProjectkrediet',
+        processInstanceIdIn: 'r23-again,r23,r21',
+      },
+    });
+  });
+
+  it('asks nothing for no names, or when the asker is the only instance', async () => {
+    await expect(svc.getProjectVariables('k', [], 'x')).resolves.toEqual({});
+    expect(mockClient.get).not.toHaveBeenCalled();
+    routeGet([['/history/process-instance', { data: [{ id: 'only' }] }]]);
+    await expect(svc.getProjectVariables('k', ['a'], 'only')).resolves.toEqual({});
+    expect(mockClient.get).toHaveBeenCalledTimes(1);
+  });
+});

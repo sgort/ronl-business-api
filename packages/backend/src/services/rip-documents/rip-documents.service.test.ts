@@ -5,6 +5,8 @@ jest.mock('@services/operaton.service', () => ({
   operatonService: {
     getRipDocumentContext: jest.fn(),
     getOpenTasksOfInstance: jest.fn(),
+    getProjectWorkspaceId: jest.fn(),
+    getProjectVariables: jest.fn().mockResolvedValue({}),
     getProcessDefinitionXml: jest.fn(),
     setProcessVariables: jest.fn(),
   },
@@ -32,6 +34,7 @@ import {
   linkDocument,
   listInstanceDocuments,
   listInstanceWorkspace,
+  resolveWorkspaceId,
   RipDocumentError,
   uploadDocument,
 } from './rip-documents.service';
@@ -42,8 +45,9 @@ const fixture = (name: string) =>
 const R21 = fixture('RipR21Process.bpmn');
 const R24 = fixture('RipR24Process.bpmn');
 
-type Faked = 'getDocumentVersions' | 'listContents' | 'uploadDocument';
-/** An EdocsService whose three used methods are jest mocks. */
+type Faked =
+  'addReference' | 'getDocumentVersions' | 'listContents' | 'uploadDocument' | 'findWorkspace';
+/** An EdocsService whose used methods are jest mocks. */
 type FakeEdocs = EdocsService & Record<Faked, jest.Mock>;
 
 const edocs = () =>
@@ -55,6 +59,8 @@ const edocs = () =>
     ]),
     listContents: jest.fn(),
     uploadDocument: jest.fn(),
+    findWorkspace: jest.fn().mockResolvedValue(null),
+    addReference: jest.fn().mockResolvedValue(undefined),
   }) as unknown as FakeEdocs;
 
 const context = (
@@ -119,7 +125,7 @@ describe('listInstanceDocuments', () => {
       documentNumber: '3500501',
       version: '3',
     });
-    expect(result).toMatchObject({ edocsWorkspaceId: '77', uploadTarget: 'edocs' });
+    expect(result).toMatchObject({ edocsWorkspaceId: '77', uploadTarget: 'workspace' });
   });
 
   it('answers without versions when eDOCS fails or there is no identity', async () => {
@@ -287,7 +293,10 @@ describe('uploadDocument', () => {
     ]);
   });
 
-  it('uploads standalone while workspace uploads are off, and says so on the link', async () => {
+  it('uploads standalone without a projectmap, and says so on the link', async () => {
+    svc.getRipDocumentContext.mockResolvedValue(
+      context(R21, { projectNumber: '25008', projectName: 'N23 Fietspad', edocsWorkspaceId: '' })
+    );
     const e = edocs();
     e.uploadDocument.mockResolvedValue({
       documentId: 'd1',
@@ -301,6 +310,8 @@ describe('uploadDocument', () => {
     });
     expect(result?.link).toMatchObject({
       documentNumber: '3500777',
+      // The name eDOCS gives it, not the file name on the person's disk.
+      name: '25008 — PSU-presentatie — N23 Fietspad',
       uploadedVia: 'ronl',
       inWorkspace: false,
     });
@@ -543,5 +554,225 @@ describe('failure paths', () => {
       formName: 'D_RIP',
     });
     (config.edocs as { linkedUploadForm: string }).linkedUploadForm = '';
+  });
+});
+
+describe('resolveWorkspaceId — the projectmap across phases', () => {
+  const ctx = (variables: Record<string, unknown>, businessKey: string | null = 'flevoland-1') => ({
+    businessKey,
+    variables,
+  });
+
+  it('takes the workspace on the instance first, looking nothing up', async () => {
+    const e = edocs();
+    await expect(resolveWorkspaceId(ctx({ edocsWorkspaceId: '77' }), e)).resolves.toEqual({
+      workspaceId: '77',
+      recorded: true,
+    });
+    expect(svc.getProjectWorkspaceId).not.toHaveBeenCalled();
+    expect(e.findWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('then the one an earlier phase of the project recorded', async () => {
+    svc.getProjectWorkspaceId.mockResolvedValue('88');
+    const e = edocs();
+    await expect(resolveWorkspaceId(ctx({ projectNumber: 'P-1' }), e)).resolves.toEqual({
+      workspaceId: '88',
+      recorded: false,
+    });
+    expect(svc.getProjectWorkspaceId).toHaveBeenCalledWith('flevoland-1');
+    expect(e.findWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('then an eDOCS search by project number', async () => {
+    svc.getProjectWorkspaceId.mockResolvedValue(null);
+    const e = edocs();
+    e.findWorkspace.mockResolvedValue({ workspaceId: '99', workspaceName: 'P-1' });
+    await expect(resolveWorkspaceId(ctx({ projectNumber: 'P-1' }), e)).resolves.toEqual({
+      workspaceId: '99',
+      recorded: false,
+    });
+    expect(e.findWorkspace).toHaveBeenCalledWith('P-1');
+  });
+
+  it('finds nothing without a businessKey, an eDOCS client or a project number', async () => {
+    await expect(resolveWorkspaceId(ctx({ projectNumber: 'P-1' }, null), null)).resolves.toEqual({
+      workspaceId: null,
+      recorded: false,
+    });
+    expect(svc.getProjectWorkspaceId).not.toHaveBeenCalled();
+    const e = edocs();
+    svc.getProjectWorkspaceId.mockResolvedValue(null);
+    await resolveWorkspaceId(ctx({}), e);
+    expect(e.findWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('counts a failing lookup as no workspace', async () => {
+    svc.getProjectWorkspaceId.mockRejectedValue(new Error('engine down'));
+    await expect(resolveWorkspaceId(ctx({ projectNumber: 'P-1' }), edocs())).resolves.toEqual({
+      workspaceId: null,
+      recorded: false,
+    });
+    svc.getProjectWorkspaceId.mockRejectedValue('socket hang up');
+    await expect(resolveWorkspaceId(ctx({}), null)).resolves.toMatchObject({ workspaceId: null });
+  });
+
+  it('linking in a later phase finds the map and records it on the instance', async () => {
+    svc.getRipDocumentContext.mockResolvedValue({
+      ...context(R21, { edocsWorkspaceId: '' }),
+      businessKey: 'flevoland-1',
+    });
+    svc.getOpenTasksOfInstance.mockResolvedValue([
+      { id: 't', taskDefinitionKey: 'Task_UitvoerenPSU', name: 'x' },
+    ]);
+    svc.getProjectWorkspaceId.mockResolvedValue('88');
+    const e = edocs();
+    e.listContents.mockResolvedValue([item()]);
+    await linkDocument('pi', 'rip-psu-presentatie', '501', PL, e, allow);
+    expect(e.listContents).toHaveBeenCalledWith('workspace', '88');
+    expect(svc.setProcessVariables.mock.calls[0][1].edocsWorkspaceId).toEqual({
+      value: '88',
+      type: 'String',
+    });
+  });
+
+  it('the documents list reports the workspace it found', async () => {
+    svc.getRipDocumentContext.mockResolvedValue({
+      ...context(R21, { edocsWorkspaceId: '' }),
+      businessKey: 'flevoland-1',
+    });
+    svc.getProjectWorkspaceId.mockResolvedValue('88');
+    await expect(listInstanceDocuments('pi', null)).resolves.toMatchObject({
+      edocsWorkspaceId: '88',
+    });
+  });
+
+  it('uploading into the projectmap uses the map an earlier phase recorded', async () => {
+    (config.edocs as { workspaceUploadEnabled: boolean }).workspaceUploadEnabled = true;
+    svc.getRipDocumentContext.mockResolvedValue({
+      ...context(R21, { edocsWorkspaceId: '' }),
+      businessKey: 'flevoland-1',
+    });
+    svc.getOpenTasksOfInstance.mockResolvedValue([
+      { id: 't', taskDefinitionKey: 'Task_UitvoerenPSU', name: 'x' },
+    ]);
+    svc.getProjectWorkspaceId.mockResolvedValue('88');
+    const e = edocs();
+    e.uploadDocument.mockResolvedValue({ documentId: 'd', documentNumber: '1', workspaceId: '88' });
+    await uploadDocument(
+      'pi',
+      'rip-psu-presentatie',
+      { filename: 'a', contentBase64: 'eA==' },
+      PL,
+      e,
+      allow
+    );
+    expect(e.uploadDocument.mock.calls[0][0]).toBe('88');
+    expect(svc.setProcessVariables.mock.calls[0][1].edocsWorkspaceId).toEqual({
+      value: '88',
+      type: 'String',
+    });
+  });
+});
+
+describe('uploadDocument — filing into the projectmap by reference', () => {
+  const file = { filename: 'PSU.pptx', contentBase64: Buffer.from('pptx').toString('base64') };
+  const open = () =>
+    svc.getOpenTasksOfInstance.mockResolvedValue([
+      { id: 't', taskDefinitionKey: 'Task_UitvoerenPSU', name: 'x' },
+    ]);
+
+  it('uploads standalone, then files the document into the projectmap', async () => {
+    svc.getRipDocumentContext.mockResolvedValue(
+      context(R21, { edocsWorkspaceName: 'RIP21-TEST001' })
+    );
+    open();
+    const e = edocs();
+    e.uploadDocument.mockResolvedValue({
+      documentId: '3350335',
+      documentNumber: '3350335',
+      workspaceId: null,
+    });
+    const result = await uploadDocument('pi', 'rip-psu-presentatie', file, PL, e, allow);
+    expect(e.uploadDocument.mock.calls[0][0]).toBeNull();
+    expect(e.addReference).toHaveBeenCalledWith('3350335', '77', 'RIP21-TEST001');
+    expect(result?.link.inWorkspace).toBe(true);
+  });
+
+  it('keeps the upload when filing fails, saying it is not in the map', async () => {
+    svc.getRipDocumentContext.mockResolvedValue(context(R21));
+    open();
+    const e = edocs();
+    e.uploadDocument.mockResolvedValue({ documentId: 'd', documentNumber: '1', workspaceId: null });
+    e.addReference.mockRejectedValue(new Error('500'));
+    const result = await uploadDocument('pi', 'rip-psu-presentatie', file, PL, e, allow);
+    expect(e.addReference).toHaveBeenCalledWith('d', '77', '77');
+    expect(result?.link).toMatchObject({ documentNumber: '1', inWorkspace: false });
+    expect(svc.setProcessVariables).toHaveBeenCalled();
+  });
+
+  it('survives a non-Error failure of the filing call too', async () => {
+    svc.getRipDocumentContext.mockResolvedValue(context(R21));
+    open();
+    const e = edocs();
+    e.uploadDocument.mockResolvedValue({ documentId: 'd', documentNumber: '1', workspaceId: null });
+    e.addReference.mockRejectedValue('socket hang up');
+    await expect(
+      uploadDocument('pi', 'rip-psu-presentatie', file, PL, e, allow)
+    ).resolves.toMatchObject({ link: { inWorkspace: false } });
+  });
+
+  it('files nothing when the project has no map', async () => {
+    svc.getRipDocumentContext.mockResolvedValue(context(R21, { edocsWorkspaceId: '' }));
+    open();
+    svc.getProjectWorkspaceId.mockResolvedValue(null);
+    const e = edocs();
+    e.uploadDocument.mockResolvedValue({ documentId: 'd', documentNumber: '1', workspaceId: null });
+    const result = await uploadDocument('pi', 'rip-psu-presentatie', file, PL, e, allow);
+    expect(e.addReference).not.toHaveBeenCalled();
+    expect(result?.link.inWorkspace).toBe(false);
+  });
+
+  it('reports uploads as reaching the map only when the project has one', async () => {
+    svc.getRipDocumentContext.mockResolvedValue({
+      ...context(R21, { edocsWorkspaceId: '' }),
+      businessKey: null,
+    });
+    await expect(listInstanceDocuments('pi', null)).resolves.toMatchObject({
+      uploadTarget: 'edocs',
+    });
+  });
+});
+
+describe('listInstanceDocuments — prefill from earlier phases', () => {
+  it('reads the values R2.4 prefills from, from the project, leaving itself out', async () => {
+    svc.getRipDocumentContext.mockResolvedValue({ ...context(R24), businessKey: 'flevoland-1' });
+    svc.getProjectVariables.mockResolvedValue({
+      raming_totaal: 40000,
+      beschikbaarProjectkrediet: 60000,
+    });
+    const result = await listInstanceDocuments('pi-24', null);
+    expect(svc.getProjectVariables).toHaveBeenCalledWith(
+      'flevoland-1',
+      expect.arrayContaining(['raming_totaal', 'beschikbaarProjectkrediet']),
+      'pi-24'
+    );
+    expect(result.documents.find((d) => d.slug === 'rip-projectraming-do')?.prefill).toMatchObject({
+      totaal: 40000,
+    });
+    expect(result.kredietChecks[0].kredietPrefill).toBe(60000);
+  });
+
+  it('asks nothing without a businessKey, and prefills nothing when the lookup fails', async () => {
+    svc.getRipDocumentContext.mockResolvedValue({ ...context(R24), businessKey: null });
+    await listInstanceDocuments('pi-24', null);
+    expect(svc.getProjectVariables).not.toHaveBeenCalled();
+
+    svc.getRipDocumentContext.mockResolvedValue({ ...context(R24), businessKey: 'flevoland-1' });
+    svc.getProjectVariables.mockRejectedValue(new Error('engine down'));
+    const failed = await listInstanceDocuments('pi-24', null);
+    expect(failed.documents.find((d) => d.slug === 'rip-projectraming-do')?.prefill).toBeNull();
+    svc.getProjectVariables.mockRejectedValue('socket hang up');
+    await expect(listInstanceDocuments('pi-24', null)).resolves.toBeDefined();
   });
 });
