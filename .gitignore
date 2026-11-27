@@ -123,11 +123,10 @@ deployment/vm/**/Thumbs.db
 #deploy theme script
 deploy-theme-to-*.sh
 
-# Backend deploy scripts: track the two canonical ones (prod/acc), ignore
-# any other local/ad-hoc variants
+# Backend deploy scripts: the hand-run deploy-backend-to-{acc,prod}.sh were
+# retired on 27 November 2026 (the backend deploys only from
+# azure-backend-{acc,prod}.yml). Keep any local variant out of the repository.
 deploy-backend-to-*.sh
-!deploy-backend-to-prod.sh
-!deploy-backend-to-acc.sh
 
 # Local-only vendor API reference (not meant for the repo)
 docs/edocs-rest-api-1.0.0.json
@@ -160,8 +159,9 @@ docs/overview.md
 # token and refresh token for the Semgrep account, written per working
 # directory (root plus one per workspace), so `git add -A` from a repo root
 # would commit five copies of a credential. Never been tracked; keep it that
-# way. It also kept `deploy-backend-to-acc.sh` from running, since that script
-# requires a clean tree and `git status --porcelain` counts untracked files.
+# way. It also kept the since-retired `deploy-backend-to-acc.sh` from running,
+# since that script required a clean tree and `git status --porcelain` counts
+# untracked files.
 .semgrep/
 
 # Generated from packages/backend/openapi/openapi.yaml by build-openapi.cjs.
