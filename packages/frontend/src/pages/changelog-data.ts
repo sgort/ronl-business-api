@@ -112,6 +112,106 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.11.6',
+      status: 'Released',
+      date: '27 nov 2026',
+      scope: ['frontend', 'backend', 'pa-demo', 'ci'],
+      commits: [
+        {
+          sha: 'b0a12de',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Break-glass backend deploy scripts retired (#491)',
+          details: [
+            'deploy-backend-to-{acc,prod}.sh are deleted. The backend reaches acceptance and production only through azure-backend-{acc,prod}.yml, which install with npm ci from the root lockfile (#35). The scripts were the last place the deployed dependency tree was resolved from semver ranges on a developer machine, without a lockfile (ICTU recommendations 3 and 4).',
+            '.gitignore keeps ignoring local variants; .npmrc and SECURITY-PIPELINE.md record the retirement, and the exception "The backend is deployed outside CI, and its dependencies are unpinned" is closed. The workflow comments that still described the scripts as the real deploy now call them retired.',
+          ],
+        },
+        {
+          sha: 'cfbcfec',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'Woo-dashboard opens with the Flevoland account; "Uitloggen" in the no-access dialog works in one click (#490)',
+          details: [
+            "Flevoland IT created the Entra ID app role IOU_WOO (group Flv-role-IOU-WOO-contributors). The Keycloak mapper role-iou-woo turns it into the realm role woo-coordinatie, FORCE-synced like the other roles; scripts/keycloak-add-entra-idp.sh has been re-run locally, on ACC and on PROD. The Woo card offers the Flevoland account, and the no-access dialog and the dashboard's own no-access panel name IOU_WOO.",
+            '"Uitloggen" in the no-access dialog did nothing after a page reload and needed two clicks otherwise. The dialog lives in router state, which survives a reload while keycloak-js is not initialised there, so keycloak.logout() threw. logoutTo() now goes to Keycloak\'s end-session endpoint itself when keycloak-js holds no session, and the dialog closes before the logout so the round trip cannot bring it back.',
+          ],
+        },
+        {
+          sha: '8891efd',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'vite ^6.4.6 in pa-cockpit (#485)',
+          details: ['pa-cockpit is compiled into the frontend and the PA demo, so both carry it.'],
+        },
+        {
+          sha: '0aff3a8',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'concurrently ^10.0.7 (#480)',
+          details: ['Root dev tooling for the local dev servers; nothing deployed changes.'],
+        },
+        {
+          sha: '73083cd',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Infra-board test accounts per RIP role in the local realm (#488)',
+          details: [
+            'Four Flevoland test accounts for the RIP document flow, one per role (EMP-FLV-011 to EMP-FLV-014): test-infra-pl-flevoland (rip-projectleider), test-infra-po-flevoland (rip-projectondersteuner), test-infra-ao-flevoland (rip-ao) and test-infra-aandrager-flevoland (rip-aandrager).',
+          ],
+        },
+        {
+          sha: 'a0ba345',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'Documents in the Infra-board tasks: projectmap lookup, upload into the projectmap and prefill (#488)',
+          details: [
+            'Each RIP task that produces a B or B+ document gets a "Documenten bij deze taak" block: pick the document (or, for a map, a folder) from the eDOCS projectmap or upload one, enter the B+ key figures, see the map checklist, and answer the kredietcheck with its suggestion and a reason when the answer deviates. "Taak voltooien" stays disabled until nothing is missing, and the server\'s 422 LINKED_DOCUMENT_MISSING is shown the same way. Each phase gets a Documenten panel (A / B / B+, task and role, eDOCS number, version, date, figures, kredietcheck), and the phase overview an eDOCS column and blockade. R2.4\'s Projectraming DO starts from the R2.3 VO figures and projectkrediet, to confirm or change.',
+            "A new R2.1 step (worker topic rip-edocs-projectmap) finds the project's eDOCS workspace and records it; it never fails the process. The documents and upload routes find the projectmap through the instance, an earlier phase of the same businessKey, or a name search on the project number; the DM server ignores filter on GET /workspaces, so the search pages and matches client-side (cost tracked in #487). Uploads are filed into the projectmap with POST /documents/{id}/references, because uploading straight into a workspace is refused, and the link records the eDOCS name.",
+            'Also: eDOCS refusals in Dutch, workspace contents deduplicated by id, the service-account fallback shared by the documents list so versions show, an empty projectmap that says what to do and offers "Opnieuw laden", and starting a next phase keyed by instance so projects with the same number no longer select together.',
+          ],
+        },
+        {
+          sha: 'facee22',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'B and B+ documents linked and task completion gated on them (#488)',
+          details: [
+            "GET /v1/rip/instances/:id/documents returns every document the instance's model declares, generated A and linked B / B+, with its status, eDOCS number, live version, figures and map checklist, plus the kredietcheck state. GET .../workspace lists the projectmap as the person; POST .../documents/:slug/link and .../upload link a projectmap document or upload a file, tenant first, then the producing task must be open and the caller in its candidate groups, audit-logged.",
+            'POST /v1/task/:id/complete answers 422 LINKED_DOCUMENT_MISSING with the missing items when a linked document, figure, checklist item or kredietcheck answer or reason is absent. Figures and the projectkrediet are stored as Long and the kredietcheck suggestion is recomputed on the server. New settings: EDOCS_WORKSPACE_UPLOAD_ENABLED (default false), EDOCS_LINKED_UPLOAD_FORM and EDOCS_LINKED_UPLOAD_MAX_MB (default 20).',
+          ],
+        },
+        {
+          sha: '1d84111',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Linked-document attributes parsed from the RIP models (#488)',
+          details: [
+            "Reads the B / B+ convention from R2.1–R2.4 (ronl:linkedDocumentRef, ronl:documentFigures, ronl:documentChecklist, ronl:kredietCheck): every user task's generated and linked documents, figures, checklist and kredietcheck. Swimlane nodes carry linkedDocs next to docs, with curated Dutch labels. The models live in linked-data-explorer (#362); the fixtures and rip-bpmn-fingerprints.json follow them.",
+          ],
+        },
+        {
+          sha: '36ab998',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'alpine 3.24.4 in docker-compose (#484)',
+          details: ['Local stack only; nothing deployed changes.'],
+        },
+        {
+          sha: '9df69a1',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Flevoland accent fill is pink #e60078 instead of yellow (#473)',
+          details: [
+            'Rail buttons, badges, chips, tab counts and the live badge use pink #e60078 with white text (4.53:1) instead of yellow #fec612 with dark text; dark text on the pink would be 3.55:1, below AA. The warning fill stays yellow with dark text. A new shared token --rba-flevoland-pink-fill backs --rba-accent-fill, and rail-card subtitles lose their 0.85 opacity, which fell to 3.5:1 on the pink.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.11.5',
       status: 'Released',
       date: '17 nov 2026',

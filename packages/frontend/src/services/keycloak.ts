@@ -61,6 +61,29 @@ export const initializeKeycloak = (): Promise<boolean> => {
 };
 
 /**
+ * Log out and come back at `redirectUri`, also from a page that never
+ * initialised keycloak-js. keycloak.logout() needs the adapter init() sets;
+ * without it, it throws. The no-access dialog is such a page: it lives in
+ * router state, which survives a reload, and the landing page does not init.
+ * Then the browser goes to Keycloak's end-session endpoint directly, which ends
+ * any SSO session; without an ID token Keycloak asks to confirm first.
+ */
+export function logoutTo(
+  redirectUri: string,
+  go: (url: string) => void = (url) => window.location.assign(url)
+): void {
+  if (keycloak.authenticated) {
+    void keycloak.logout({ redirectUri });
+    return;
+  }
+  const params = new URLSearchParams({
+    client_id: 'ronl-business-api',
+    post_logout_redirect_uri: redirectUri,
+  });
+  go(`${KEYCLOAK_URL}/realms/ronl/protocol/openid-connect/logout?${params}`);
+}
+
+/**
  * Extract user information from Keycloak token
  */
 export const getUser = (): KeycloakUser | null => {

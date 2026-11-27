@@ -109,6 +109,29 @@ export function edocsOf(req: Request): EdocsService {
 }
 
 /** Data routes need a client. A person without one is refused — or, where allowed, falls back visibly. */
+/**
+ * The service-account fallback for a person without an Entra token, when
+ * EDOCS_ALLOW_SERVICE_FALLBACK allows it: sets the request's client and says
+ * so in the audit log. One rule for the routes that need eDOCS
+ * (requireEdocsPrincipal) and for those that only read it when they can (the
+ * RIP documents list). Never for a person who must sign in again, nor for a
+ * lookup that failed: then the person is unknown, not refused.
+ */
+export function applyServiceFallback(req: Request): boolean {
+  if (req.edocs) return true;
+  if (req.edocsLookupError || req.edocsUserProblem === 'EDOCS_REAUTH_REQUIRED') return false;
+  if (!req.edocsUserProblem || !config.edocs.allowServiceFallback) return false;
+  logger.warn('eDOCS service fallback for a person without an Entra token', {
+    audit: true,
+    userId: req.user?.userId,
+    actingAs: config.edocs.userId,
+    path: req.path,
+  });
+  req.edocs = edocsService;
+  req.edocsActingAs = 'service';
+  return true;
+}
+
 export function requireEdocsPrincipal(req: Request, res: Response, next: NextFunction): void {
   if (req.edocs) return next();
   // Never a fallback to the service for an outage: the person is unknown, not refused.
@@ -125,17 +148,7 @@ export function requireEdocsPrincipal(req: Request, res: Response, next: NextFun
     return;
   }
 
-  if (config.edocs.allowServiceFallback) {
-    logger.warn('eDOCS service fallback for a person without an Entra token', {
-      audit: true,
-      userId: req.user?.userId,
-      actingAs: config.edocs.userId,
-      path: req.path,
-    });
-    req.edocs = edocsService;
-    req.edocsActingAs = 'service';
-    return next();
-  }
+  if (applyServiceFallback(req)) return next();
 
   fail(
     req,

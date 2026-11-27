@@ -16,7 +16,6 @@ export interface BoardEntry {
   /**
    * The Entra ID app role that grants `role` (scripts/keycloak-entra-idp.json).
    * Set, the card offers "Flevoland-account" and the no-access dialog names it.
-   * Woo has none until Flevoland IT creates one.
    */
   entraRole?: string;
 }
@@ -73,5 +72,6 @@ export const BOARDS: BoardEntry[] = [
       'procesknelpunten en actieve openbaarmaking — met stoplichten en een ' +
       'benchmark op "Woo in cijfers".',
     testUser: 'test-woo-flevoland',
+    entraRole: 'IOU_WOO',
   },
 ];

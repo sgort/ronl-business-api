@@ -17,7 +17,7 @@
 #
 # WHAT IT SENDS
 # -------------
-# The provider and its seven mappers are defined in keycloak-entra-idp.json.
+# The provider and its eight mappers are defined in keycloak-entra-idp.json.
 # This script fills in the tenant's endpoints, the client id and the secret.
 # A provider or mapper that exists is updated in place, never duplicated, so
 # the script is safe to re-run -- which is also how a rotated secret goes in.

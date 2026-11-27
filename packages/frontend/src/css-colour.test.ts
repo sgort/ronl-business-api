@@ -346,6 +346,10 @@ describe('Flevoland contrast', () => {
     '--rba-warn-bg': ['--rba-warn-ink', '--rba-warn-ink-2', '--rba-warn-ink-3', '--rba-warn-ink-4'],
     '--rba-warn-bg-2': ['--rba-warn-ink'],
     '--rba-bad-bg': ['--rba-bad-ink', '--rba-bad-ink-2', '--rba-bad-ink-3', '--rba-bad-ink-4'],
+    // The RIP document werkwijze chips (A / B / B+): each ink on its own tint.
+    '--rba-doc-a-bg': ['--rba-doc-a'],
+    '--rba-doc-b-bg': ['--rba-doc-b'],
+    '--rba-doc-bp-bg': ['--rba-doc-bp'],
   };
   const MARKERS = [
     '--rba-accent',

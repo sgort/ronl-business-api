@@ -8,5 +8,6 @@ describe('WooNoAccessPanel', () => {
     render(<WooNoAccessPanel />);
     expect(screen.getByText('Geen toegang')).toBeInTheDocument();
     expect(screen.getByText('woo-coordinatie')).toBeInTheDocument();
+    expect(screen.getByText('IOU_WOO')).toBeInTheDocument();
   });
 });

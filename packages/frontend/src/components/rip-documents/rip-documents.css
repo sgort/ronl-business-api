@@ -1,0 +1,632 @@
+/* ============================================================
+   RIP documents — werkwijze A / B / B+ (Infra-board documenten)
+   The task block ("Documenten bij deze taak"), the Project ›
+   Documenten panel and the Beheer WIP cell. Lifted from the
+   handoff prototype (project-board.css, pb-kind / pb-docs* /
+   pb-kc* / pb-ws* / pb-figin* / pb-check), renamed ripdoc-* so
+   one stylesheet serves both hosts (.pbd and .cwd-v2): every
+   selector starts with a ripdoc- class. Colours are tokens only.
+   ============================================================ */
+
+.ripdoc-kind {
+  display: inline-block;
+  font-family: var(--rba-font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 7px;
+  min-width: 24px;
+  text-align: center;
+}
+.ripdoc-kind.a {
+  color: var(--rba-doc-a);
+  background: var(--rba-doc-a-bg);
+}
+.ripdoc-kind.b {
+  color: var(--rba-doc-b);
+  background: var(--rba-doc-b-bg);
+}
+.ripdoc-kind.bp {
+  color: var(--rba-doc-bp);
+  background: var(--rba-doc-bp-bg);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.ripdoc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--rba-paper);
+  color: var(--rba-brand);
+  border: 1px solid var(--rba-brand);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+.ripdoc-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--rba-brand) 8%, var(--rba-paper));
+}
+.ripdoc-btn.solid {
+  background: var(--rba-brand);
+  color: var(--rba-ink-inverse);
+}
+.ripdoc-btn.solid:hover:not(:disabled) {
+  background: var(--rba-brand-d);
+}
+.ripdoc-btn:focus-visible {
+  outline: 2px solid var(--rba-accent);
+  outline-offset: 2px;
+}
+.ripdoc-file {
+  position: relative;
+}
+.ripdoc-file input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.ripdoc-file:focus-within {
+  outline: 2px solid var(--rba-accent);
+  outline-offset: 2px;
+}
+
+/* ── Task block ──────────────────────────────────────────────────────────── */
+.ripdoc-task {
+  position: relative;
+  border: 1px solid var(--rba-rule);
+  background: var(--rba-paper);
+  padding: 14px 16px;
+  margin: 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ripdoc-task h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--rba-ink);
+}
+.ripdoc-task h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--rba-ink);
+}
+.ripdoc-task .ripdoc-intro {
+  margin: 0;
+  font-size: 13px;
+  color: var(--rba-ink-2);
+  line-height: 1.55;
+}
+.ripdoc-task .ripdoc-fmt {
+  font-family: var(--rba-font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--rba-ink-3);
+}
+.ripdoc-task .ripdoc-note {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--rba-ink-3);
+}
+.ripdoc-task .ripdoc-error {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--rba-bad-ink);
+  background: var(--rba-bad-bg);
+  padding: 8px 10px;
+}
+.ripdoc-task .ripdoc-missing {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--rba-ink-2);
+  border-top: 1px solid var(--rba-rule-2);
+  padding-top: 10px;
+}
+.ripdoc-task .ripdoc-sub {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--rba-ink);
+}
+.ripdoc-task .ripdoc-eg {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--rba-warn-ink);
+  margin-left: 8px;
+}
+.ripdoc-task code {
+  font-family: var(--rba-font-mono);
+  font-size: 11px;
+  background: var(--rba-rule-2);
+  padding: 0 4px;
+}
+.ripdoc-task .ripdoc-doc {
+  border: 1px solid var(--rba-rule);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ripdoc-task .ripdoc-ws {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ripdoc-task .ripdoc-ws legend {
+  font-size: 11.5px;
+  color: var(--rba-ink-3);
+  margin-bottom: 6px;
+  padding: 0;
+}
+.ripdoc-task .ripdoc-ws-row {
+  display: grid;
+  grid-template-columns: 18px 1fr 80px 200px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--rba-rule-2);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.ripdoc-task .ripdoc-ws-row.on {
+  border-color: var(--rba-brand);
+  background: color-mix(in srgb, var(--rba-brand) 8%, var(--rba-paper));
+}
+.ripdoc-task .ripdoc-ws-row .n {
+  font-weight: 600;
+  color: var(--rba-ink);
+  overflow-wrap: anywhere;
+}
+.ripdoc-task .ripdoc-ws-row .ripdoc-sub-note {
+  display: block;
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--rba-ink-3);
+}
+.ripdoc-task .ripdoc-ws-row .m {
+  font-size: 11.5px;
+  color: var(--rba-ink-2);
+}
+.ripdoc-task .ripdoc-ws-row .mono {
+  font-family: var(--rba-font-mono);
+}
+.ripdoc-task .ripdoc-ws-row input:focus-visible {
+  outline: 2px solid var(--rba-accent);
+  outline-offset: 2px;
+}
+.ripdoc-task .ripdoc-up {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--rba-ink-3);
+}
+
+.ripdoc-task .ripdoc-figin {
+  border-top: 1px dashed var(--rba-rule);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ripdoc-task .ripdoc-figin-row {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  align-items: center;
+  gap: 12px;
+}
+.ripdoc-task .ripdoc-figin-row label {
+  font-size: 13px;
+  color: var(--rba-ink-2);
+}
+.ripdoc-task .ripdoc-figin-in {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--rba-rule);
+  background: var(--rba-paper);
+  padding: 0 10px;
+}
+.ripdoc-task .ripdoc-figin-in span {
+  font-family: var(--rba-font-mono);
+  color: var(--rba-ink-3);
+}
+.ripdoc-task .ripdoc-figin-in input {
+  border: none;
+  font-family: var(--rba-font-mono);
+  font-size: 13px;
+  padding: 8px 0;
+  width: 100%;
+  text-align: right;
+  background: transparent;
+  color: var(--rba-ink);
+}
+.ripdoc-task .ripdoc-figin-in:focus-within {
+  outline: 2px solid var(--rba-accent);
+  outline-offset: -1px;
+}
+.ripdoc-task .ripdoc-figin-in input:focus {
+  outline: none;
+}
+
+.ripdoc-task .ripdoc-check ul {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ripdoc-task .ripdoc-check li {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1px solid var(--rba-rule-2);
+  font-size: 12.5px;
+}
+.ripdoc-task .ripdoc-check li .mk {
+  font-weight: 700;
+  text-align: center;
+}
+.ripdoc-task .ripdoc-check li .st {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.ripdoc-task .ripdoc-check li.ok .mk,
+.ripdoc-task .ripdoc-check li.ok .st {
+  color: var(--rba-ok-ink-2);
+}
+.ripdoc-task .ripdoc-check li.miss {
+  background: var(--rba-bad-bg);
+}
+.ripdoc-task .ripdoc-check li.miss .mk,
+.ripdoc-task .ripdoc-check li.miss .st {
+  color: var(--rba-bad-ink);
+}
+
+.ripdoc-task .ripdoc-choice {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ripdoc-task .ripdoc-choice legend {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  padding: 0;
+  color: var(--rba-ink);
+}
+.ripdoc-task .ripdoc-choice label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--rba-rule);
+  padding: 10px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ripdoc-task .ripdoc-choice label.on {
+  border-color: var(--rba-brand);
+  background: color-mix(in srgb, var(--rba-brand) 8%, var(--rba-paper));
+}
+.ripdoc-task .ripdoc-choice .sug {
+  font-family: var(--rba-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--rba-ink-inverse);
+  background: var(--rba-brand);
+  padding: 1px 6px;
+}
+.ripdoc-task .ripdoc-reason label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--rba-ink-3);
+  margin-bottom: 5px;
+}
+.ripdoc-task .ripdoc-reason input {
+  width: 100%;
+  border: 1px solid var(--rba-rule);
+  background: var(--rba-paper);
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 11px;
+  color: var(--rba-ink);
+}
+.ripdoc-task .ripdoc-reason input:focus {
+  outline: 2px solid var(--rba-accent);
+  outline-offset: -1px;
+}
+
+/* Raming / krediet / verschil — shared by the task block and the panel strip */
+.ripdoc-task .ripdoc-kc-nums,
+.ripdoc-panel .ripdoc-kc-nums {
+  display: flex;
+  gap: 28px;
+  margin: 0;
+  flex-wrap: wrap;
+}
+.ripdoc-task .ripdoc-kc-nums dt,
+.ripdoc-panel .ripdoc-kc-nums dt {
+  font-size: 11px;
+  color: var(--rba-ink-3);
+}
+.ripdoc-task .ripdoc-kc-nums dd,
+.ripdoc-panel .ripdoc-kc-nums dd {
+  margin: 2px 0 0;
+  font-family: var(--rba-font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--rba-ink);
+}
+.ripdoc-task .ripdoc-kc-nums dd.over,
+.ripdoc-panel .ripdoc-kc-nums dd.over {
+  color: var(--rba-bad-ink);
+}
+.ripdoc-task .ripdoc-kc-nums dd.under,
+.ripdoc-panel .ripdoc-kc-nums dd.under {
+  color: var(--rba-ok-ink-2);
+}
+
+/* ── Project › Documenten ────────────────────────────────────────────────── */
+/* position: relative keeps the screen-reader-only header (.sr, absolute)
+   inside the panel. Without it that span is placed against the page rather
+   than the scrolling main pane, stretches the document below the viewport
+   and gives the page a second scrollbar next to the main pane's. */
+.ripdoc-panel {
+  position: relative;
+  margin-top: 22px;
+  border: 1px solid var(--rba-rule);
+  background: var(--rba-paper);
+}
+.ripdoc-panel .ripdoc-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rba-rule);
+  font-family: var(--rba-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rba-ink-2);
+}
+.ripdoc-panel .legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--rba-font-sans);
+  font-weight: 500;
+  color: var(--rba-ink-3);
+  font-size: 11.5px;
+}
+.ripdoc-panel .legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ripdoc-panel .ripdoc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.ripdoc-panel .ripdoc-table th {
+  text-align: left;
+  font-family: var(--rba-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rba-ink-3);
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--rba-rule-2);
+  background: var(--rba-bg);
+}
+.ripdoc-panel .ripdoc-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rba-rule-2);
+  vertical-align: top;
+  color: var(--rba-ink);
+}
+.ripdoc-panel .ripdoc-table tr:last-child td {
+  border-bottom: none;
+}
+.ripdoc-panel .ripdoc-table tr.is-miss td {
+  background: var(--rba-bad-bg);
+}
+.ripdoc-panel .ripdoc-table td.nm {
+  font-weight: 600;
+  width: 30%;
+}
+.ripdoc-panel .ripdoc-table td:nth-child(5) {
+  min-width: 250px;
+}
+.ripdoc-panel .ripdoc-table .fmt,
+.ripdoc-panel .ripdoc-table .role,
+.ripdoc-panel .ripdoc-table .note {
+  display: block;
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--rba-ink-3);
+  margin-top: 2px;
+}
+.ripdoc-panel .ripdoc-table .fmt {
+  font-family: var(--rba-font-mono);
+  font-size: 10.5px;
+}
+.ripdoc-panel .ripdoc-table .note {
+  color: var(--rba-warn-ink);
+}
+.ripdoc-panel .ripdoc-table .mono {
+  font-family: var(--rba-font-mono);
+}
+.ripdoc-panel .ripdoc-table .nil {
+  color: var(--rba-ink-3);
+}
+.ripdoc-panel .ripdoc-table td.act {
+  text-align: right;
+  white-space: nowrap;
+}
+.ripdoc-panel .sr {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ripdoc-panel .ripdoc-docst {
+  font-size: 12px;
+  font-weight: 600;
+}
+.ripdoc-panel .ripdoc-docst.ok {
+  color: var(--rba-ok-ink-2);
+}
+.ripdoc-panel .ripdoc-docst.miss {
+  color: var(--rba-bad-ink);
+}
+.ripdoc-panel .ripdoc-docst.wait {
+  color: var(--rba-ink-2);
+}
+.ripdoc-panel .ripdoc-docst.nil {
+  color: var(--rba-ink-3);
+  font-weight: 500;
+}
+.ripdoc-panel .ripdoc-foldst {
+  display: block;
+  font-size: 11.5px;
+  color: var(--rba-ink-2);
+  margin-top: 4px;
+}
+.ripdoc-panel .ripdoc-figs {
+  margin: 8px 0 0;
+  display: grid;
+  gap: 3px;
+}
+.ripdoc-panel .ripdoc-figs div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  font-size: 11.5px;
+}
+.ripdoc-panel .ripdoc-figs dt {
+  color: var(--rba-ink-3);
+}
+.ripdoc-panel .ripdoc-figs dd {
+  margin: 0;
+  font-family: var(--rba-font-mono);
+  color: var(--rba-ink);
+  white-space: nowrap;
+}
+
+/* Beslispunt strip */
+.ripdoc-panel .ripdoc-kcstrip {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+  padding: 16px;
+  border-top: 1px solid var(--rba-rule);
+  background: var(--rba-bg);
+}
+.ripdoc-panel .ripdoc-kcstrip .q {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ripdoc-panel .ripdoc-kcstrip .lbl {
+  font-family: var(--rba-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rba-ink-3);
+}
+.ripdoc-panel .ripdoc-kcstrip .q b {
+  font-size: 13.5px;
+}
+.ripdoc-panel .ripdoc-kcstrip .role {
+  font-size: 11.5px;
+  color: var(--rba-ink-3);
+}
+.ripdoc-panel .ripdoc-kcstrip .msg {
+  margin: 0;
+  font-size: 13px;
+  color: var(--rba-ink-2);
+  align-self: center;
+}
+.ripdoc-panel .ripdoc-kcstrip .body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ripdoc-panel .ripdoc-kcstrip .act {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.ripdoc-panel .ripdoc-kcstrip .reason {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--rba-ink-2);
+}
+.ripdoc-panel .ripdoc-kcstrip .dev {
+  color: var(--rba-warn-ink);
+  font-weight: 600;
+}
+
+/* ── Beheer › WIP cell ───────────────────────────────────────────────────── */
+.ripdoc-wip-miss {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--rba-bad-ink);
+  background: var(--rba-bad-bg);
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+.ripdoc-wip-ok {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--rba-ok-ink-2);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .ripdoc-panel .ripdoc-kcstrip {
+    grid-template-columns: 1fr;
+  }
+  .ripdoc-task .ripdoc-ws-row {
+    grid-template-columns: 18px 1fr;
+  }
+  .ripdoc-task .ripdoc-ws-row .m {
+    grid-column: 2;
+  }
+  .ripdoc-task .ripdoc-figin-row {
+    grid-template-columns: 1fr;
+  }
+}

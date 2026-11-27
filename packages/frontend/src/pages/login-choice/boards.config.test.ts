@@ -53,11 +53,12 @@ describe('login-choice boards.config', () => {
     }
   );
 
-  it('offers the Flevoland account on every board except Woo, which has no Entra role yet', () => {
+  it('offers the Flevoland account on every board', () => {
     expect(BOARDS.filter((b) => b.entraRole).map((b) => b.id)).toEqual([
       'caseworker',
       'public-affairs',
       'infra-board',
+      'woo',
     ]);
   });
 });

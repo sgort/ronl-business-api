@@ -189,3 +189,146 @@ describe('TaskFormViewer', () => {
     expect(mockFormInstance.destroy).toHaveBeenCalled();
   });
 });
+
+describe('TaskFormViewer — linked-document inputs', () => {
+  afterEach(() => {
+    mockFormInstance.on.mockClear();
+    mockFormInstance.importSchema.mockClear();
+    mockBusinessApi.task.formSchema.mockReset();
+    mockBusinessApi.task.complete.mockReset();
+  });
+
+  const withForm = () =>
+    mockBusinessApi.task.formSchema.mockResolvedValue({ success: true, data: { schema: 'x' } });
+
+  it('sends the extra variables on top of the form data', async () => {
+    withForm();
+    mockBusinessApi.task.complete.mockResolvedValue({ success: true });
+    const onCompleted = vi.fn();
+    render(
+      <TaskFormViewer
+        taskId="t1"
+        variables={null}
+        extraVariables={{ raming_totaal: 900, naam: 'van de blok' }}
+        onCompleted={onCompleted}
+        onError={vi.fn()}
+      />
+    );
+    await waitFor(() => expect(mockFormInstance.importSchema).toHaveBeenCalled());
+    await act(() => getSubmitHandler()({ data: { naam: 'form' }, errors: {} }));
+    expect(mockBusinessApi.task.complete).toHaveBeenCalledWith('t1', {
+      naam: 'van de blok',
+      raming_totaal: 900,
+    });
+    expect(onCompleted).toHaveBeenCalled();
+  });
+
+  it('refuses to submit while blocked, saying what is still needed', async () => {
+    withForm();
+    render(
+      <TaskFormViewer
+        taskId="t1"
+        variables={null}
+        blockedText="PSU-presentatie koppelen"
+        onCompleted={vi.fn()}
+        onError={vi.fn()}
+      />
+    );
+    await waitFor(() => expect(mockFormInstance.importSchema).toHaveBeenCalled());
+    await act(() => getSubmitHandler()({ data: {}, errors: {} }));
+    expect(mockBusinessApi.task.complete).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Deze taak kan nog niet worden afgerond. Nog nodig: PSU-presentatie koppelen.'
+    );
+  });
+
+  it('disables the generic button while blocked', async () => {
+    mockBusinessApi.task.formSchema.mockResolvedValue({ success: false });
+    render(
+      <TaskFormViewer
+        taskId="t1"
+        variables={null}
+        blockedText="x"
+        onCompleted={vi.fn()}
+        onError={vi.fn()}
+      />
+    );
+    expect(await screen.findByRole('button', { name: 'Taak voltooien' })).toBeDisabled();
+  });
+
+  it('hands a 422 LINKED_DOCUMENT_MISSING list to onMissing, not to onError', async () => {
+    withForm();
+    const missing = [{ slug: 'rip-x', what: 'document', label: 'X' }];
+    mockBusinessApi.task.complete.mockRejectedValue({
+      response: { data: { code: 'LINKED_DOCUMENT_MISSING', missing } },
+    });
+    const onMissing = vi.fn();
+    const onError = vi.fn();
+    render(
+      <TaskFormViewer
+        taskId="t1"
+        variables={null}
+        onMissing={onMissing}
+        onCompleted={vi.fn()}
+        onError={onError}
+      />
+    );
+    await waitFor(() => expect(mockFormInstance.importSchema).toHaveBeenCalled());
+    await act(() => getSubmitHandler()({ data: {}, errors: {} }));
+    expect(onMissing).toHaveBeenCalledWith(missing);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('treats any other failure as an error', async () => {
+    withForm();
+    mockBusinessApi.task.complete.mockRejectedValue({
+      response: { data: { code: 'TASK_COMPLETE_FAILED' } },
+    });
+    const onError = vi.fn();
+    render(
+      <TaskFormViewer
+        taskId="t1"
+        variables={null}
+        onMissing={vi.fn()}
+        onCompleted={vi.fn()}
+        onError={onError}
+      />
+    );
+    await waitFor(() => expect(mockFormInstance.importSchema).toHaveBeenCalled());
+    await act(() => getSubmitHandler()({ data: {}, errors: {} }));
+    expect(onError).toHaveBeenCalled();
+  });
+
+  it('reports the form data on load and on every change', async () => {
+    withForm();
+    const onFormData = vi.fn();
+    render(
+      <TaskFormViewer
+        taskId="t1"
+        variables={{ a: 1 }}
+        onFormData={onFormData}
+        onCompleted={vi.fn()}
+        onError={vi.fn()}
+      />
+    );
+    await waitFor(() => expect(onFormData).toHaveBeenCalledWith({ a: 1 }));
+    const changed = mockFormInstance.on.mock.calls.find(([event]) => event === 'changed');
+    act(() => changed![1]({ data: { a: 1, inkoopplanNodig: 'ja' } }));
+    expect(onFormData).toHaveBeenLastCalledWith({ a: 1, inkoopplanNodig: 'ja' });
+  });
+
+  it('completes the task it shows now, after switching tasks', async () => {
+    withForm();
+    mockBusinessApi.task.complete.mockResolvedValue({ success: true });
+    const { rerender } = render(
+      <TaskFormViewer taskId="t1" variables={null} onCompleted={vi.fn()} onError={vi.fn()} />
+    );
+    await waitFor(() => expect(mockFormInstance.importSchema).toHaveBeenCalledTimes(1));
+    rerender(
+      <TaskFormViewer taskId="t2" variables={null} onCompleted={vi.fn()} onError={vi.fn()} />
+    );
+    await waitFor(() => expect(mockFormInstance.importSchema).toHaveBeenCalledTimes(2));
+    await act(() => getSubmitHandler()({ data: {}, errors: {} }));
+    expect(mockBusinessApi.task.complete).toHaveBeenCalledWith('t2', {});
+  });
+});

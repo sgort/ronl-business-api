@@ -13,11 +13,11 @@ on:
   # branch that caused it. The floor was real in four workspaces and
   # retrospective in the fifth. Issue #87.
   #
-  # Nothing here needs an `if:` guard, unlike linked-data-explorer's equivalent
-  # change (its #82): that workflow deploys to Azure, so it had to gate six
-  # deploy-side steps on the event. This one ends at an uploaded artifact and
-  # contains no deploy step at all -- the real deploy is deploy-backend-to-acc.sh,
-  # run by hand -- so a pull-request run has no external side effect.
+  # A pull-request run has no external side effect: since #35 this workflow
+  # also deploys, and every deploy-side step (Azure login, `az webapp deploy`)
+  # carries `if: github.event_name != 'pull_request'`, as
+  # linked-data-explorer's equivalent does (its #82). The hand-run
+  # deploy-backend-to-acc.sh it replaced was retired on 27 November 2026.
   pull_request:
     branches:
       - acc
@@ -303,8 +303,8 @@ jobs:
           # It goes in AFTER the install, deliberately: copied in before, npm sees
           # a package not declared in the manifest it is installing, prunes it as
           # extraneous, and the app dies at runtime with "Cannot find module
-          # '@ronl/shared'". deploy-backend-to-acc.sh learned this the hard way and
-          # says so; the version of this step that this replaces had the two the
+          # '@ronl/shared'". The retired deploy-backend-to-acc.sh learned this the
+          # hard way; the version of this step that this replaces had the two the
           # wrong way round, latent only because nothing ever deployed its artifact.
           mkdir -p deploy/node_modules/@ronl/shared
           cp -r ../shared/dist deploy/node_modules/@ronl/shared/
@@ -347,8 +347,8 @@ jobs:
       # be rejected here. The unused AZURE_WEBAPP_PUBLISH_PROFILE_ACC secret from
       # 2026-03-01 is the earlier attempt.
       #
-      # `az webapp deploy` over an ARM token is exactly what
-      # deploy-backend-to-acc.sh already does by hand, so this is the existing
+      # `az webapp deploy` over an ARM token is exactly what the retired
+      # deploy-backend-to-acc.sh did by hand, so this is the existing
       # mechanism with a machine identity instead of a human session -- and it
       # removes the failure that blocked the 15 September deploy, where an
       # expired az login stopped a release reaching acc after it had merged.

@@ -35,6 +35,8 @@ import {
   type DocProgress,
 } from '../../pages/infra-board/rip-model';
 import RipFase1WipViewer from '../CaseworkerDashboard/RipFase1WipViewer';
+import { wipSummary } from '../rip-documents/model';
+import '../rip-documents/rip-documents.css';
 
 interface Props {
   phaseCode: string;
@@ -48,6 +50,13 @@ interface StartError {
 
 /** groen/geel/rood heuristic — illustrative only, no per-step norm
  *  exists in the catalogue at this granularity (see design spec §1). */
+/**
+ * Selection key of a live start candidate: its finished predecessor
+ * instance. Mock rows keep their project number, which is unique there.
+ */
+const LIVE_KEY = 'live:';
+const liveKey = (instanceId: string) => `${LIVE_KEY}${instanceId}`;
+
 function computeHealth(blocked: string | null, daysInStep: number): HealthKey {
   if (daysInStep > 28 || (blocked && daysInStep > 14)) return 'rood';
   if (blocked || daysInStep > 14) return 'geel';
@@ -95,7 +104,10 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
   const readiness = useRipPhaseReadiness(livePhaseCode, predecessorLiveCode);
 
   const [wipDerived, setWipDerived] = useState<
-    Record<string, { info: WipStepInfo | null; docs: DocProgress }>
+    Record<
+      string,
+      { info: WipStepInfo | null; docs: DocProgress; summary: ReturnType<typeof wipSummary> }
+    >
   >({});
   const [gereedDerived, setGereedDerived] = useState<Record<string, { loops: number }>>({});
 
@@ -104,9 +116,29 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
     let alive = true;
     Promise.all(
       activeInstances.map(async (inst) => {
-        const histRes = await businessApi.process.activityHistory(inst.id);
+        // Documents without the eDOCS reads: a table of many projects needs
+        // statuses, not live version numbers. A failure leaves the row's
+        // document cells empty rather than taking the table down.
+        const [histRes, docRes] = await Promise.all([
+          businessApi.process.activityHistory(inst.id),
+          businessApi.rip.instanceDocuments(inst.id, { edocs: false }).catch(() => null),
+        ]);
         const history = histRes.success && histRes.data ? histRes.data : [];
-        return [inst.id, { info: getWipStepInfo(history), docs: getDocProgress(history) }] as const;
+        const documents = docRes?.success ? (docRes.data?.documents ?? []) : [];
+        const checks = docRes?.success ? (docRes.data?.kredietChecks ?? []) : [];
+        const openKeys = new Set(
+          history
+            .filter((h) => h.activityType === 'userTask' && h.endTime === null)
+            .map((h) => h.activityId)
+        );
+        return [
+          inst.id,
+          {
+            info: getWipStepInfo(history),
+            docs: getDocProgress(documents),
+            summary: wipSummary(documents, checks, openKeys),
+          },
+        ] as const;
       })
     ).then((entries) => {
       if (alive) setWipDerived(Object.fromEntries(entries));
@@ -205,26 +237,30 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
   async function handleStartSelected() {
     setSubmitting(true);
     try {
-      const nrs = [...selected];
+      const keys = [...selected];
       await Promise.all(
-        nrs.map((nr) => {
+        keys.map((key) => {
           // A live candidate carries the project's businessKey forward, so
           // every phase instance of one project shares the key its
           // originating R2.1 run minted. Mock rows have no engine ancestry
-          // and start without one.
-          const candidate = readiness.candidates.find((c) => c.projectNumber === nr);
+          // and start without one. A live row is selected by its finished
+          // instance, never by project number: the number is typed in the
+          // intake form, so two projects can share one.
+          const candidate = key.startsWith(LIVE_KEY)
+            ? readiness.candidates.find((c) => liveKey(c.instanceId) === key)
+            : undefined;
           return businessApi.process.start(
             phase!.processDefinitionKey,
             candidate
               ? { projectNumber: candidate.projectNumber, projectName: candidate.projectName }
-              : { projectNumber: nr },
+              : { projectNumber: key },
             candidate?.businessKey ?? undefined
           );
         })
       );
       setSelected(new Set());
       setReasons({});
-      setJustStarted(nrs.length);
+      setJustStarted(keys.length);
       reloadWip();
       readiness.reload();
     } finally {
@@ -359,6 +395,7 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
                   <th>Rol</th>
                   <th>Dagen</th>
                   <th>Producten</th>
+                  <th>eDOCS</th>
                   <th>Blokkade</th>
                   <th>Gezondheid</th>
                 </tr>
@@ -383,7 +420,19 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
                       <td>
                         {derived ? `${derived.docs.docsDone}/${derived.docs.docsTotal}` : '—'}
                       </td>
-                      <td>{info?.blocked ?? '—'}</td>
+                      <td>
+                        {derived?.summary.edocs ? (
+                          <span
+                            className={`ripdoc-wip-${derived.summary.edocs.cls}`}
+                            title={derived.summary.edocs.title}
+                          >
+                            {derived.summary.edocs.text}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>{info?.blocked ?? derived?.summary.blockade ?? '—'}</td>
                       <td>
                         {health ? (
                           <>
@@ -414,6 +463,7 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
                       <td>
                         {detail.docsDone}/{detail.docsTotal}
                       </td>
+                      <td>—</td>
                       <td>{detail.blocked ?? '—'}</td>
                       <td>
                         <span
@@ -614,8 +664,8 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
                       <input
                         type="checkbox"
                         disabled={!canStart}
-                        checked={selected.has(c.projectNumber)}
-                        onChange={() => toggleReady(c.projectNumber)}
+                        checked={selected.has(liveKey(c.instanceId))}
+                        onChange={() => toggleReady(liveKey(c.instanceId))}
                       />
                       <span className="pb-proj-nr">{c.projectNumber}</span> {c.projectName}
                       <span className="pb-badge-klaar">KLAAR</span>

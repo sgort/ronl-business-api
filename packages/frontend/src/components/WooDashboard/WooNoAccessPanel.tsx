@@ -5,7 +5,8 @@ export default function WooNoAccessPanel() {
       <h1 className="v2-page-title">Geen toegang</h1>
       <p style={{ color: 'var(--rba-ink-2)', maxWidth: '52ch', margin: '14px 0 0' }}>
         Dit dashboard vereist de rol <strong>woo-coordinatie</strong>. Vraag uw beheerder om
-        toegang, of log in met een account dat de rol heeft.
+        toegang, of log in met een account dat de rol heeft. Met een Flevoland-account geeft de rol{' '}
+        <strong>IOU_WOO</strong> in Entra ID toegang.
       </p>
     </div>
   );

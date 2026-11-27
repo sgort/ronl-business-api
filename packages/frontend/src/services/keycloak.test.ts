@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import keycloak, { getToken, getUser } from './keycloak';
+import keycloak, { getToken, getUser, logoutTo } from './keycloak';
 
 describe('getUser', () => {
   beforeEach(() => {
@@ -108,5 +108,33 @@ describe('initializeKeycloak', () => {
     expect(first).toBe(true);
     expect(second).toBe(true);
     expect(initSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('logoutTo', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    keycloak.authenticated = undefined;
+  });
+
+  it('logs out through keycloak-js when it holds a session', () => {
+    keycloak.authenticated = true;
+    const logout = vi.spyOn(keycloak, 'logout').mockResolvedValue(undefined);
+    const go = vi.fn();
+    logoutTo('http://localhost:5173/', go);
+    expect(logout).toHaveBeenCalledWith({ redirectUri: 'http://localhost:5173/' });
+    expect(go).not.toHaveBeenCalled();
+  });
+
+  it('goes to the end-session endpoint itself when keycloak-js was never initialised', () => {
+    const logout = vi.spyOn(keycloak, 'logout');
+    const go = vi.fn();
+    logoutTo('http://localhost:5173/', go);
+    expect(logout).not.toHaveBeenCalled();
+    expect(go).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '/realms/ronl/protocol/openid-connect/logout?client_id=ronl-business-api&post_logout_redirect_uri=http%3A%2F%2Flocalhost%3A5173%2F'
+      )
+    );
   });
 });

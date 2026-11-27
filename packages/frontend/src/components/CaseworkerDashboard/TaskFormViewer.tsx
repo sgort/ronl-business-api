@@ -3,6 +3,7 @@ import '@bpmn-io/form-js/dist/assets/form-js.css';
 import { useEffect, useRef, useState } from 'react';
 
 import { businessApi } from '../../services/api';
+import type { MissingItem } from '../../services/rip-documents.types';
 
 type FormStatus = 'loading' | 'ready' | 'no-form' | 'error';
 
@@ -11,6 +12,23 @@ interface TaskFormViewerProps {
   variables: Record<string, unknown> | null;
   onCompleted: () => void;
   onError: () => void;
+  /** Sent with the completion on top of the form's own data (linked-document figures, the kredietcheck). */
+  extraVariables?: Record<string, unknown>;
+  /** What is still needed before the task may close; submitting is refused while set. */
+  blockedText?: string | null;
+  /** The form's current values, on load and on every change. */
+  onFormData?: (data: Record<string, unknown>) => void;
+  /** The server refused with 422 LINKED_DOCUMENT_MISSING: its list. */
+  onMissing?: (missing: MissingItem[]) => void;
+}
+
+/** The missing list of a 422 LINKED_DOCUMENT_MISSING, or null for any other failure. */
+function missingFrom(err: unknown): MissingItem[] | null {
+  const data = (err as { response?: { data?: { code?: string; missing?: unknown } } })?.response
+    ?.data;
+  return data?.code === 'LINKED_DOCUMENT_MISSING' && Array.isArray(data.missing)
+    ? (data.missing as MissingItem[])
+    : null;
 }
 
 export default function TaskFormViewer({
@@ -18,11 +36,16 @@ export default function TaskFormViewer({
   variables,
   onCompleted,
   onError,
+  extraVariables,
+  blockedText,
+  onFormData,
+  onMissing,
 }: TaskFormViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<InstanceType<typeof Form> | null>(null);
   const [status, setStatus] = useState<FormStatus>('loading');
   const [submitting, setSubmitting] = useState(false);
+  const [refused, setRefused] = useState(false);
 
   const onCompletedRef = useRef(onCompleted);
   const onErrorRef = useRef(onError);
@@ -34,6 +57,45 @@ export default function TaskFormViewer({
   useEffect(() => {
     onErrorRef.current = onError;
   }, [onError]);
+
+  // Read when submitting rather than when the form is built, so a changed
+  // figure or link never rebuilds the form and loses what was typed in it.
+  const extraRef = useRef(extraVariables);
+  const blockedRef = useRef(blockedText);
+  const onFormDataRef = useRef(onFormData);
+  const onMissingRef = useRef(onMissing);
+  const taskIdRef = useRef(taskId);
+  useEffect(() => {
+    taskIdRef.current = taskId;
+    extraRef.current = extraVariables;
+    blockedRef.current = blockedText;
+    onFormDataRef.current = onFormData;
+    onMissingRef.current = onMissing;
+    if (!blockedText) setRefused(false);
+  }, [taskId, extraVariables, blockedText, onFormData, onMissing]);
+
+  /** Completes with `data` plus the extra variables, telling a 422 apart from other failures. */
+  const completeRef = useRef(async (data: Record<string, unknown>) => {
+    if (blockedRef.current) {
+      setRefused(true);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await businessApi.task.complete(taskIdRef.current, {
+        ...data,
+        ...(extraRef.current ?? {}),
+      });
+      if (res.success) onCompletedRef.current();
+      else onErrorRef.current();
+    } catch (err) {
+      const missing = missingFrom(err);
+      if (missing && onMissingRef.current) onMissingRef.current(missing);
+      else onErrorRef.current();
+    } finally {
+      setSubmitting(false);
+    }
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -54,6 +116,10 @@ export default function TaskFormViewer({
         formRef.current = form;
 
         await form.importSchema(res.data, variables ?? {});
+        onFormDataRef.current?.({ ...(variables ?? {}) });
+        form.on('changed', ({ data }: { data: Record<string, unknown> }) =>
+          onFormDataRef.current?.(data)
+        );
 
         form.on(
           'submit',
@@ -65,16 +131,7 @@ export default function TaskFormViewer({
             errors: Record<string, unknown>;
           }) => {
             if (Object.keys(errors).length > 0) return;
-            setSubmitting(true);
-            try {
-              const completeRes = await businessApi.task.complete(taskId, data);
-              if (completeRes.success) onCompletedRef.current();
-              else onErrorRef.current();
-            } catch {
-              onErrorRef.current();
-            } finally {
-              setSubmitting(false);
-            }
+            await completeRef.current(data);
           }
         );
 
@@ -93,7 +150,7 @@ export default function TaskFormViewer({
       formRef.current?.destroy();
       formRef.current = null;
     };
-  }, [taskId, variables]); // onCompleted and onError intentionally excluded — stored in refs
+  }, [taskId, variables]); // callbacks and extras intentionally excluded — read through refs
 
   // Always render the container div so the ref is available to the effect
   return (
@@ -114,19 +171,8 @@ export default function TaskFormViewer({
       {/* No form — generic complete button */}
       {status === 'no-form' && (
         <button
-          onClick={async () => {
-            setSubmitting(true);
-            try {
-              const res = await businessApi.task.complete(taskId, {});
-              if (res.success) onCompletedRef.current();
-              else onErrorRef.current();
-            } catch {
-              onErrorRef.current();
-            } finally {
-              setSubmitting(false);
-            }
-          }}
-          disabled={submitting}
+          onClick={() => completeRef.current({})}
+          disabled={submitting || !!blockedText}
           className="px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-green-700"
         >
           {submitting ? 'Bezig…' : 'Taak voltooien'}
@@ -135,6 +181,12 @@ export default function TaskFormViewer({
 
       {/* Form container — always in DOM so ref is available on first render */}
       <div ref={containerRef} className={status === 'ready' ? 'fjs-container' : 'hidden'} />
+
+      {refused && blockedText && (
+        <p className="text-sm text-red-700" role="alert">
+          Deze taak kan nog niet worden afgerond. Nog nodig: {blockedText}.
+        </p>
+      )}
 
       {/* Submitting indicator */}
       {submitting && status === 'ready' && (

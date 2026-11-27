@@ -105,13 +105,40 @@ describe('parseSwimlane — nodes', () => {
   });
 
   it('reads every document of a task that carries more than one', () => {
-    // R2.2's "Opstellen concept VO" produces an Ontwerptoelichting and an
-    // Objectenboom. Before the attribute took a list, only the first was
-    // modelled and the second was an authored template no BPMN referenced.
+    // The attribute takes a list. No RIP model carries two generated
+    // documents on one task any more (R2.2's Ontwerptoelichting became a
+    // linked document), so the list is pinned on a minimal process.
+    const model = parseSwimlane(
+      `<?xml version="1.0"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:ronl="http://ronl.nl/schema/1.0">
+  <bpmn:process id="P"><bpmn:userTask id="T" ronl:documentRef="rip-intake-report, rip-objectenboom"/></bpmn:process>
+</bpmn:definitions>`,
+      'P'
+    );
+    expect(model.nodes[0].docs).toEqual(['Intake-verslag', 'Objectenboom']);
+  });
+
+  it('keeps generated and linked documents of one task apart', () => {
+    // R2.2's "Opstellen concept VO" generates the Objectenboom and needs the
+    // Ontwerptoelichting linked from eDOCS.
     const model = parseSwimlane(xml('RipR22Process'), 'R2.2');
-    const multi = model.nodes.filter((n) => (n.docs?.length ?? 0) > 1);
-    expect(multi.length).toBeGreaterThan(0);
-    expect(multi[0].docs).toEqual(['Ontwerptoelichting', 'Objectenboom']);
+    const node = model.nodes.find((n) => n.bpmnId === 'Task_OpstellenConceptVO');
+    expect(node?.docs).toEqual(['Objectenboom']);
+    expect(node?.linkedDocs).toEqual(['Ontwerptoelichting']);
+  });
+
+  it('reads linked documents with their curated labels', () => {
+    const model = parseSwimlane(xml('RipR24Process'), 'R2.4');
+    const vg = model.nodes.find((n) => n.bpmnId === 'Task_SamenstellenVerzamelmapVG');
+    expect(vg?.linkedDocs).toEqual(['Verzamelmap documenten V&G']);
+    expect(vg?.docs).toBeUndefined();
+  });
+
+  it('leaves a node without linked documents without the field', () => {
+    const model = parseSwimlane(xml('RipR24Process'), 'R2.4');
+    const node = model.nodes.find((n) => n.bpmnId === 'Task_OpdrachtExternIB');
+    expect(node).toBeDefined();
+    expect(node?.linkedDocs).toBeUndefined();
   });
 });
 

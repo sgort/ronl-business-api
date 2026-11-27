@@ -350,7 +350,7 @@ describe('PhaseDetail — WIP tab', () => {
     expect(mockPhaseActive).toHaveBeenCalledTimes(1);
   });
 
-  it('computes Producten (docsDone/docsTotal) for a live WIP row from its activity history', async () => {
+  it('computes Producten (docsDone/docsTotal) and the eDOCS cell for a live WIP row from its documents', async () => {
     mockPhaseActive.mockResolvedValue({
       success: true,
       data: [
@@ -401,16 +401,168 @@ describe('PhaseDetail — WIP tab', () => {
         },
       ],
     });
+    // Products come from the instance's documents (generated + linked count
+    // as done), no longer from which tasks finished.
+    const doc = (slug: string, kind: string, status: string, label = slug) => ({
+      slug,
+      label,
+      kind,
+      format: null,
+      taskKey: 'Task_UitvoerenPSU',
+      taskName: 'Uitvoeren PSU',
+      candidateGroups: ['rip-projectleider'],
+      optional: false,
+      map: false,
+      status,
+      edocs: null,
+      figures: null,
+      checklist: null,
+    });
+    mockInstanceDocuments.mockResolvedValue({
+      success: true,
+      data: {
+        variables: {},
+        intakeReport: null,
+        psuReport: null,
+        pdp: null,
+        documents: [
+          doc('rip-intake-report', 'A', 'generated'),
+          doc('rip-pdp', 'A', 'later'),
+          doc('rip-psu-report', 'A', 'pending'),
+          doc('rip-psu-presentatie', 'B', 'linked'),
+        ],
+        kredietChecks: [],
+      },
+    });
     const user = userEvent.setup();
     render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: /WIP/ }));
 
     const row = (await screen.findByText('Doc progress project', { exact: false })).closest('tr');
+    expect(mockInstanceDocuments).toHaveBeenCalledWith('live-2', { edocs: false });
+    expect(await within(row!).findByText('1/1 gekoppeld')).toBeInTheDocument();
     // Producten is populated by a SECOND async hop (activity-history fetch,
     // chained off the first list fetch resolving) — use findByText, not a
     // synchronous getByText, so this doesn't race the two hops.
     expect(await within(row!).findByText('2/4')).toBeInTheDocument();
+  });
+
+  describe('eDOCS column and document blockades', () => {
+    const live = (name: string) =>
+      mockPhaseActive.mockResolvedValue({
+        success: true,
+        data: [
+          {
+            id: 'live-9',
+            startTime: '2026-08-01T00:00:00Z',
+            projectNumber: '24102',
+            projectName: name,
+            edocsWorkspaceId: 'w9',
+          },
+        ],
+      });
+    const openTask = (activityId: string) =>
+      mockActivityHistory.mockResolvedValue({
+        success: true,
+        data: [
+          {
+            id: 'a1',
+            activityId,
+            activityName: activityId,
+            activityType: 'userTask',
+            assignee: null,
+            startTime: '2026-08-03T00:00:00Z',
+            endTime: null,
+            durationInMillis: null,
+            canceled: false,
+          },
+        ],
+      });
+    const documents = (documents: unknown[], kredietChecks: unknown[] = []) =>
+      mockInstanceDocuments.mockResolvedValue({
+        success: true,
+        data: {
+          variables: {},
+          intakeReport: null,
+          psuReport: null,
+          pdp: null,
+          documents,
+          kredietChecks,
+        },
+      });
+    const raming = (status: string) => ({
+      slug: 'rip-projectraming',
+      label: 'Projectraming VO',
+      kind: 'BP',
+      format: '2591295',
+      taskKey: 'Task_OpstellenVoRaming',
+      taskName: 'Opstellen VO-raming',
+      candidateGroups: ['rip-kosten-contractdeskundige'],
+      optional: false,
+      map: false,
+      status,
+      edocs: null,
+      figures: { totaal: null },
+      checklist: null,
+    });
+
+    it('counts what is missing and names it as the blockade', async () => {
+      live('Gooiseweg');
+      openTask('Task_OpstellenVoRaming');
+      documents([raming('missing')]);
+      const user = userEvent.setup();
+      render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+      await user.click(screen.getByRole('button', { name: /WIP/ }));
+      const row = (await screen.findByText('Gooiseweg', { exact: false })).closest('tr');
+      expect(await within(row!).findByText('1 ontbreekt')).toHaveAttribute(
+        'title',
+        'Projectraming VO'
+      );
+      expect(within(row!).getByText('Wacht op koppeling Projectraming VO')).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: 'eDOCS' })).toBeInTheDocument();
+    });
+
+    it('names the kredietcheck suggestion while that task is open', async () => {
+      live('Buizerdweg');
+      openTask('Task_ControlerenProjectramingVO');
+      documents(
+        [raming('linked')],
+        [
+          {
+            variable: 'projectkredietDekking',
+            slug: 'rip-projectraming',
+            taskKey: 'Task_ControlerenProjectramingVO',
+            taskName: 'Controleren Projectraming VO',
+            raming: 900,
+            krediet: 1000,
+            voorstel: 'binnen',
+            answer: null,
+            afwijking: null,
+            values: { binnen: 'binnen', buiten: 'buiten' },
+          },
+        ]
+      );
+      const user = userEvent.setup();
+      render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+      await user.click(screen.getByRole('button', { name: /WIP/ }));
+      const row = (await screen.findByText('Buizerdweg', { exact: false })).closest('tr');
+      expect(await within(row!).findByText('1/1 gekoppeld')).toBeInTheDocument();
+      expect(
+        within(row!).getByText('Kredietcheck: voorstel binnen projectkrediet')
+      ).toBeInTheDocument();
+    });
+
+    it('still shows the row when the documents cannot be read', async () => {
+      live('Zonder documenten');
+      openTask('Task_X');
+      mockInstanceDocuments.mockRejectedValue(new Error('down'));
+      const user = userEvent.setup();
+      render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+      await user.click(screen.getByRole('button', { name: /WIP/ }));
+      const row = (await screen.findByText('Zonder documenten', { exact: false })).closest('tr');
+      expect(await within(row!).findByText('0/0')).toBeInTheDocument();
+    });
   });
 
   it('renders a dash for Gezondheid, not a false "Op schema", when a live row has no derivable step info', async () => {
@@ -769,5 +921,65 @@ describe('PhaseDetail — starting the next phase from a finished predecessor', 
   it('shows no such notice on a phase with an ordinary predecessor', () => {
     render(<PhaseDetail phaseCode="R2.3" onBack={vi.fn()} />);
     expect(screen.queryByText(/buiten deze tool afgehandeld/)).not.toBeInTheDocument();
+  });
+});
+
+describe('PhaseDetail — Starten tab, live projects that share a project number', () => {
+  // The project number is typed into the intake form, so two R2.1 runs can
+  // carry the same one. Selecting one must select that one only, and start
+  // the next phase with ITS businessKey.
+  const run = (id: string, businessKey: string, projectName: string) => ({
+    id,
+    businessKey,
+    startTime: '2026-11-24T00:00:00Z',
+    endTime: '2026-11-24T08:00:00Z',
+    projectNumber: 'RIP21-TEST001',
+    projectName,
+    edocsWorkspaceId: '3350334',
+  });
+
+  beforeEach(() => {
+    mockGetPhaseDeployStatus.mockReturnValue('gedeployed');
+    mockUseDeployedProcessKeys.mockReturnValue({
+      data: { deployedKeys: ['RipR21Process', 'RipR22Process'] },
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    mockPhaseCompleted.mockImplementation((code: string) =>
+      Promise.resolve({
+        success: true,
+        data:
+          code === 'R2.1'
+            ? [run('r21-a', 'flevoland-a', 'Eerste'), run('r21-b', 'flevoland-b', 'Tweede')]
+            : [],
+      })
+    );
+  });
+
+  it('selects one run, not every run with the same number, and starts it with its own key', async () => {
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.2" onBack={vi.fn()} />);
+
+    // One row per R2.1 run, each with the shared number badge.
+    const rows = (await screen.findAllByText('RIP21-TEST001', { selector: '.pb-proj-nr' })).map(
+      (badge) => badge.closest('li')!
+    );
+    expect(rows).toHaveLength(2);
+    const [first, second] = rows;
+    expect(first).toHaveTextContent('Eerste');
+    expect(second).toHaveTextContent('Tweede');
+    await user.click(within(first).getByRole('checkbox'));
+
+    expect(within(first).getByRole('checkbox')).toBeChecked();
+    expect(within(second).getByRole('checkbox')).not.toBeChecked();
+
+    await user.click(screen.getByRole('button', { name: 'R2.2 starten' }));
+    await waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1));
+    expect(mockStart).toHaveBeenCalledWith(
+      'RipR22Process',
+      { projectNumber: 'RIP21-TEST001', projectName: 'Eerste' },
+      'flevoland-a'
+    );
   });
 });

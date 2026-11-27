@@ -402,22 +402,20 @@ Three places it does not reach, all measured on 19 September 2026:
 - **npm older than 11.10** ignores it without a warning. Node 22.23.4, which
   `.nvmrc` names, bundles npm 10.9.9. `scripts/check-deps.sh` warns about this at
   every dev-server start and push, and names `npm install -g npm@11`.
-- **The break-glass deploy scripts** install in `packages/backend/deploy/`,
-  which they create at run time with its own `package.json`, so npm treats it as
-  a separate project and never reads the root `.npmrc`. That install has no
-  lockfile either.
-
-  This bullet said "the backend deploy" and closed with #34. Neither holds now:
-  #35 moved the deploy that ships into `azure-backend-{acc,prod}.yml`, which
-  installs with `npm ci --omit=dev --workspace=@ronl/backend` from the root
-  lockfile, and #34 closed on 21 September 2026. What is left is the scripts'
-  install, described in full below (iou-architectuur#105).
+- **The break-glass deploy scripts** used to install in `packages/backend/deploy/`,
+  outside this file's reach and without a lockfile. They were retired on
+  27 November 2026; see the closed exception below.
 
 **Reachable from our side:** yes, and done for the first two as far as npm
-allows. The third is narrowed rather than closed: it no longer touches anything
-that ships through CI, only the break-glass scripts below.
+allows. The third is closed: the scripts it described are gone.
 
-### The backend is deployed outside CI, and its dependencies are unpinned
+### ~~The backend is deployed outside CI, and its dependencies are unpinned~~ — closed 2026-11-27
+
+**No longer an exception.** `deploy-backend-to-{acc,prod}.sh` were deleted on
+27 November 2026. They were not meant to be run again: the backend reaches
+acceptance and production only through `azure-backend-{acc,prod}.yml`, which
+install from the root lockfile. Kept here, as written before the retirement,
+because the history explains the workflows.
 
 `azure-backend-{acc,prod}.yml` run build, lint, test, package a zip and call
 `upload-artifact`. **Neither contains a deploy step.** They are build-and-test
@@ -484,10 +482,9 @@ into `azure-backend-{acc,prod}.yml`, which installs from the lockfile and so
 closes [#34](https://github.com/sgort/ronl-business-api/issues/34) for anything
 that ships through CI.
 
-**The scripts remain, and so does the exception — narrowed.** They are the
-break-glass path when CI cannot deploy, they still resolve dependencies on a
-developer machine against semver ranges, and nothing stops someone running one.
-The exception closes when they are retired, not when the workflow lands.
+**The scripts are retired, and the exception with them.** It was kept narrowed
+until then because nothing stopped someone running one; on 27 November 2026 they
+were deleted, which is what this paragraph said would close it.
 
 ## What the audit cannot see
 

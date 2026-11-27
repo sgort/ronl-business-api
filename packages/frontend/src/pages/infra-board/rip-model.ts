@@ -1,4 +1,5 @@
 import type { ActivityHistoryItem } from '@ronl/shared';
+import type { InstanceDocument } from '../../services/rip-documents.types';
 import type { StatusKey } from '../../components/process/status';
 
 /**
@@ -237,11 +238,17 @@ export interface DocProgress {
 }
 
 /**
- * Product-progress for a live R2.1 instance: how many of FASE1_DOCS are
- * finished, per nodeStatusFromHistory's node-status derivation.
+ * Product-progress for a live instance of any phase, from the documents its
+ * model declares (GET /v1/rip/instances/:id/documents): generated and linked
+ * documents count as done; one that is not needed (the optional inkoopplan
+ * when no inkoopplan is written) counts neither way. Before this read the
+ * documents, it counted R2.1's four FASE1_DOCS tasks from the activity
+ * history and so knew nothing of any other phase.
  */
-export function getDocProgress(history: ActivityHistoryItem[]): DocProgress {
-  const status = nodeStatusFromHistory(history);
-  const docsDone = FASE1_DOCS.filter((d) => status[d.produceNode] === 'done').length;
-  return { docsDone, docsTotal: FASE1_DOCS.length };
+export function getDocProgress(documents: InstanceDocument[]): DocProgress {
+  const due = documents.filter((d) => d.status !== 'not-needed');
+  return {
+    docsDone: due.filter((d) => d.status === 'generated' || d.status === 'linked').length,
+    docsTotal: due.length,
+  };
 }

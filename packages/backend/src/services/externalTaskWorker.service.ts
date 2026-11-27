@@ -69,6 +69,14 @@ interface FetchAndLockRequest {
  *     Reads:  projectNumber, projectName
  *     Writes: edocsWorkspaceId, edocsWorkspaceName, edocsWorkspaceCreated
  *
+ *   rip-edocs-projectmap (R2.1 "Aanmaken projectmap eDOCS")
+ *     Reads:  projectNumber, projectName
+ *     Writes: edocsWorkspaceId ('' when there is none), edocsWorkspaceName,
+ *             edocsWorkspaceCreated, edocsWorkspaceError (only on failure)
+ *     Like rip-edocs-workspace, but never fails the task: creating a
+ *     workspace still 500s on the DM server, and a project without one has
+ *     to be able to go on. Linking then says there is no projectmap.
+ *
  *   rip-relatics-workspace (simulated — no real Relatics integration yet)
  *     Reads:  projectNumber, projectName
  *     Writes: relaticsWorkspaceId, relaticsWorkspaceName, relaticsWorkspaceCreated,
@@ -104,7 +112,12 @@ export class ExternalTaskWorker {
     this.running = true;
     logger.info('ExternalTaskWorker starting', {
       workerId: this.workerId,
-      topics: ['rip-edocs-workspace', 'rip-relatics-workspace', 'rip-edocs-document'],
+      topics: [
+        'rip-edocs-workspace',
+        'rip-edocs-projectmap',
+        'rip-relatics-workspace',
+        'rip-edocs-document',
+      ],
     });
     void this.poll();
   }
@@ -152,6 +165,11 @@ export class ExternalTaskWorker {
       topics: [
         {
           topicName: 'rip-edocs-workspace',
+          lockDuration: this.lockDuration,
+          variables: ['projectNumber', 'projectName'],
+        },
+        {
+          topicName: 'rip-edocs-projectmap',
           lockDuration: this.lockDuration,
           variables: ['projectNumber', 'projectName'],
         },
@@ -225,6 +243,9 @@ export class ExternalTaskWorker {
         case 'rip-edocs-workspace':
           outputVariables = await this.handleEnsureWorkspace(task);
           break;
+        case 'rip-edocs-projectmap':
+          outputVariables = await this.handleProjectmap(task);
+          break;
         case 'rip-relatics-workspace':
           outputVariables = this.handleCreateRelaticsWorkspace(task);
           break;
@@ -273,6 +294,45 @@ export class ExternalTaskWorker {
       edocsWorkspaceName: { value: result.workspaceName, type: 'String' },
       edocsWorkspaceCreated: { value: result.created, type: 'Boolean' },
     };
+  }
+
+  /**
+   * rip-edocs-projectmap — "Aanmaken projectmap eDOCS" (R2.1). Finds the
+   * project's workspace or tries to create it, and always completes: a
+   * failure is recorded on the instance (edocsWorkspaceError) and logged, not
+   * turned into an incident, so a project is never held in R2.1 by eDOCS.
+   */
+  private async handleProjectmap(
+    task: ExternalTask
+  ): Promise<Record<string, { value: unknown; type: string }>> {
+    const projectNumber = String(task.variables['projectNumber']?.value ?? '');
+    const projectName = String(task.variables['projectName']?.value ?? '');
+    const none = (reason: string) => ({
+      edocsWorkspaceId: { value: '', type: 'String' },
+      edocsWorkspaceCreated: { value: false, type: 'Boolean' },
+      edocsWorkspaceError: { value: reason, type: 'String' },
+    });
+    if (!projectNumber) return none('Geen projectnummer bekend.');
+    try {
+      const result = await edocsService.ensureWorkspace(
+        projectNumber,
+        projectName || projectNumber
+      );
+      if (!result.workspaceId) return none('eDOCS gaf geen werkruimte terug.');
+      return {
+        edocsWorkspaceId: { value: String(result.workspaceId), type: 'String' },
+        edocsWorkspaceName: { value: result.workspaceName, type: 'String' },
+        edocsWorkspaceCreated: { value: result.created, type: 'Boolean' },
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn('rip-edocs-projectmap: no workspace, continuing without', {
+        processInstanceId: task.processInstanceId,
+        projectNumber,
+        error: message,
+      });
+      return none(message.slice(0, 500));
+    }
   }
 
   /**

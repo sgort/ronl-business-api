@@ -32,6 +32,7 @@
         <bpmn:flowNodeRef>Gateway_KredietJoin</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_InvullenILS</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_OntvangenBeoordeeldeILS</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SamenstellenVerzamelmapVG</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_AccorderenProjectplanDO</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>EndEvent_R31</bpmn:flowNodeRef>
       </bpmn:lane>
@@ -123,7 +124,7 @@
       <bpmn:incoming>Flow_Task_LatenOpstellenDefinitieveDORaming_Gateway_DOJoin</bpmn:incoming>
       <bpmn:outgoing>Flow_Gateway_DOJoin_Task_OpstellenProjectramingDO</bpmn:outgoing>
     </bpmn:parallelGateway>
-    <bpmn:userTask id="Task_OpstellenProjectramingDO" name="Opstellen&#10;Projectraming DO" camunda:formRef="rip-opstellen-projectraming-do" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige" ronl:documentRef="rip-projectraming-do">
+    <bpmn:userTask id="Task_OpstellenProjectramingDO" name="Opstellen&#10;Projectraming DO" camunda:formRef="rip-opstellen-projectraming-do" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige" ronl:linkedDocumentRef="rip-projectraming-do:2591295" ronl:documentFigures="rip-projectraming-do=totaal,onvoorzien,prijspeil" ronl:kredietCheck="ramingBinnenKrediet:rip-projectraming-do">
       <bpmn:incoming>Flow_Gateway_DOJoin_Task_OpstellenProjectramingDO</bpmn:incoming>
       <bpmn:outgoing>Flow_Task_OpstellenProjectramingDO_Gateway_RamingBinnenKrediet</bpmn:outgoing>
     </bpmn:userTask>
@@ -153,7 +154,7 @@
       <bpmn:incoming>Flow_Task_VerwerkenProjectramingDO_Gateway_KredietJoin</bpmn:incoming>
       <bpmn:outgoing>Flow_Gateway_KredietJoin_Task_InvullenILS</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:userTask id="Task_InvullenILS" name="Invullen ILS" camunda:formRef="rip-invullen-ils" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-ils-flevoland">
+    <bpmn:userTask id="Task_InvullenILS" name="Invullen ILS" camunda:formRef="rip-invullen-ils" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:linkedDocumentRef="rip-ils-flevoland:3169796">
       <bpmn:incoming>Flow_Gateway_KredietJoin_Task_InvullenILS</bpmn:incoming>
       <bpmn:outgoing>Flow_Task_InvullenILS_Task_BeoordelenRetournerenILS</bpmn:outgoing>
     </bpmn:userTask>
@@ -163,10 +164,15 @@
     </bpmn:userTask>
     <bpmn:userTask id="Task_OntvangenBeoordeeldeILS" name="Ontvangen&#10;beoordeelde ILS" camunda:formRef="rip-ontvangen-beoordeelde-ils" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
       <bpmn:incoming>Flow_Task_BeoordelenRetournerenILS_Task_OntvangenBeoordeeldeILS</bpmn:incoming>
-      <bpmn:outgoing>Flow_Task_OntvangenBeoordeeldeILS_Task_AccorderenProjectplanDO</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Task_OntvangenBeoordeeldeILS_Task_SamenstellenVerzamelmapVG</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_SamenstellenVerzamelmapVG" name="Samenstellen&#10;Verzamelmap V&amp;G" camunda:candidateGroups="rip-projectleider" ronl:linkedDocumentRef="rip-verzamelmap-vg:3423634:map" ronl:documentChecklist="rip-verzamelmap-vg=V&amp;G-plan ontwerpfase|Risico-inventarisatie V&amp;G|Aanstelling V&amp;G-co&#246;rdinator ontwerpfase">
+      <bpmn:incoming>Flow_Task_OntvangenBeoordeeldeILS_Task_SamenstellenVerzamelmapVG</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_SamenstellenVerzamelmapVG_Task_AccorderenProjectplanDO</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:userTask id="Task_AccorderenProjectplanDO" name="Accorderen Projectplan&#10;6. Afronding DO-fase" camunda:formRef="rip-accorderen-projectplan-do" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-projectplan-do">
-      <bpmn:incoming>Flow_Task_OntvangenBeoordeeldeILS_Task_AccorderenProjectplanDO</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_SamenstellenVerzamelmapVG_Task_AccorderenProjectplanDO</bpmn:incoming>
       <bpmn:outgoing>Flow_Task_AccorderenProjectplanDO_EndEvent_R31</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:endEvent id="EndEvent_R31" name="Vastgesteld Projectplan (DO)&#10;→ R3.1 Laten opstellen concept bestektekeningen">
@@ -216,7 +222,8 @@
     <bpmn:sequenceFlow id="Flow_Gateway_KredietJoin_Task_InvullenILS" sourceRef="Gateway_KredietJoin" targetRef="Task_InvullenILS" />
     <bpmn:sequenceFlow id="Flow_Task_InvullenILS_Task_BeoordelenRetournerenILS" sourceRef="Task_InvullenILS" targetRef="Task_BeoordelenRetournerenILS" />
     <bpmn:sequenceFlow id="Flow_Task_BeoordelenRetournerenILS_Task_OntvangenBeoordeeldeILS" sourceRef="Task_BeoordelenRetournerenILS" targetRef="Task_OntvangenBeoordeeldeILS" />
-    <bpmn:sequenceFlow id="Flow_Task_OntvangenBeoordeeldeILS_Task_AccorderenProjectplanDO" sourceRef="Task_OntvangenBeoordeeldeILS" targetRef="Task_AccorderenProjectplanDO" />
+    <bpmn:sequenceFlow id="Flow_Task_OntvangenBeoordeeldeILS_Task_SamenstellenVerzamelmapVG" sourceRef="Task_OntvangenBeoordeeldeILS" targetRef="Task_SamenstellenVerzamelmapVG" />
+    <bpmn:sequenceFlow id="Flow_Task_SamenstellenVerzamelmapVG_Task_AccorderenProjectplanDO" sourceRef="Task_SamenstellenVerzamelmapVG" targetRef="Task_AccorderenProjectplanDO" />
     <bpmn:sequenceFlow id="Flow_Task_AccorderenProjectplanDO_EndEvent_R31" sourceRef="Task_AccorderenProjectplanDO" targetRef="EndEvent_R31" />
 
     <bpmn:textAnnotation id="Annotation_IN11">
@@ -232,25 +239,25 @@
   <bpmndi:BPMNDiagram id="BPMNDiagram_RipR24Process">
     <bpmndi:BPMNPlane id="BPMNPlane_RipR24Process" bpmnElement="Collaboration_RipR24Process">
       <bpmndi:BPMNShape id="Participant_RipR24Process_di" bpmnElement="Participant_RipR24Process" isHorizontal="true">
-        <dc:Bounds x="160" y="80" width="3366" height="880" />
+        <dc:Bounds x="160" y="80" width="3526" height="880" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Adviseurs_di" bpmnElement="Lane_Adviseurs" isHorizontal="true">
-        <dc:Bounds x="190" y="80" width="3336" height="120" />
+        <dc:Bounds x="190" y="80" width="3496" height="120" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_RIPteam_di" bpmnElement="Lane_RIPteam" isHorizontal="true">
-        <dc:Bounds x="190" y="200" width="3336" height="160" />
+        <dc:Bounds x="190" y="200" width="3496" height="160" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Projectleider_di" bpmnElement="Lane_Projectleider" isHorizontal="true">
-        <dc:Bounds x="190" y="360" width="3336" height="200" />
+        <dc:Bounds x="190" y="360" width="3496" height="200" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_KostenContractdeskundige_di" bpmnElement="Lane_KostenContractdeskundige" isHorizontal="true">
-        <dc:Bounds x="190" y="560" width="3336" height="120" />
+        <dc:Bounds x="190" y="560" width="3496" height="120" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_InfraOverleg_di" bpmnElement="Lane_InfraOverleg" isHorizontal="true">
-        <dc:Bounds x="190" y="680" width="3336" height="120" />
+        <dc:Bounds x="190" y="680" width="3496" height="120" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Financien_di" bpmnElement="Lane_Financien" isHorizontal="true">
-        <dc:Bounds x="190" y="800" width="3336" height="160" />
+        <dc:Bounds x="190" y="800" width="3496" height="160" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="StartEvent_R24_di" bpmnElement="StartEvent_R24">
         <dc:Bounds x="232" y="442" width="36" height="36" />
@@ -346,12 +353,12 @@
         <dc:Bounds x="3100" y="420" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_AccorderenProjectplanDO_di" bpmnElement="Task_AccorderenProjectplanDO">
-        <dc:Bounds x="3260" y="420" width="100" height="80" />
+        <dc:Bounds x="3420" y="420" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_R31_di" bpmnElement="EndEvent_R31">
-        <dc:Bounds x="3420" y="442" width="36" height="36" />
+        <dc:Bounds x="3580" y="442" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3250" y="483" width="376" height="28" />
+          <dc:Bounds x="3410" y="483" width="376" height="28" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Annotation_IN11_di" bpmnElement="Annotation_IN11">
@@ -548,13 +555,20 @@
         <di:waypoint x="3070" y="460" />
         <di:waypoint x="3100" y="460" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Task_OntvangenBeoordeeldeILS_Task_AccorderenProjectplanDO_di" bpmnElement="Flow_Task_OntvangenBeoordeeldeILS_Task_AccorderenProjectplanDO">
+      <bpmndi:BPMNShape id="Task_SamenstellenVerzamelmapVG_di" bpmnElement="Task_SamenstellenVerzamelmapVG">
+        <dc:Bounds x="3260" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Task_OntvangenBeoordeeldeILS_Task_SamenstellenVerzamelmapVG_di" bpmnElement="Flow_Task_OntvangenBeoordeeldeILS_Task_SamenstellenVerzamelmapVG">
         <di:waypoint x="3200" y="460" />
         <di:waypoint x="3260" y="460" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Task_AccorderenProjectplanDO_EndEvent_R31_di" bpmnElement="Flow_Task_AccorderenProjectplanDO_EndEvent_R31">
+      <bpmndi:BPMNEdge id="Flow_Task_SamenstellenVerzamelmapVG_Task_AccorderenProjectplanDO_di" bpmnElement="Flow_Task_SamenstellenVerzamelmapVG_Task_AccorderenProjectplanDO">
         <di:waypoint x="3360" y="460" />
         <di:waypoint x="3420" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AccorderenProjectplanDO_EndEvent_R31_di" bpmnElement="Flow_Task_AccorderenProjectplanDO_EndEvent_R31">
+        <di:waypoint x="3520" y="460" />
+        <di:waypoint x="3580" y="460" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Assoc_Annotation_IN11_di" bpmnElement="Assoc_Annotation_IN11">
         <di:waypoint x="350" y="420" />

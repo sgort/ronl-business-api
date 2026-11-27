@@ -98,6 +98,16 @@
   --rba-warn-ink-7:  #f0a93b;
   --rba-warn-line:   #f3dca0;
   --rba-warn-line-2: #ecdcc0;
+
+  /* RIP documents: the werkwijze chip (Infra-board documenten). A = made in
+     the IOU, B = linked from eDOCS, B+ = linked with key figures. Each text
+     colour is checked at AA on its own tint; keep them as pairs. */
+  --rba-doc-a:      #0b6e74;
+  --rba-doc-a-bg:   #dcefef;
+  --rba-doc-b:      #4c5180;
+  --rba-doc-b-bg:   #e6e7f3;
+  --rba-doc-bp:     #7a4f0e;
+  --rba-doc-bp-bg:  #f5ead6;
 }
 
 /* Flevoland's colours for the Flevoland tenant (#374, step 1; design:

@@ -31,7 +31,12 @@ jest.mock('@services/edocs.service', () => {
 import type { Request, Response, NextFunction } from 'express';
 import { ReauthRequiredError, UserTokenUnavailableError } from '@auth/entra-token.service';
 import { EdocsAccessDeniedError } from '@services/edocs.service';
-import { edocsAccess, requireEdocsPrincipal, sendEdocsError } from './edocs.access';
+import {
+  applyServiceFallback,
+  edocsAccess,
+  requireEdocsPrincipal,
+  sendEdocsError,
+} from './edocs.access';
 
 type FakeRes = Response & { body: unknown; type: jest.Mock };
 function res(): FakeRes {
@@ -197,6 +202,40 @@ describe('requireEdocsPrincipal', () => {
     );
     expect(r.statusCode).toBe(401);
     expect(r.body).toMatchObject({ code: 'EDOCS_REAUTH_REQUIRED' });
+  });
+});
+
+describe('applyServiceFallback (routes that read eDOCS when they can)', () => {
+  const req = (extra: Record<string, unknown>) => ({ ...person(), ...extra }) as unknown as Request;
+
+  it('keeps the client a person already has', () => {
+    const r = req({ edocs: mockService });
+    expect(applyServiceFallback(r)).toBe(true);
+    expect(mockLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it('gives a person without a token the service when the fallback is on, with an audit line', () => {
+    mockConfig.edocs.allowServiceFallback = true;
+    const r = req({ edocsUserProblem: 'EDOCS_USER_TOKEN_UNAVAILABLE' });
+    expect(applyServiceFallback(r)).toBe(true);
+    expect(r.edocs).toBe(mockService);
+    expect(r.edocsActingAs).toBe('service');
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('fallback'),
+      expect.objectContaining({ audit: true })
+    );
+  });
+
+  it.each([
+    ['the fallback is off', { edocsUserProblem: 'EDOCS_USER_TOKEN_UNAVAILABLE' }, false],
+    ['the person must sign in again', { edocsUserProblem: 'EDOCS_REAUTH_REQUIRED' }, true],
+    ['the token lookup failed', { edocsLookupError: new Error('down') }, true],
+    ['nothing is known about the person', {}, true],
+  ])('gives nothing when %s', (_what, extra, fallbackOn) => {
+    mockConfig.edocs.allowServiceFallback = fallbackOn;
+    const r = req(extra);
+    expect(applyServiceFallback(r)).toBe(false);
+    expect(r.edocs).toBeUndefined();
   });
 });
 

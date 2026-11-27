@@ -13,6 +13,7 @@ import type {
   ProcessLineage,
   CitizenServiceId,
 } from '@ronl/shared';
+import type { DocumentLink, InstanceDocumentsData, WorkspaceItem } from './rip-documents.types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
 
@@ -418,17 +419,54 @@ export const businessApi = {
       return response.data;
     },
 
+    /**
+     * An instance's documents. `edocs: false` skips the live eDOCS reads
+     * (versions, map checklists): for lists of many instances.
+     */
     instanceDocuments: async (
-      instanceId: string
+      instanceId: string,
+      opts: { edocs?: boolean } = {}
+    ): Promise<ApiResponse<InstanceDocumentsData>> => {
+      const response = await api.get(`/rip/instances/${instanceId}/documents`, {
+        params: opts.edocs === false ? { edocs: 'false' } : undefined,
+      });
+      return response.data;
+    },
+
+    /** The instance's eDOCS projectmap, or one folder in it. */
+    workspace: async (
+      instanceId: string,
+      folderId?: string
     ): Promise<
-      ApiResponse<{
-        variables: Record<string, unknown>;
-        intakeReport: Record<string, unknown> | null;
-        psuReport: Record<string, unknown> | null;
-        pdp: Record<string, unknown> | null;
-      }>
+      ApiResponse<{ workspaceId: string; folderId: string | null; items: WorkspaceItem[] }>
     > => {
-      const response = await api.get(`/rip/instances/${instanceId}/documents`);
+      const response = await api.get(`/rip/instances/${instanceId}/workspace`, {
+        params: folderId ? { folderId } : undefined,
+      });
+      return response.data;
+    },
+
+    linkDocument: async (
+      instanceId: string,
+      slug: string,
+      documentId: string
+    ): Promise<ApiResponse<{ slug: string; link: DocumentLink }>> => {
+      const response = await api.post(`/rip/instances/${instanceId}/documents/${slug}/link`, {
+        documentId,
+      });
+      return response.data;
+    },
+
+    uploadDocument: async (
+      instanceId: string,
+      slug: string,
+      filename: string,
+      contentBase64: string
+    ): Promise<ApiResponse<{ slug: string; link: DocumentLink }>> => {
+      const response = await api.post(`/rip/instances/${instanceId}/documents/${slug}/upload`, {
+        filename,
+        contentBase64,
+      });
       return response.data;
     },
 

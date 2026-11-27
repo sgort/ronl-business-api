@@ -15,6 +15,7 @@ import packageJson from '../package.json';
 // The routers themselves come from the registry; this is the callback-path
 // predicate the JSON body parser needs to exempt /v1/validsign/callback.
 import { isCallbackPath } from '@routes/validsign.routes';
+import { isLinkedUploadPath } from '@routes/rip.routes';
 import { externalTaskWorker } from '@services/externalTaskWorker.service';
 import { validsignPoller } from '@services/validsignPoller.service';
 import { mcpRegistry } from '@services/mcp/McpRegistry';
@@ -117,9 +118,13 @@ app.use(limiter);
 // generic catch-all below -- which returned 500, telling ValidSign to retry
 // forever. (Since #216 the catch-all answers a parse failure with 400 too, but
 // the callback keeps its own, tighter limit.)
+//
+// The RIP linked-document upload (/v1/rip/instances/:id/documents/:slug/upload)
+// is exempted too: it carries a whole file as base64 and parses its own body
+// with a limit derived from EDOCS_LINKED_UPLOAD_MAX_MB (see rip.routes.ts).
 const jsonParser = express.json({ limit: '1mb' });
 app.use((req: Request, res: Response, next: NextFunction) => {
-  if (isCallbackPath(req.path)) return next();
+  if (isCallbackPath(req.path) || isLinkedUploadPath(req.path)) return next();
   jsonParser(req, res, next);
 });
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
