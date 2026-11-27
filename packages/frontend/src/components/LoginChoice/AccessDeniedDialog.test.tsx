@@ -45,8 +45,14 @@ describe('AccessDeniedDialog', () => {
     expect(screen.getByText(/^Uw account heeft de rol/)).toHaveTextContent('Public Affairs');
   });
 
-  it('for a board without an Entra role, asks for access without naming one', () => {
+  it('names IOU_WOO for the Woo-dashboard', () => {
     setup({ board: woo });
+
+    expect(screen.getByText('IOU_WOO')).toBeInTheDocument();
+  });
+
+  it('for a board without an Entra role, asks for access without naming one', () => {
+    setup({ board: { ...woo, entraRole: undefined } });
 
     expect(screen.getByText('Vraag uw functioneel beheerder om toegang.')).toBeInTheDocument();
     expect(screen.queryByText(/Entra ID/)).not.toBeInTheDocument();

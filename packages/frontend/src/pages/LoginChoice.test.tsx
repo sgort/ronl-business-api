@@ -24,7 +24,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 const mockLogout = vi.hoisted(() => vi.fn());
-vi.mock('../services/keycloak', () => ({ default: { logout: mockLogout } }));
+vi.mock('../services/keycloak', () => ({ logoutTo: mockLogout }));
 
 vi.mock('../components/LoginChoice/BoardCard', () => ({
   default: ({ board, onOpen, onOpenWithEntra }: never) => (
@@ -190,7 +190,7 @@ describe('LoginChoice', () => {
   });
 
   describe('Flevoland account per board', () => {
-    it('is offered on every board with an Entra role, and not on Woo', () => {
+    it('is offered on every board with an Entra role, Woo included', () => {
       render(<LoginChoice />);
 
       for (const board of BOARDS) {
@@ -198,7 +198,7 @@ describe('LoginChoice', () => {
         if (board.entraRole) expect(button).toBeInTheDocument();
         else expect(button).not.toBeInTheDocument();
       }
-      expect(screen.queryByRole('button', { name: 'entra-woo' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'entra-woo' })).toBeInTheDocument();
     });
 
     it('logs in with Entra ID and keeps the chosen board', async () => {
@@ -275,15 +275,18 @@ describe('LoginChoice', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/dashboard/caseworker');
     });
 
-    it('"Uitloggen" logs out back to this landing page', async () => {
+    it('"Uitloggen" closes the dialog first, then logs out back to this landing page', async () => {
       const user = userEvent.setup();
       deniedAt('/', { route: '/dashboard/woo', home: null });
       render(<LoginChoice />);
 
       await user.click(screen.getByRole('button', { name: 'Uitloggen' }));
 
-      await waitFor(() =>
-        expect(mockLogout).toHaveBeenCalledWith({ redirectUri: `${window.location.origin}/` })
+      await waitFor(() => expect(mockLogout).toHaveBeenCalledWith(`${window.location.origin}/`));
+      // Dropped from history before leaving, so the round trip cannot bring it back.
+      expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true, state: null });
+      expect(mockNavigate.mock.invocationCallOrder[0]).toBeLessThan(
+        mockLogout.mock.invocationCallOrder[0]
       );
     });
   });
