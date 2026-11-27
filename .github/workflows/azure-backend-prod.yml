@@ -251,8 +251,8 @@ jobs:
           # It goes in AFTER the install, deliberately: copied in before, npm sees
           # a package not declared in the manifest it is installing, prunes it as
           # extraneous, and the app dies at runtime with "Cannot find module
-          # '@ronl/shared'". deploy-backend-to-prod.sh learned this the hard way and
-          # says so; the version of this step that this replaces had the two the
+          # '@ronl/shared'". The retired deploy-backend-to-prod.sh learned this the
+          # hard way; the version of this step that this replaces had the two the
           # wrong way round, latent only because nothing ever deployed its artifact.
           mkdir -p deploy/node_modules/@ronl/shared
           cp -r ../shared/dist deploy/node_modules/@ronl/shared/
@@ -297,8 +297,8 @@ jobs:
       # Authentication is OIDC rather than a publish profile. SCM basic auth is
       # DISABLED on this App Service (basicPublishingCredentialsPolicies/scm
       # allow=false, measured 2026-09-20), so a publish-profile deploy would be
-      # rejected. `az webapp deploy` over an ARM token is what
-      # deploy-backend-to-prod.sh already does by hand.
+      # rejected. `az webapp deploy` over an ARM token is what the retired
+      # deploy-backend-to-prod.sh did by hand.
       #
       # The identity is separate from acc's, scoped to this App Service alone, so
       # a mistake in the acceptance workflow cannot reach production.
