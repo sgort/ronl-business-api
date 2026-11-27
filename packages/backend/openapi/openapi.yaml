@@ -2232,6 +2232,17 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/TenantMismatch'
+        '422':
+          description: |
+            `LINKED_DOCUMENT_MISSING`: the task's model declares linked
+            documents (`ronl:linkedDocumentRef`), figures, a map checklist or a
+            kredietcheck that are not complete. The `missing` extension member
+            lists each item as `{ slug, what, label }`, `what` being
+            `document`, `figure`, `checklist`, `answer` or `reason`.
+            Nothing is completed. Links are written only through
+            `POST /rip/instances/{instanceId}/documents/{slug}/link` or
+            `/upload`; `linkedDoc_*` sent here are dropped.
+          $ref: '#/components/responses/Error'
         '500':
           description: |
             Operaton refused the completion (`TASK_COMPLETE_FAILED`) — for
@@ -5705,19 +5716,33 @@ paths:
     get:
       operationId: getRipInstanceDocuments
       tags: [RIP]
-      summary: The documents a RIP instance has produced
+      summary: The documents of a RIP instance
       description: |
         Organisation-checked: answers `TENANT_MISMATCH` for an instance
         belonging to another organisation.
 
-        `data` carries the instance's variables alongside each known document
-        slot, so a slot that has not been produced yet is present and null
-        rather than absent.
+        `data` carries the instance's variables alongside each known R2.1
+        template slot, so a slot that has not been produced yet is present and
+        null rather than absent.
+
+        `documents` lists every document the instance's model declares:
+        generated from a template (werkwijze A, `ronl:documentRef`) and kept
+        in eDOCS and linked (B / B+, `ronl:linkedDocumentRef`), each with its
+        status. The eDOCS version of a linked document is read live, as the
+        person, when they have an eDOCS identity; otherwise it is null.
+        `kredietChecks` gives each declared kredietcheck as it stands.
       parameters:
         - name: instanceId
           in: path
           required: true
           schema: { type: string }
+        - name: edocs
+          in: query
+          required: false
+          description: |
+            `false` skips every eDOCS read: versions are null and map
+            checklists unchecked. For lists of many instances.
+          schema: { type: string, enum: ['true', 'false'] }
       responses:
         '200':
           description: The documents and the variables they came from.
@@ -5736,6 +5761,22 @@ paths:
                           intakeReport: { type: [object, 'null'], additionalProperties: true }
                           psuReport: { type: [object, 'null'], additionalProperties: true }
                           pdp: { type: [object, 'null'], additionalProperties: true }
+                          documents:
+                            type: array
+                            items: { $ref: '#/components/schemas/RipInstanceDocument' }
+                          kredietChecks:
+                            type: array
+                            items: { $ref: '#/components/schemas/RipKredietCheck' }
+                          edocsWorkspaceId: { type: [string, 'null'] }
+                          uploadTarget:
+                            type: string
+                            enum: [workspace, edocs]
+                            description: |
+                              Where an upload through the IOU lands. `workspace` when the
+                              project has a projectmap: the file is uploaded to eDOCS and
+                              then filed into the map as a reference (or uploaded into it
+                              directly with `EDOCS_WORKSPACE_UPLOAD_ENABLED`). `edocs` when
+                              the project has no map: the file stays standalone in eDOCS.
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -5747,6 +5788,193 @@ paths:
           $ref: '#/components/responses/TenantMismatch'
         '500':
           description: '`RIP_DOCUMENTS_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /rip/instances/{instanceId}/workspace:
+    get:
+      operationId: getRipInstanceWorkspace
+      tags: [RIP]
+      summary: The content of an instance's eDOCS projectmap
+      description: |
+        What the task panel offers to link: the content of the project's eDOCS
+        workspace (`edocsWorkspaceId`), or of one folder in it with
+        `folderId`. Read as the person. Organisation-checked.
+      parameters:
+        - name: instanceId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: folderId
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: The items.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [workspaceId, folderId, items]
+                        properties:
+                          workspaceId: { type: string }
+                          folderId: { type: [string, 'null'] }
+                          items:
+                            type: array
+                            items: { $ref: '#/components/schemas/EdocsContainerItem' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          description: |
+            `TENANT_MISMATCH`, or one of the eDOCS refusals (see EdocsForbidden).
+          $ref: '#/components/responses/Error'
+        '409':
+          description: '`NO_PROJECT_WORKSPACE`: the instance has no eDOCS workspace yet.'
+          $ref: '#/components/responses/Error'
+        '502':
+          description: '`EDOCS_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /rip/instances/{instanceId}/documents/{slug}/link:
+    post:
+      operationId: linkRipDocument
+      tags: [RIP]
+      summary: Link an eDOCS document to an instance
+      description: |
+        Links a document -- or, for a map, a folder -- from the project's eDOCS
+        workspace to a linked document (`ronl:linkedDocumentRef`) that an
+        OPEN task of the instance declares. The caller must be in that task's
+        candidate groups. Sets `linkedDoc_<slug>` (a JSON record) and
+        `linkedDocNumber_<slug>` (the eDOCS number) on the instance, and is
+        audit-logged. Organisation-checked before anything else.
+      parameters:
+        - name: instanceId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[a-z0-9][a-z0-9-]*$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [documentId]
+              properties:
+                documentId:
+                  type: string
+                  description: The eDOCS id or document number of an item in the workspace.
+      responses:
+        '200':
+          description: The document is linked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RipDocumentLinkResponse' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: '`INVALID_REQUEST` or `MALFORMED_BODY`.'
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          description: |
+            `TENANT_MISMATCH`; `NOT_CANDIDATE` (not in the task's candidate
+            groups); or one of the eDOCS refusals.
+          $ref: '#/components/responses/Error'
+        '404':
+          description: '`UNKNOWN_DOCUMENT`: the model declares no linked document by that slug.'
+          $ref: '#/components/responses/Error'
+        '409':
+          description: |
+            `DOCUMENT_TASK_NOT_OPEN` (the task that produces it is not open) or
+            `NO_PROJECT_WORKSPACE`.
+          $ref: '#/components/responses/Error'
+        '422':
+          description: |
+            `DOCUMENT_NOT_IN_WORKSPACE`, `MAP_EXPECTED` or `DOCUMENT_EXPECTED`.
+          $ref: '#/components/responses/Error'
+        '502':
+          description: '`EDOCS_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /rip/instances/{instanceId}/documents/{slug}/upload:
+    post:
+      operationId: uploadRipDocument
+      tags: [RIP]
+      summary: Upload a file to eDOCS and link it
+      description: |
+        Uploads the file as the person and links the result, under the same
+        task and candidate-group checks as linking. Uploading into a workspace
+        is broken on the DM server, so while `EDOCS_WORKSPACE_UPLOAD_ENABLED` is
+        false the file goes to eDOCS standalone and is then filed into the
+        project's projectmap as a reference (`POST /documents/{id}/references`).
+        The link records `inWorkspace`: false when the project has no map or
+        filing failed; the upload and the link stand either way. The body
+        limit follows `EDOCS_LINKED_UPLOAD_MAX_MB` (default 20 MB of file).
+      parameters:
+        - name: instanceId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[a-z0-9][a-z0-9-]*$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, contentBase64]
+              properties:
+                filename: { type: string, maxLength: 255 }
+                contentBase64: { type: string, contentEncoding: base64 }
+      responses:
+        '201':
+          description: Uploaded and linked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RipDocumentLinkResponse' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: '`INVALID_REQUEST`, `EMPTY_FILE` or `MALFORMED_BODY`.'
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          description: '`TENANT_MISMATCH`, `NOT_CANDIDATE` or one of the eDOCS refusals.'
+          $ref: '#/components/responses/Error'
+        '404':
+          description: '`UNKNOWN_DOCUMENT`.'
+          $ref: '#/components/responses/Error'
+        '409':
+          description: |
+            `DOCUMENT_TASK_NOT_OPEN`, `NO_PROJECT_WORKSPACE` or
+            `MAP_UPLOAD_UNSUPPORTED` (a map is created in eDOCS and linked).
+          $ref: '#/components/responses/Error'
+        '413':
+          description: '`FILE_TOO_LARGE`.'
+          $ref: '#/components/responses/Error'
+        '502':
+          description: '`EDOCS_ERROR`.'
           $ref: '#/components/responses/Error'
 
   /hr-capacity/active:
@@ -7505,6 +7733,118 @@ components:
       properties:
         success: { type: boolean, const: true }
         data: {}
+
+    RipInstanceDocument:
+      type: object
+      description: One document an instance's model declares.
+      required: [slug, label, kind, format, taskKey, taskName, candidateGroups, optional, map, status, edocs, figures, checklist]
+      properties:
+        slug: { type: string }
+        label: { type: string }
+        kind:
+          type: string
+          enum: [A, B, BP]
+          description: A = generated from a template; B = linked; BP (B+) = linked with figures.
+        format: { type: [string, 'null'], description: eDOCS format number of a linked document. }
+        taskKey: { type: string }
+        taskName: { type: string }
+        candidateGroups: { type: array, items: { type: string } }
+        optional: { type: boolean }
+        map: { type: boolean, description: The link is to an eDOCS folder. }
+        status:
+          type: string
+          enum: [generated, pending, linked, missing, later, not-needed]
+        edocs:
+          type: [object, 'null']
+          required: [documentId, documentNumber, version, modified]
+          properties:
+            documentId: { type: string }
+            documentNumber: { type: string }
+            name: { type: string, description: The document's name in eDOCS. }
+            version: { type: [string, 'null'] }
+            modified: { type: [string, 'null'] }
+            uploadedVia: { type: string, enum: [ronl] }
+            inWorkspace: { type: boolean }
+        figures:
+          type: [object, 'null']
+          additionalProperties: { type: [integer, 'null'] }
+        prefill:
+          type: [object, 'null']
+          description: |
+            Suggested figures from an earlier phase of the project while this
+            document has none of its own (the DO raming starts from the VO
+            raming). Stored only when the task completes with them.
+          additionalProperties: { type: [integer, 'null'] }
+        checklist:
+          type: [array, 'null']
+          items:
+            type: object
+            required: [item, present]
+            properties:
+              item: { type: string }
+              present: { type: boolean }
+
+    RipKredietCheck:
+      type: object
+      description: |
+        The kredietcheck of one task: the raming total against the
+        projectkrediet (`beschikbaarProjectkrediet`), the suggestion in the
+        gateway variable's own values, and the confirmed answer.
+      required: [variable, slug, taskKey, taskName, raming, krediet, voorstel, answer, afwijking, values]
+      properties:
+        variable: { type: string }
+        slug: { type: string }
+        taskKey: { type: string }
+        taskName: { type: string }
+        raming: { type: [integer, 'null'] }
+        krediet: { type: [integer, 'null'] }
+        kredietPrefill:
+          type: [integer, 'null']
+          description: The projectkrediet an earlier phase recorded, while this instance has none.
+        voorstel: { type: [string, 'null'] }
+        answer: { type: [string, 'null'] }
+        afwijking: { type: [string, 'null'] }
+        values:
+          type: object
+          required: [binnen, buiten]
+          properties:
+            binnen: { type: string }
+            buiten: { type: string }
+
+    RipDocumentLinkResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean, const: true }
+        data:
+          type: object
+          required: [slug, link]
+          properties:
+            slug: { type: string }
+            link:
+              type: object
+              required: [documentId, documentNumber, linkedAt, linkedBy]
+              properties:
+                documentId: { type: string }
+                documentNumber: { type: string }
+                name: { type: string }
+                linkedAt: { type: string, format: date-time }
+                linkedBy: { type: string }
+                uploadedVia: { type: string, enum: [ronl] }
+                inWorkspace: { type: boolean }
+                map: { type: boolean }
+
+    EdocsContainerItem:
+      type: object
+      required: [id, name, documentNumber, isFolder, version, modified, author]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        documentNumber: { type: string }
+        isFolder: { type: boolean }
+        version: { type: [string, 'null'] }
+        modified: { type: [string, 'null'] }
+        author: { type: [string, 'null'] }
 
     RipInstance:
       type: object

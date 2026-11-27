@@ -21,6 +21,9 @@ const ROOTS = {
   "packages/frontend/src/components/process/caseworker-process.css": [".cwd-v2", ".pbd"],
   "packages/frontend/src/components/process/process-disclosure.css": [".cwd-v2"],
   "packages/frontend/src/components/process/process-view.css": [".pbd"],
+  // Both hosts render these (Infra-board and caseworker inbox): every selector
+  // starts with a ripdoc- class instead of a host root.
+  "packages/frontend/src/components/rip-documents/rip-documents.css": [".ripdoc-*"],
   "packages/frontend/src/components/signing/signing-panel.css": [".pb-sign-panel"],
   "packages/frontend/src/pages/caseworker-v2/dashboard-v2.css": [".cwd-v2"],
   "packages/frontend/src/pages/caseworker-v2/regelsimulatie.css": [".cwd-v2"],

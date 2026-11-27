@@ -9,6 +9,7 @@ import type {
   SwimNode,
 } from '@ronl/shared';
 import { docLabel } from './doc-label';
+import { parseLinkedDocumentRef } from './linked-docs';
 
 interface RawFlow {
   id: string;
@@ -449,6 +450,11 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
         .map((slug) => slug.trim())
         .filter((slug) => slug.length > 0)
         .map((slug) => docLabel(slug));
+      // Linked (B/B+) documents: same comma-separated grammar plus a format
+      // and flags per entry, parsed where the services parse it too.
+      const linkedDocs = parseLinkedDocumentRef(attr(el, 'linkedDocumentRef')).map((r) =>
+        docLabel(r.slug)
+      );
       const dmn = kind === 'rule' ? attr(el, 'decisionRef') : undefined;
       const calls = kind === 'call' ? attr(el, 'calledElement') : undefined;
       const formRef = attr(el, 'formRef');
@@ -464,6 +470,7 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
         row: rowOf.get(id) ?? 0,
         col: 0, // filled in by layering
         ...(docs.length > 0 ? { docs } : {}),
+        ...(linkedDocs.length > 0 ? { linkedDocs } : {}),
         ...(dmn ? { dmn } : {}),
         ...(calls ? { calls } : {}),
         ...(formRef ? { formRef } : {}),

@@ -12,6 +12,7 @@ import { businessApi } from './api';
 import type { Task, ActivityHistoryItem, PhaseSwimlaneModel } from '@ronl/shared';
 import type { StatusKey } from '../pages/infra-board/rip-model';
 import { RIP_PHASES } from '../pages/infra-board/rip-phases.catalog';
+import type { InstanceDocumentsData } from './rip-documents.types';
 
 export interface RipPhaseInstance {
   id: string;
@@ -51,7 +52,10 @@ function useAsync<T>(
     let alive = true;
     setLoading(true);
     setError(false);
-    fn()
+    // Through a promise, so a fetcher that throws before returning one ends
+    // in the error state like a rejected request, not as an uncaught error.
+    Promise.resolve()
+      .then(fn)
       .then((res) => {
         if (!alive) return;
         if (res.success && res.data !== undefined) setData(res.data);
@@ -418,14 +422,10 @@ export const useActivityHistory = (instanceId: string | null) =>
   );
 
 /** An instance's documents + variables. The three names are R2.1's document
- *  set; instances of a phase that ships none get null for all three. */
-export const useInstanceDocuments = (instanceId: string | null) =>
-  useAsync<{
-    variables: Record<string, unknown>;
-    intakeReport: Record<string, unknown> | null;
-    psuReport: Record<string, unknown> | null;
-    pdp: Record<string, unknown> | null;
-  }>(
+ *  set; instances of a phase that ships none get null for all three.
+ *  `refreshKey` re-reads them when it changes (after a task completes). */
+export const useInstanceDocuments = (instanceId: string | null, refreshKey: number = 0) =>
+  useAsync<InstanceDocumentsData>(
     () =>
       instanceId
         ? businessApi.rip.instanceDocuments(instanceId)
@@ -433,7 +433,7 @@ export const useInstanceDocuments = (instanceId: string | null) =>
             success: true,
             data: { variables: {}, intakeReport: null, psuReport: null, pdp: null },
           }),
-    [instanceId]
+    [instanceId, refreshKey]
   );
 
 // ── Mapping live tasks → "Mijn to do" rows ──────────────────────────────────

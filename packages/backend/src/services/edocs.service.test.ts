@@ -120,6 +120,27 @@ describe('EdocsService — stub mode', () => {
     expect(res.documentId).toMatch(/^stub-doc-/);
   });
 
+  it('listContents returns a canned workspace with a folder, and a canned folder', async () => {
+    const ws = await svc.listContents('workspace', 'ws-1');
+    expect(ws.some((i) => i.isFolder)).toBe(true);
+    const folder = await svc.listContents('folder', 'f-1');
+    expect(folder.every((i) => !i.isFolder)).toBe(true);
+    expect(mockClient.get).not.toHaveBeenCalled();
+  });
+
+  it('addReference files nothing in stub mode', async () => {
+    await svc.addReference('d', 'w', 'n');
+    expect(mockClient.post).not.toHaveBeenCalled();
+  });
+
+  it('findWorkspace returns a deterministic stub workspace', async () => {
+    await expect(svc.findWorkspace('RIP 2024/07')).resolves.toEqual({
+      workspaceId: 'stub-ws-RIP-2024-07',
+      workspaceName: 'RIP 2024/07',
+    });
+    expect(mockClient.get).not.toHaveBeenCalled();
+  });
+
   it('getWorkspaceDocuments returns the canned two-document list', async () => {
     const docs = await svc.getWorkspaceDocuments('ws-1');
     expect(docs).toHaveLength(2);
@@ -257,7 +278,14 @@ describe('EdocsService — live mode', () => {
       mockClient.post.mockResolvedValueOnce(connectResponse);
       mockClient.get.mockResolvedValueOnce({
         // Flat list item shape, confirmed live — not nested under `.data`.
-        data: { data: { list: [{ id: 'ws-existing', DOCNAME: 'P-001 — Old' }] } },
+        data: {
+          data: {
+            list: [
+              { id: 'ws-other', DOCNAME: 'P-0010' },
+              { id: 'ws-existing', DOCNAME: 'P-001 — Old' },
+            ],
+          },
+        },
       });
 
       const res = await svc.ensureWorkspace('P-001', 'Project One');
@@ -313,6 +341,98 @@ describe('EdocsService — live mode', () => {
         workspaceName: 'P-004 — Project Four',
         created: true,
       });
+    });
+  });
+
+  describe('addReference()', () => {
+    it('files a document into a workspace through POST /documents/{id}/references', async () => {
+      mockClient.post
+        .mockResolvedValueOnce(connectResponse)
+        .mockResolvedValueOnce({ status: 200, data: {} });
+      await svc.addReference('3350335', '3350334', 'RIP21-TEST001');
+      expect(mockClient.post).toHaveBeenLastCalledWith(
+        'documents/3350335/references',
+        {
+          data: [{ id: '3350334', type: 'workspaces', lib: 'DOCUVITT', docname: 'RIP21-TEST001' }],
+        },
+        { params: { library: 'DOCUVITT' } }
+      );
+    });
+
+    it('passes a refusal on to the caller', async () => {
+      mockClient.post
+        .mockResolvedValueOnce(connectResponse)
+        .mockRejectedValueOnce(new Error('500'));
+      await expect(svc.addReference('d', 'w', 'n')).rejects.toThrow('500');
+    });
+  });
+
+  describe('findWorkspace()', () => {
+    // The DM server ignores `filter` on GET /workspaces (test library, 24 Nov
+    // 2026): it returns every workspace, so the match is made here.
+    const page = (items: Array<{ id: unknown; DOCNAME: string }>, total = items.length) => ({
+      data: { data: { set: { total }, list: items } },
+    });
+    const ALL = [
+      { id: 3349682, DOCNAME: 'test workspace' },
+      { id: 3350332, DOCNAME: 'RIP21-TEST' },
+      { id: 3350333, DOCNAME: 'RIP21-TEST001 — Test project' },
+      { id: 3350334, DOCNAME: 'RIP21-TEST001' },
+    ];
+
+    it('matches the project number itself, not the first workspace eDOCS lists', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce(page(ALL));
+      await expect(svc.findWorkspace('RIP21-TEST001')).resolves.toEqual({
+        workspaceId: '3350334',
+        workspaceName: 'RIP21-TEST001',
+      });
+      expect(mockClient.get).toHaveBeenCalledWith('workspaces', {
+        params: { library: 'DOCUVITT', start: 0, max: 200 },
+      });
+      expect(mockClient.post).toHaveBeenCalledTimes(1); // the login only
+    });
+
+    it('takes "number — name" when there is no exact name, case-insensitively', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce(page(ALL.filter((w) => w.id !== 3350334)));
+      await expect(svc.findWorkspace('rip21-test001')).resolves.toEqual({
+        workspaceId: '3350333',
+        workspaceName: 'RIP21-TEST001 — Test project',
+      });
+    });
+
+    it('never matches a longer project number: RIP21-TEST is not RIP21-TEST001', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce(
+        page([
+          { id: 1, DOCNAME: 'RIP21-TEST001' },
+          { id: 2, DOCNAME: 'RIP21-TEST0012' },
+        ])
+      );
+      await expect(svc.findWorkspace('RIP21-TEST')).resolves.toBeNull();
+    });
+
+    it('returns null when no workspace is named after the project', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce(page(ALL));
+      await expect(svc.findWorkspace('ZZZ-NO-SUCH-PROJECT')).resolves.toBeNull();
+    });
+
+    it('pages through the list until it finds the workspace', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      const first = Array.from({ length: 200 }, (_, n) => ({ id: n, DOCNAME: `other-${n}` }));
+      mockClient.get
+        .mockResolvedValueOnce(page(first, 201))
+        .mockResolvedValueOnce(page([{ id: 999, DOCNAME: 'P-1' }], 201));
+      await expect(svc.findWorkspace('P-1')).resolves.toMatchObject({ workspaceId: '999' });
+      expect(mockClient.get.mock.calls[1][1].params).toMatchObject({ start: 200, max: 200 });
+    });
+
+    it('asks nothing for an empty project number', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      await expect(svc.findWorkspace('  ')).resolves.toBeNull();
+      expect(mockClient.get).not.toHaveBeenCalled();
     });
   });
 
@@ -526,6 +646,98 @@ describe('EdocsService — live mode', () => {
         { id: 'd1', name: 'one.pdf', documentNumber: '111' },
         { id: 'd2', name: 'two.pdf', documentNumber: '222' },
       ]);
+    });
+  });
+
+  describe('listContents()', () => {
+    const list = (items: unknown[]) => ({ data: { data: { list: items } } });
+
+    it('lists a workspace through workspaces/{id}', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce(
+        list([
+          // The item shape confirmed on the test library, 23 Nov 2026.
+          {
+            id: 'd1',
+            DOCNAME: 'Raming.xlsx',
+            DOCNUM: 111,
+            type: 'documents',
+            ITEM_TYPE: 'D',
+            'VS.VERSION_LABEL': '3',
+            LAST_EDIT_DATE: '2026-11-20 10:00:00 UTC',
+            AUTHOR_ID: 'GEEN',
+            TYPIST_ID: 'TESTUSER001',
+          },
+          {
+            id: 'f1',
+            DOCNAME: 'V&G',
+            DOCNUM: '222',
+            type: 'folders',
+            ITEM_TYPE: 'F',
+            FULL_NAME: 'J. de Vries',
+            TYPIST_ID: 'TESTUSER001',
+          },
+        ])
+      );
+      const items = await svc.listContents('workspace', 'ws-1');
+      expect(mockClient.get).toHaveBeenCalledWith('workspaces/ws-1', expect.anything());
+      expect(items).toEqual([
+        {
+          id: 'd1',
+          name: 'Raming.xlsx',
+          documentNumber: '111',
+          isFolder: false,
+          version: '3',
+          modified: '2026-11-20 10:00:00 UTC',
+          author: 'TESTUSER001',
+        },
+        {
+          id: 'f1',
+          name: 'V&G',
+          documentNumber: '222',
+          isFolder: true,
+          version: null,
+          modified: null,
+          author: 'J. de Vries',
+        },
+      ]);
+    });
+
+    it('lists a folder through folders/{id}, falling back to the id for name and number', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce(list([{ id: 'd9' }]));
+      const items = await svc.listContents('folder', 'f1');
+      expect(mockClient.get).toHaveBeenCalledWith('folders/f1', expect.anything());
+      expect(items).toEqual([
+        {
+          id: 'd9',
+          name: 'd9',
+          documentNumber: 'd9',
+          isFolder: false,
+          version: null,
+          modified: null,
+          author: null,
+        },
+      ]);
+    });
+
+    it('lists a document the workspace references more than once only once', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce(
+        list([
+          { id: '3349683', DOCNAME: 'TestGRS melding', DOCNUM: '3349683', 'FI.SYSTEM_ID': '1' },
+          { id: '3349683', DOCNAME: 'TestGRS melding', DOCNUM: '3349683', 'FI.SYSTEM_ID': '2' },
+          { id: '3349684', DOCNAME: 'test123123', DOCNUM: '3349684', type: 'folders' },
+        ])
+      );
+      const items = await svc.listContents('workspace', '3349682');
+      expect(items.map((i) => i.id)).toEqual(['3349683', '3349684']);
+    });
+
+    it('is empty without a list in the response', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce({ data: {} });
+      await expect(svc.listContents('folder', 'f1')).resolves.toEqual([]);
     });
   });
 

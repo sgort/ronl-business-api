@@ -4,9 +4,25 @@ import { jwtMiddleware } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { denyTenant, tenantAllows } from '@auth/tenant-access';
 import { operatonService } from '@services/operaton.service';
+import {
+  linkDocument,
+  listInstanceDocuments,
+  listInstanceWorkspace,
+  RipDocumentError,
+  uploadDocument,
+} from '@services/rip-documents/rip-documents.service';
+import { auditLog } from '@middleware/audit.middleware';
+import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
 import { sendProblem } from '@utils/problem';
 import { RIP_PHASE_KEYS } from '@ronl/shared';
+import {
+  applyServiceFallback,
+  edocsAccess,
+  edocsOf,
+  requireEdocsPrincipal,
+  sendEdocsError,
+} from './edocs.access';
 
 const router = express.Router();
 const logger = createLogger('rip-routes');
@@ -299,12 +315,20 @@ router.get('/phases/counts', async (req, res) => {
 
 /**
  * GET /v1/rip/instances/:instanceId/documents
- * Fetch an instance's document templates + current process variables.
+ * Fetch an instance's document templates + current process variables, and
+ * every document its model declares -- generated (A) and linked (B / B+) --
+ * with its status, plus the kredietcheck state.
  *
  * Keyed by instance rather than by phase: the deployment is resolved from the
  * instance itself, so no phase code is needed and none is asked for.
+ *
+ * eDOCS is read as the person when they have an eDOCS identity, for the live
+ * version of each linked document. Without one the list still answers, with
+ * the versions left empty: the panel matters more than the version number.
+ * `?edocs=false` skips eDOCS altogether -- for a list of many instances (the
+ * Beheer WIP table), which needs statuses, not versions.
  */
-router.get('/instances/:instanceId/documents', async (req, res) => {
+router.get('/instances/:instanceId/documents', edocsAccess, async (req, res) => {
   if (!req.user) {
     return sendProblem(res, req, {
       status: 401,
@@ -316,7 +340,7 @@ router.get('/instances/:instanceId/documents', async (req, res) => {
   try {
     const result = await operatonService.getRipInstanceDocuments(instanceId);
 
-    // Tenant isolation
+    // Tenant isolation, before any eDOCS read on the instance's behalf.
     if (!tenantAllows(req.user, result.variables.municipality)) {
       return denyTenant(req, res, {
         processInstanceId: instanceId,
@@ -324,7 +348,23 @@ router.get('/instances/:instanceId/documents', async (req, res) => {
       });
     }
 
-    res.json({ success: true, data: result });
+    const readEdocs = req.query.edocs !== 'false';
+    // The same service-account fallback the link and upload routes apply, so a
+    // person who could link a document also sees its version afterwards.
+    const docs = await listInstanceDocuments(
+      instanceId,
+      readEdocs && applyServiceFallback(req) ? (req.edocs ?? null) : null
+    );
+    res.json({
+      success: true,
+      data: {
+        ...result,
+        documents: docs.documents,
+        kredietChecks: docs.kredietChecks,
+        edocsWorkspaceId: docs.edocsWorkspaceId,
+        uploadTarget: docs.uploadTarget,
+      },
+    });
   } catch (error) {
     logger.error('Failed to fetch RIP instance documents', {
       instanceId,
@@ -337,5 +377,175 @@ router.get('/instances/:instanceId/documents', async (req, res) => {
     });
   }
 });
+
+/** A refusal from the document service, or an eDOCS failure, as a problem detail. */
+function sendDocumentError(req: Request, res: Response, error: unknown, fallback: string) {
+  if (error instanceof RipDocumentError) {
+    return sendProblem(res, req, {
+      status: error.status,
+      code: error.code,
+      detail: error.message,
+    });
+  }
+  logger.error(fallback, {
+    instanceId: req.params.instanceId,
+    error: error instanceof Error ? error.message : 'Unknown error',
+  });
+  sendEdocsError(req, res, error, fallback);
+}
+
+/** The caller as the document service needs it; jwtMiddleware has set req.user. */
+const callerOf = (req: Request) => ({
+  userId: req.user?.userId ?? '',
+  roles: req.user?.roles ?? [],
+});
+
+/** Answers 403 TENANT_MISMATCH on `res` when the instance is not the caller's. */
+const tenantGate = (req: Request, res: Response) => (municipality: unknown) => {
+  if (req.user && tenantAllows(req.user, municipality)) return true;
+  denyTenant(req, res, {
+    processInstanceId: req.params.instanceId,
+    processTenant: municipality,
+  });
+  return false;
+};
+
+const SLUG = /^[a-z0-9][a-z0-9-]*$/;
+
+/**
+ * GET /v1/rip/instances/:instanceId/workspace[?folderId=]
+ * The content of the instance's eDOCS projectmap (or of one folder in it),
+ * as the person: what the task panel offers to link.
+ */
+router.get(
+  '/instances/:instanceId/workspace',
+  edocsAccess,
+  requireEdocsPrincipal,
+  async (req: Request, res: Response) => {
+    const folderId = typeof req.query.folderId === 'string' ? req.query.folderId : undefined;
+    try {
+      const ctx = await operatonService.getAccessVariables(req.params.instanceId);
+      if (!tenantGate(req, res)(ctx.municipality)) return;
+      const result = await listInstanceWorkspace(req.params.instanceId, edocsOf(req), folderId);
+      res.json({
+        success: true,
+        data: { workspaceId: result.workspaceId, folderId: folderId ?? null, items: result.items },
+      });
+    } catch (error) {
+      sendDocumentError(req, res, error, 'Failed to list the project workspace');
+    }
+  }
+);
+
+/**
+ * POST /v1/rip/instances/:instanceId/documents/:slug/link   { documentId }
+ * Link a document (or, for a map, a folder) from the projectmap to a linked
+ * document the instance's open task declares, for a caller in its candidate
+ * groups.
+ */
+router.post(
+  '/instances/:instanceId/documents/:slug/link',
+  edocsAccess,
+  requireEdocsPrincipal,
+  async (req: Request, res: Response) => {
+    const { instanceId, slug } = req.params;
+    const documentId = req.body?.documentId;
+    if (!SLUG.test(slug) || typeof documentId !== 'string' || documentId.trim() === '') {
+      return sendProblem(res, req, {
+        status: 400,
+        code: 'INVALID_REQUEST',
+        detail: 'A document slug and a documentId are required.',
+      });
+    }
+    try {
+      const result = await linkDocument(
+        instanceId,
+        slug,
+        documentId.trim(),
+        callerOf(req),
+        edocsOf(req),
+        tenantGate(req, res)
+      );
+      if (!result) return;
+      auditLog(req, 'rip.document.link', 'success', {
+        processInstanceId: instanceId,
+        slug,
+        documentNumber: result.link.documentNumber,
+      });
+      res.json({ success: true, data: { slug, link: result.link } });
+    } catch (error) {
+      auditLog(req, 'rip.document.link', 'failure', {
+        processInstanceId: instanceId,
+        slug,
+        reason: error instanceof RipDocumentError ? error.code : 'ERROR',
+      });
+      sendDocumentError(req, res, error, 'Failed to link the document');
+    }
+  }
+);
+
+/**
+ * POST /v1/rip/instances/:instanceId/documents/:slug/upload
+ *   { filename, contentBase64 }
+ * Upload a file to eDOCS and link it. Has its own body limit (the app-wide
+ * parser stops at 1 MB): see isLinkedUploadPath.
+ */
+router.post(
+  '/instances/:instanceId/documents/:slug/upload',
+  express.json({ limit: Math.ceil((config.edocs.linkedUploadMaxBytes * 4) / 3) + 64 * 1024 }),
+  edocsAccess,
+  requireEdocsPrincipal,
+  async (req: Request, res: Response) => {
+    const { instanceId, slug } = req.params;
+    const { filename, contentBase64 } = req.body ?? {};
+    if (
+      !SLUG.test(slug) ||
+      typeof filename !== 'string' ||
+      filename.trim() === '' ||
+      filename.length > 255 ||
+      typeof contentBase64 !== 'string' ||
+      contentBase64 === ''
+    ) {
+      return sendProblem(res, req, {
+        status: 400,
+        code: 'INVALID_REQUEST',
+        detail: 'A document slug, a filename and the file content (base64) are required.',
+      });
+    }
+    try {
+      const result = await uploadDocument(
+        instanceId,
+        slug,
+        { filename: filename.trim(), contentBase64 },
+        callerOf(req),
+        edocsOf(req),
+        tenantGate(req, res)
+      );
+      if (!result) return;
+      auditLog(req, 'rip.document.upload', 'success', {
+        processInstanceId: instanceId,
+        slug,
+        documentNumber: result.link.documentNumber,
+        inWorkspace: result.link.inWorkspace,
+      });
+      res.status(201).json({ success: true, data: { slug, link: result.link } });
+    } catch (error) {
+      auditLog(req, 'rip.document.upload', 'failure', {
+        processInstanceId: instanceId,
+        slug,
+        reason: error instanceof RipDocumentError ? error.code : 'ERROR',
+      });
+      sendDocumentError(req, res, error, 'Failed to upload the document');
+    }
+  }
+);
+
+/**
+ * The upload route parses its own, larger body. The app-wide JSON parser in
+ * index.ts must skip it, or a file over 1 MB is refused before it arrives.
+ */
+export function isLinkedUploadPath(path: string): boolean {
+  return /^\/v1\/rip\/instances\/[^/]+\/documents\/[^/]+\/upload\/?$/.test(path);
+}
 
 export default router;

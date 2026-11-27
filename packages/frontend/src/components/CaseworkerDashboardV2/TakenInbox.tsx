@@ -8,7 +8,7 @@
  *
  * Re-uses:
  *   - businessApi.task.list / variables / claim
- *   - TaskFormViewer for the form rendering on claimed tasks
+ *   - TaskCompletion (the form, with the task's linked-document block) on claimed tasks
  *
  * Differences from the existing TakenSection:
  *   - Quick-filter rail (alle / overdue / mine / today / this week)
@@ -23,7 +23,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ActivityHistoryItem, KeycloakUser, PhaseSwimlaneModel, Task } from '@ronl/shared';
 import { businessApi } from '../../services/api';
-import TaskFormViewer from '../CaseworkerDashboard/TaskFormViewer';
+import TaskCompletion from '../rip-documents/TaskCompletion';
 import { activityTypeLabel, AUTOMATED_TYPES } from '../CaseworkerDashboard/processSteps';
 import ProcessVarsDisclosure from '../process/ProcessVarsDisclosure';
 import { useTaskProcessContext } from '../process/useTaskProcessContext';
@@ -520,8 +520,9 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
                   }}
                 />
               ) : (
-                <TaskFormViewer
-                  taskId={selected.id}
+                <TaskCompletion
+                  key={selected.id}
+                  task={selected}
                   variables={taskVariables}
                   onCompleted={() => {
                     // Don't null selectedId here — that would clear `selected`

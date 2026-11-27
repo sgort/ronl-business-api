@@ -45,6 +45,11 @@ jest.mock('@services/operaton.service', () => ({
   },
 }));
 jest.mock('@middleware/audit.middleware', () => ({ auditLog: jest.fn() }));
+jest.mock('@services/edocs.service', () => ({ edocsService: { serviceAccount: true } }));
+jest.mock('@services/rip-documents/rip-documents.service', () => ({
+  // No documents declared, unless a test says otherwise.
+  checkTaskCompletion: jest.fn().mockResolvedValue({ missing: [], variables: {} }),
+}));
 jest.mock('axios', () => ({
   __esModule: true,
   default: {
@@ -62,6 +67,7 @@ import { expectToMatchOperation } from '../openapi/testing/conformance';
 import taskRouter from './task.routes';
 import { operatonService } from '@services/operaton.service';
 import { auditLog } from '@middleware/audit.middleware';
+import { checkTaskCompletion } from '@services/rip-documents/rip-documents.service';
 
 const svc = operatonService as unknown as Record<string, jest.Mock>;
 const mockAuditLog = auditLog as jest.Mock;
@@ -660,5 +666,95 @@ describe('the tenant check does not read every variable', () => {
     expect(res.status).toBe(403);
     expect(res.body.code).toBe('TENANT_MISMATCH');
     expect(svc.claimTask).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /v1/task/:id/complete -- linked documents (Infra-board)', () => {
+  const gate = checkTaskCompletion as jest.Mock;
+
+  beforeEach(() => {
+    svc.getTask.mockResolvedValue(
+      task({
+        processDefinitionId: 'RipR23Process:3:x',
+        taskDefinitionKey: 'Task_OpstellenSskRaming',
+      })
+    );
+    svc.getAccessVariables.mockResolvedValue({ municipality: 'flevoland' });
+    svc.completeTask.mockResolvedValue(undefined);
+  });
+
+  it('refuses with 422 LINKED_DOCUMENT_MISSING and completes nothing', async () => {
+    gate.mockResolvedValue({
+      missing: [
+        { slug: 'rip-ssk-rekenmodel', what: 'document', label: 'SSK-rekenmodel' },
+        { slug: 'rip-ssk-rekenmodel', what: 'figure', label: 'SSK-rekenmodel: totaal' },
+      ],
+      variables: {},
+    });
+    const res = await auth(request(app).post('/v1/task/t1/complete')).send({ variables: {} });
+    expect(res.status).toBe(422);
+    expectToMatchOperation(res, 'post', '/task/{id}/complete');
+    expect(res.body.code).toBe('LINKED_DOCUMENT_MISSING');
+    expect(res.body.missing).toEqual([
+      { slug: 'rip-ssk-rekenmodel', what: 'document', label: 'SSK-rekenmodel' },
+      { slug: 'rip-ssk-rekenmodel', what: 'figure', label: 'SSK-rekenmodel: totaal' },
+    ]);
+    expect(res.body.detail).toContain('SSK-rekenmodel: totaal');
+    expect(svc.completeTask).not.toHaveBeenCalled();
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      'task.complete',
+      'failure',
+      expect.objectContaining({ reason: 'LINKED_DOCUMENT_MISSING' })
+    );
+  });
+
+  it('completes with the server-set variables winning over what was sent', async () => {
+    gate.mockResolvedValue({
+      missing: [],
+      variables: {
+        ssk_totaal: { value: 900, type: 'Long' },
+        projectkredietDekking_voorstel: { value: 'binnen', type: 'String' },
+      },
+    });
+    const res = await auth(request(app).post('/v1/task/t1/complete')).send({
+      variables: { ssk_totaal: 900, projectkredietDekking_voorstel: 'buiten', note: 'ok' },
+    });
+    expect(res.status).toBe(200);
+    const sent = svc.completeTask.mock.calls[0][1].variables;
+    expect(sent.ssk_totaal).toEqual({ value: 900, type: 'Long' });
+    expect(sent.projectkredietDekking_voorstel).toEqual({ value: 'binnen', type: 'String' });
+    expect(sent.note).toEqual({ value: 'ok', type: 'String' });
+  });
+
+  it('drops link variables sent in the body and never shows them to the check', async () => {
+    gate.mockResolvedValue({ missing: [], variables: {} });
+    await auth(request(app).post('/v1/task/t1/complete')).send({
+      variables: {
+        'linkedDoc_rip-ssk-rekenmodel': '{"documentId":"1"}',
+        'linkedDocNumber_rip-ssk-rekenmodel': '1',
+        keep: 'x',
+      },
+    });
+    expect(gate.mock.calls[0][1]).toEqual({ keep: 'x' });
+    const sent = svc.completeTask.mock.calls[0][1].variables;
+    expect(sent).not.toHaveProperty('linkedDoc_rip-ssk-rekenmodel');
+    expect(sent).not.toHaveProperty('linkedDocNumber_rip-ssk-rekenmodel');
+  });
+
+  it('checks the tenant before the documents', async () => {
+    svc.getAccessVariables.mockResolvedValue({ municipality: 'utrecht' });
+    gate.mockClear();
+    const res = await auth(request(app).post('/v1/task/t1/complete')).send({ variables: {} });
+    expect(res.status).toBe(403);
+    expect(gate).not.toHaveBeenCalled();
+  });
+
+  it('500 when the check itself fails, completing nothing', async () => {
+    gate.mockRejectedValue(new Error('engine down'));
+    const res = await auth(request(app).post('/v1/task/t1/complete')).send({ variables: {} });
+    expect(res.status).toBe(500);
+    expect(res.body.code).toBe('TASK_COMPLETE_FAILED');
+    expect(svc.completeTask).not.toHaveBeenCalled();
   });
 });

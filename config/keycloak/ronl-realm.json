@@ -1089,6 +1089,99 @@
       ]
     },
     {
+      "username": "test-infra-pl-flevoland",
+      "enabled": true,
+      "firstName": "Infra",
+      "lastName": "Projectleider Flevoland",
+      "email": "infra-pl@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["EMP-FLV-011"]
+      },
+      "realmRoles": ["caseworker", "infra-medewerker", "infra-projectteam", "rip-projectleider"]
+    },
+    {
+      "username": "test-infra-po-flevoland",
+      "enabled": true,
+      "firstName": "Infra",
+      "lastName": "Projectondersteuner Flevoland",
+      "email": "infra-po@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["EMP-FLV-012"]
+      },
+      "realmRoles": [
+        "caseworker",
+        "infra-medewerker",
+        "infra-projectteam",
+        "rip-projectondersteuner"
+      ]
+    },
+    {
+      "username": "test-infra-ao-flevoland",
+      "enabled": true,
+      "firstName": "Infra",
+      "lastName": "AO Flevoland",
+      "email": "infra-ao@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["EMP-FLV-013"]
+      },
+      "realmRoles": ["caseworker", "infra-medewerker", "infra-projectteam", "rip-ao"]
+    },
+    {
+      "username": "test-infra-aandrager-flevoland",
+      "enabled": true,
+      "firstName": "Infra",
+      "lastName": "Aandrager Flevoland",
+      "email": "infra-aandrager@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["EMP-FLV-014"]
+      },
+      "realmRoles": ["caseworker", "infra-medewerker", "infra-projectteam", "rip-aandrager"]
+    },
+    {
       "username": "test-citizen-uwv",
       "enabled": true,
       "firstName": "Test",

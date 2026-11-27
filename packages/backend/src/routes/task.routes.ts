@@ -4,6 +4,8 @@ import { jwtMiddleware } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { operatonService } from '@services/operaton.service';
 import { edocsAuthorVariables, withoutEdocsAuthor } from '@services/edocs-author';
+import { edocsService } from '@services/edocs.service';
+import { checkTaskCompletion } from '@services/rip-documents/rip-documents.service';
 import { createLogger } from '@utils/logger';
 import { sendProblem } from '@utils/problem';
 import { auditLog } from '@middleware/audit.middleware';
@@ -333,11 +335,43 @@ router.post('/:id/complete', async (req, res) => {
       });
     }
 
+    // Links to eDOCS documents are written only by the link and upload
+    // routes, which check the document and the caller. One sent here would
+    // skip those checks, so it is dropped rather than stored.
+    const sent: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(variables as Record<string, unknown>)) {
+      if (key.startsWith('linkedDoc_') || key.startsWith('linkedDocNumber_')) continue;
+      sent[key] = value;
+    }
+
+    // Linked documents, B+ figures and the kredietcheck must be complete
+    // before the task may close (Infra-board documenten). A server check, not
+    // only a disabled button: the API refuses as the UI does.
+    const documentCheck = await checkTaskCompletion(task, sent, edocsService);
+    if (documentCheck.missing.length > 0) {
+      auditLog(req, 'task.complete', 'failure', {
+        taskId: id,
+        reason: 'LINKED_DOCUMENT_MISSING',
+        missing: documentCheck.missing.map((m) => `${m.slug}:${m.what}`),
+      });
+      return sendProblem(res, req, {
+        status: 422,
+        code: 'LINKED_DOCUMENT_MISSING',
+        detail: `Deze taak kan nog niet worden afgerond. Nog nodig: ${documentCheck.missing
+          .map((m) => m.label)
+          .join(', ')}.`,
+        extensions: { missing: documentCheck.missing },
+      });
+    }
+
     // Transform plain values to Operaton variable format
     const operatonVariables: Record<string, OperatonVariable> = {};
-    for (const [key, value] of Object.entries(variables)) {
+    for (const [key, value] of Object.entries(sent)) {
       operatonVariables[key] = toOperatonVariable(value);
     }
+    // Figures and the projectkrediet as Long, and the kredietcheck suggestion
+    // as recomputed here -- never as sent.
+    Object.assign(operatonVariables, documentCheck.variables);
     // The member of staff who completed it is the employee later archiving is
     // done for (spec §6). The reserved check above has already refused a sent value.
     Object.assign(operatonVariables, edocsAuthorVariables(req.user));

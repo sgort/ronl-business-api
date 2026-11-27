@@ -38,8 +38,61 @@ jest.mock('@services/operaton.service', () => ({
     getDeployedProcessKeys: jest.fn(),
     getPhaseInstanceCounts: jest.fn(),
     getPhaseSwimlaneModel: jest.fn(),
+    getAccessVariables: jest.fn(),
   },
 }));
+jest.mock('./edocs.access', () => ({
+  // A person with an eDOCS identity, unless the test says otherwise.
+  edocsAccess: (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.headers['x-test-no-edocs']) {
+      (req as unknown as { edocs?: unknown }).edocs = { person: true };
+    }
+    next();
+  },
+  requireEdocsPrincipal: (req: Request, res: Response, next: NextFunction) => {
+    if ((req as unknown as { edocs?: unknown }).edocs) return next();
+    res.status(403).type('application/problem+json').json({
+      type: 'about:blank',
+      status: 403,
+      title: 'Forbidden',
+      detail: 'no eDOCS identity',
+      instance: req.originalUrl,
+      code: 'EDOCS_USER_TOKEN_UNAVAILABLE',
+    });
+  },
+  edocsOf: (req: Request) => (req as unknown as { edocs?: unknown }).edocs,
+  // A person with an eDOCS client keeps it; the fallback rule itself is
+  // edocs.access.test.ts's to test.
+  applyServiceFallback: (req: Request) => !!(req as unknown as { edocs?: unknown }).edocs,
+  sendEdocsError: (req: Request, res: Response) =>
+    res.status(502).type('application/problem+json').json({
+      type: 'about:blank',
+      status: 502,
+      title: 'Bad Gateway',
+      detail: 'eDOCS failed',
+      instance: req.originalUrl,
+      code: 'EDOCS_ERROR',
+    }),
+}));
+jest.mock('@services/rip-documents/rip-documents.service', () => {
+  class RipDocumentError extends Error {
+    constructor(
+      public readonly status: number,
+      public readonly code: string,
+      message: string
+    ) {
+      super(message);
+    }
+  }
+  return {
+    RipDocumentError,
+    listInstanceDocuments: jest.fn(),
+    listInstanceWorkspace: jest.fn(),
+    linkDocument: jest.fn(),
+    uploadDocument: jest.fn(),
+  };
+});
+jest.mock('@middleware/audit.middleware', () => ({ auditLog: jest.fn() }));
 jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
 }));
@@ -48,8 +101,10 @@ import express from 'express';
 import request from 'supertest';
 import { versionMiddleware } from '@middleware/version.middleware';
 import { expectToMatchOperation } from '@/openapi/testing/conformance';
-import ripRouter from './rip.routes';
+import ripRouter, { isLinkedUploadPath } from './rip.routes';
 import { operatonService } from '@services/operaton.service';
+import * as ripDocuments from '@services/rip-documents/rip-documents.service';
+import { auditLog } from '@middleware/audit.middleware';
 import { RIP_PHASE_KEYS } from '@ronl/shared';
 import { parseSwimlane } from '../rip-swimlane/bpmn-swimlane';
 
@@ -63,7 +118,25 @@ const svc = operatonService as unknown as {
   getDeployedProcessKeys: jest.Mock;
   getPhaseInstanceCounts: jest.Mock;
   getPhaseSwimlaneModel: jest.Mock;
+  getAccessVariables: jest.Mock;
 };
+const docs = ripDocuments as unknown as {
+  RipDocumentError: new (status: number, code: string, message: string) => Error;
+  listInstanceDocuments: jest.Mock;
+  listInstanceWorkspace: jest.Mock;
+  linkDocument: jest.Mock;
+  uploadDocument: jest.Mock;
+};
+const EMPTY_DOCUMENTS = {
+  municipality: 'flevoland',
+  edocsWorkspaceId: null,
+  uploadTarget: 'edocs',
+  documents: [],
+  kredietChecks: [],
+};
+beforeEach(() => {
+  docs.listInstanceDocuments.mockResolvedValue(EMPTY_DOCUMENTS);
+});
 
 // versionMiddleware is app-wide in index.ts, not in the router, so a test
 // app mounting the router alone answers without API-Version -- which
@@ -71,6 +144,10 @@ const svc = operatonService as unknown as {
 // keeps the test app answering what the real one does (#269).
 const app = express();
 app.use(versionMiddleware);
+// The app-wide JSON parser, as index.ts mounts it: 1 MB, skipping the upload
+// route, which parses its own larger body.
+const appJson = express.json({ limit: '1mb' });
+app.use((req, res, next) => (isLinkedUploadPath(req.path) ? next() : appJson(req, res, next)));
 app.use('/v1/rip', ripRouter);
 const auth = (r: request.Test) => r.set('x-test-auth', '1');
 
@@ -502,5 +579,325 @@ describe('GET /phases/:code/model', () => {
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/phases/{code}/model');
     expect(res.body.code).toBe('PHASE_MODEL_FAILED');
+  });
+});
+
+describe('linked documents (Infra-board, werkwijze B / B+)', () => {
+  const r21Docs = () => ({
+    variables: { municipality: 'flevoland' },
+    intakeReport: null,
+    psuReport: null,
+    pdp: null,
+  });
+  const LINK = {
+    documentId: '3500001',
+    documentNumber: '3500001',
+    name: 'PSU-presentatie.pptx',
+    linkedAt: '2026-11-23T10:00:00.000Z',
+    linkedBy: 'u',
+  };
+
+  describe('GET /instances/:instanceId/documents', () => {
+    it('adds every declared document and the kredietchecks', async () => {
+      svc.getRipInstanceDocuments.mockResolvedValue(r21Docs());
+      docs.listInstanceDocuments.mockResolvedValue({
+        ...EMPTY_DOCUMENTS,
+        edocsWorkspaceId: '77',
+        documents: [
+          {
+            slug: 'rip-psu-presentatie',
+            label: 'PSU-presentatie',
+            kind: 'B',
+            format: '3325975',
+            taskKey: 'Task_UitvoerenPSU',
+            taskName: 'Uitvoeren PSU',
+            candidateGroups: ['rip-projectleider'],
+            optional: false,
+            map: false,
+            status: 'linked',
+            edocs: { documentId: '1', documentNumber: '3500001', version: '2', modified: null },
+            figures: null,
+            checklist: null,
+          },
+        ],
+      });
+      const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
+      expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/documents');
+      expect(res.body.data.documents[0]).toMatchObject({ status: 'linked', kind: 'B' });
+      expect(res.body.data.uploadTarget).toBe('edocs');
+      expect(res.body.data.edocsWorkspaceId).toBe('77');
+      expect(docs.listInstanceDocuments).toHaveBeenCalledWith('pi-1', { person: true });
+    });
+
+    it('still answers for a person without an eDOCS identity, reading no versions', async () => {
+      svc.getRipInstanceDocuments.mockResolvedValue(r21Docs());
+      const res = await auth(
+        request(app).get('/v1/rip/instances/pi-1/documents').set('x-test-no-edocs', '1')
+      );
+      expect(res.status).toBe(200);
+      expect(docs.listInstanceDocuments).toHaveBeenCalledWith('pi-1', null);
+    });
+
+    it('skips eDOCS with ?edocs=false', async () => {
+      svc.getRipInstanceDocuments.mockResolvedValue(r21Docs());
+      const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents?edocs=false'));
+      expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/documents');
+      expect(docs.listInstanceDocuments).toHaveBeenCalledWith('pi-1', null);
+    });
+
+    it('reads nothing from eDOCS for an instance of another tenant', async () => {
+      svc.getRipInstanceDocuments.mockResolvedValue({
+        ...r21Docs(),
+        variables: { municipality: 'utrecht' },
+      });
+      docs.listInstanceDocuments.mockClear();
+      const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
+      expect(res.status).toBe(403);
+      expect(docs.listInstanceDocuments).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /instances/:instanceId/workspace', () => {
+    it('lists the projectmap as the person', async () => {
+      svc.getAccessVariables.mockResolvedValue({ municipality: 'flevoland' });
+      docs.listInstanceWorkspace.mockResolvedValue({
+        municipality: 'flevoland',
+        workspaceId: '77',
+        items: [
+          {
+            id: '1',
+            name: 'Raming',
+            documentNumber: '3500001',
+            isFolder: false,
+            version: '1',
+            modified: null,
+            author: null,
+          },
+        ],
+      });
+      const res = await auth(request(app).get('/v1/rip/instances/pi-1/workspace'));
+      expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/workspace');
+      expect(res.body.data).toMatchObject({ workspaceId: '77', folderId: null });
+      expect(docs.listInstanceWorkspace).toHaveBeenCalledWith('pi-1', { person: true }, undefined);
+    });
+
+    it('passes a folder id through', async () => {
+      svc.getAccessVariables.mockResolvedValue({ municipality: 'flevoland' });
+      docs.listInstanceWorkspace.mockResolvedValue({
+        municipality: 'flevoland',
+        workspaceId: '77',
+        items: [],
+      });
+      const res = await auth(request(app).get('/v1/rip/instances/pi-1/workspace?folderId=88'));
+      expect(res.status).toBe(200);
+      expect(res.body.data.folderId).toBe('88');
+      expect(docs.listInstanceWorkspace).toHaveBeenCalledWith('pi-1', { person: true }, '88');
+    });
+
+    it('refuses another tenant before listing anything', async () => {
+      svc.getAccessVariables.mockResolvedValue({ municipality: 'utrecht' });
+      docs.listInstanceWorkspace.mockClear();
+      const res = await auth(request(app).get('/v1/rip/instances/pi-1/workspace'));
+      expect(res.status).toBe(403);
+      expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/workspace');
+      expect(res.body.code).toBe('TENANT_MISMATCH');
+      expect(docs.listInstanceWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('needs an eDOCS identity', async () => {
+      const res = await auth(
+        request(app).get('/v1/rip/instances/pi-1/workspace').set('x-test-no-edocs', '1')
+      );
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe('EDOCS_USER_TOKEN_UNAVAILABLE');
+    });
+
+    it('maps a service refusal to its problem', async () => {
+      svc.getAccessVariables.mockResolvedValue({ municipality: 'flevoland' });
+      docs.listInstanceWorkspace.mockRejectedValue(
+        new docs.RipDocumentError(409, 'NO_PROJECT_WORKSPACE', 'geen map')
+      );
+      const res = await auth(request(app).get('/v1/rip/instances/pi-1/workspace'));
+      expect(res.status).toBe(409);
+      expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/workspace');
+      expect(res.body.code).toBe('NO_PROJECT_WORKSPACE');
+    });
+
+    it('answers 502 when eDOCS fails', async () => {
+      svc.getAccessVariables.mockResolvedValue({ municipality: 'flevoland' });
+      docs.listInstanceWorkspace.mockRejectedValue(new Error('ECONNRESET'));
+      const res = await auth(request(app).get('/v1/rip/instances/pi-1/workspace'));
+      expect(res.status).toBe(502);
+      expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/workspace');
+    });
+  });
+
+  describe('POST /instances/:instanceId/documents/:slug/link', () => {
+    const post = (body: unknown, slug = 'rip-psu-presentatie') =>
+      auth(
+        request(app)
+          .post(`/v1/rip/instances/pi-1/documents/${slug}/link`)
+          .send(body as object)
+      );
+
+    it('links and audit-logs', async () => {
+      docs.linkDocument.mockResolvedValue({
+        municipality: 'flevoland',
+        slug: 'rip-psu-presentatie',
+        link: LINK,
+      });
+      const res = await post({ documentId: ' 3500001 ' });
+      expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'post', '/rip/instances/{instanceId}/documents/{slug}/link');
+      expect(res.body.data.link.documentNumber).toBe('3500001');
+      expect(docs.linkDocument).toHaveBeenCalledWith(
+        'pi-1',
+        'rip-psu-presentatie',
+        '3500001',
+        { userId: 'u', roles: [] },
+        { person: true },
+        expect.any(Function)
+      );
+      expect(auditLog).toHaveBeenCalledWith(
+        expect.anything(),
+        'rip.document.link',
+        'success',
+        expect.objectContaining({ slug: 'rip-psu-presentatie', documentNumber: '3500001' })
+      );
+    });
+
+    it('the tenant gate it hands the service refuses another tenant with 403', async () => {
+      docs.linkDocument.mockImplementation(
+        async (
+          _i: string,
+          _s: string,
+          _d: string,
+          _c: unknown,
+          _e: unknown,
+          authorize: (m: unknown) => boolean
+        ) => (authorize('utrecht') ? { municipality: 'utrecht', slug: 's', link: LINK } : null)
+      );
+      const res = await post({ documentId: '1' });
+      expect(res.status).toBe(403);
+      expectToMatchOperation(res, 'post', '/rip/instances/{instanceId}/documents/{slug}/link');
+      expect(res.body.code).toBe('TENANT_MISMATCH');
+    });
+
+    it.each([[{}], [{ documentId: '' }], [{ documentId: 42 }]])('400 on body %j', async (body) => {
+      const res = await post(body);
+      expect(res.status).toBe(400);
+      expectToMatchOperation(res, 'post', '/rip/instances/{instanceId}/documents/{slug}/link');
+      expect(res.body.code).toBe('INVALID_REQUEST');
+    });
+
+    it('400 on a malformed slug', async () => {
+      const res = await post({ documentId: '1' }, 'Bad_Slug');
+      expect(res.status).toBe(400);
+    });
+
+    it.each([
+      [403, 'NOT_CANDIDATE'],
+      [404, 'UNKNOWN_DOCUMENT'],
+      [409, 'DOCUMENT_TASK_NOT_OPEN'],
+      [422, 'DOCUMENT_NOT_IN_WORKSPACE'],
+    ])('%i %s from the service', async (status, code) => {
+      docs.linkDocument.mockRejectedValue(new docs.RipDocumentError(status, code, 'nee'));
+      const res = await post({ documentId: '1' });
+      expect(res.status).toBe(status);
+      expectToMatchOperation(res, 'post', '/rip/instances/{instanceId}/documents/{slug}/link');
+      expect(res.body.code).toBe(code);
+      expect(auditLog).toHaveBeenCalledWith(
+        expect.anything(),
+        'rip.document.link',
+        'failure',
+        expect.objectContaining({ reason: code })
+      );
+    });
+
+    it('answers 502 when eDOCS fails', async () => {
+      docs.linkDocument.mockRejectedValue(new Error('timeout'));
+      const res = await post({ documentId: '1' });
+      expect(res.status).toBe(502);
+      expectToMatchOperation(res, 'post', '/rip/instances/{instanceId}/documents/{slug}/link');
+    });
+  });
+
+  describe('POST /instances/:instanceId/documents/:slug/upload', () => {
+    const post = (body: unknown) =>
+      auth(
+        request(app)
+          .post('/v1/rip/instances/pi-1/documents/rip-projectraming/upload')
+          .send(body as object)
+      );
+    const file = { filename: 'Raming.xlsx', contentBase64: Buffer.from('xlsx').toString('base64') };
+
+    it('uploads, links and answers 201', async () => {
+      docs.uploadDocument.mockResolvedValue({
+        municipality: 'flevoland',
+        slug: 'rip-projectraming',
+        link: { ...LINK, uploadedVia: 'ronl', inWorkspace: false },
+      });
+      const res = await post(file);
+      expect(res.status).toBe(201);
+      expectToMatchOperation(res, 'post', '/rip/instances/{instanceId}/documents/{slug}/upload');
+      expect(res.body.data.link).toMatchObject({ uploadedVia: 'ronl', inWorkspace: false });
+      expect(docs.uploadDocument).toHaveBeenCalledWith(
+        'pi-1',
+        'rip-projectraming',
+        file,
+        expect.anything(),
+        { person: true },
+        expect.any(Function)
+      );
+    });
+
+    it.each([
+      [{}],
+      [{ filename: 'a.xlsx' }],
+      [{ contentBase64: 'eA==' }],
+      [{ filename: ' ', contentBase64: 'eA==' }],
+    ])('400 on body %j', async (body) => {
+      const res = await post(body);
+      expect(res.status).toBe(400);
+      expectToMatchOperation(res, 'post', '/rip/instances/{instanceId}/documents/{slug}/upload');
+    });
+
+    it.each([
+      [409, 'MAP_UPLOAD_UNSUPPORTED'],
+      [413, 'FILE_TOO_LARGE'],
+    ])('%i %s from the service', async (status, code) => {
+      docs.uploadDocument.mockRejectedValue(new docs.RipDocumentError(status, code, 'nee'));
+      const res = await post(file);
+      expect(res.status).toBe(status);
+      expectToMatchOperation(res, 'post', '/rip/instances/{instanceId}/documents/{slug}/upload');
+      expect(res.body.code).toBe(code);
+    });
+
+    it('takes a body larger than the app-wide 1 MB limit', async () => {
+      docs.uploadDocument.mockResolvedValue({
+        municipality: 'flevoland',
+        slug: 'rip-projectraming',
+        link: LINK,
+      });
+      const big = {
+        filename: 'big.xlsx',
+        contentBase64: Buffer.alloc(2 * 1024 * 1024, 1).toString('base64'),
+      };
+      const res = await post(big);
+      expect(res.status).toBe(201);
+    });
+  });
+
+  describe('isLinkedUploadPath', () => {
+    it('matches only the upload route', () => {
+      expect(isLinkedUploadPath('/v1/rip/instances/pi-1/documents/rip-x/upload')).toBe(true);
+      expect(isLinkedUploadPath('/v1/rip/instances/pi-1/documents/rip-x/upload/')).toBe(true);
+      expect(isLinkedUploadPath('/v1/rip/instances/pi-1/documents/rip-x/link')).toBe(false);
+      expect(isLinkedUploadPath('/v1/rip/instances/pi-1/documents')).toBe(false);
+      expect(isLinkedUploadPath('/v1/edocs/documents')).toBe(false);
+    });
   });
 });

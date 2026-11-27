@@ -15,11 +15,15 @@ import type { DocumentTemplate } from '@services/document/documentTemplate.types
 import type { EdocsAuthor } from '@services/edocs.service';
 import { edocsAuthorFrom } from '@services/edocs-author';
 import { parseSwimlane } from '../rip-swimlane/bpmn-swimlane';
+import { decodeXmlEntities } from '../rip-swimlane/linked-docs';
 import { engineSegment } from '@utils/engine-segment';
 import { hasStartForm, parseStarterGroups } from '@utils/starter-groups';
 import { fromJsonVariableText } from '@utils/operaton-variables';
 
 const logger = createLogger('operaton-service');
+
+/** The ronl: task attributes readTaskRonlAttribute may be asked for. */
+type RonlTaskAttribute = 'ronl:signatureRef' | 'ronl:documentRef';
 
 /** A latest process definition, with what a caseworker's start list decides on. */
 export interface StartCandidate {
@@ -951,19 +955,21 @@ export class OperatonService {
   private readTaskRonlAttribute(
     bpmnXml: string,
     taskDefinitionKey: string,
-    attribute: string
+    attribute: RonlTaskAttribute
   ): string | null {
     const escaped = taskDefinitionKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // `taskDefinitionKey` is regex-escaped on the line above.
     // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     const element = new RegExp(`<bpmn:userTask\\b[^>]*\\bid="${escaped}"[^>]*>`).exec(bpmnXml);
     if (!element) return null;
-    // `attribute` is not escaped. The method is private and its callers pass
-    // only the literals 'ronl:signatureRef' and 'ronl:documentRef' -- no
-    // metacharacter in either. Escape it here if a caller ever passes input.
+    // `attribute` is not escaped. Its type admits only the RonlTaskAttribute
+    // literals -- ronl: plus letters, no metacharacter among them. Escape it
+    // here if that type is ever widened to take input.
     // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     const attr = new RegExp(`\\b${attribute}="([^"]+)"`).exec(element[0]);
-    return attr ? attr[1] : null;
+    // Decoded so a value reads the same here as through the swimlane parser
+    // (a checklist item like "V&amp;G-plan" is "V&G-plan" to both).
+    return attr ? decodeXmlEntities(attr[1]) : null;
   }
 
   /**
@@ -1951,6 +1957,111 @@ export class OperatonService {
     ]);
 
     return { variables, intakeReport, psuReport, pdp };
+  }
+
+  /**
+   * What the RIP document views need of one instance, running or finished:
+   * its model, its variables (history, so a finished instance answers too)
+   * and its activity history. The model is read through the per-definition
+   * cache, so a redeploy is seen and a repeat costs nothing.
+   */
+  async getRipDocumentContext(processInstanceId: string): Promise<{
+    processDefinitionId: string;
+    businessKey: string | null;
+    bpmnXml: string;
+    variables: Record<string, unknown>;
+    activities: ActivityHistoryItem[];
+  }> {
+    const histRes = await this.client.get(
+      `/history/process-instance/${engineSegment(processInstanceId)}`
+    );
+    const processDefinitionId: string = histRes.data.processDefinitionId;
+    const businessKey: string | null = histRes.data.businessKey ?? null;
+    const [bpmnXml, varsRes, activities] = await Promise.all([
+      this.getCachedBpmnXml(processDefinitionId),
+      this.getHistoryVariables({ processInstanceId }),
+      this.getActivityHistory(processInstanceId),
+    ]);
+    const variables: Record<string, unknown> = {};
+    for (const v of varsRes.data as { name: string; value: unknown }[]) {
+      variables[v.name] = v.value;
+    }
+    return { processDefinitionId, businessKey, bpmnXml, variables, activities };
+  }
+
+  /**
+   * Values an earlier phase of the project recorded, for prefilling a later
+   * one (the DO raming starts from the VO raming). Every phase instance of a
+   * project shares its R2.1 businessKey. For each name, the value of the most
+   * recently started instance that holds it; the instance asking is left out.
+   */
+  async getProjectVariables(
+    businessKey: string,
+    names: string[],
+    excludeInstanceId: string
+  ): Promise<Record<string, unknown>> {
+    if (names.length === 0) return {};
+    const instances = await this.client.get('/history/process-instance', {
+      params: { processInstanceBusinessKey: businessKey, sortBy: 'startTime', sortOrder: 'desc' },
+    });
+    const ids = (instances.data as Array<{ id: string }>)
+      .map((i) => i.id)
+      .filter((id) => id !== excludeInstanceId);
+    if (ids.length === 0) return {};
+    const vars = await this.client.get('/history/variable-instance', {
+      params: { variableNameIn: names.join(','), processInstanceIdIn: ids.join(',') },
+    });
+    const rank = new Map(ids.map((id, i) => [id, i]));
+    const best = new Map<string, { at: number; value: unknown }>();
+    for (const v of vars.data as Array<{
+      name: string;
+      value: unknown;
+      processInstanceId: string;
+    }>) {
+      if (v.value === null || v.value === undefined || v.value === '') continue;
+      const at = rank.get(v.processInstanceId) ?? Number.MAX_SAFE_INTEGER;
+      const prev = best.get(v.name);
+      if (!prev || at < prev.at) best.set(v.name, { at, value: v.value });
+    }
+    return Object.fromEntries([...best].map(([name, { value }]) => [name, value]));
+  }
+
+  /**
+   * The project's eDOCS workspace as an earlier phase recorded it. Every phase
+   * instance of a project shares the businessKey its R2.1 run minted; R2.1's
+   * "Aanmaken projectmap eDOCS" step records edocsWorkspaceId there. Null when
+   * no instance of the project holds one.
+   */
+  async getProjectWorkspaceId(businessKey: string): Promise<string | null> {
+    const instances = await this.client.get('/history/process-instance', {
+      params: { processInstanceBusinessKey: businessKey },
+    });
+    const ids = (instances.data as Array<{ id: string }>).map((i) => i.id);
+    if (ids.length === 0) return null;
+    const vars = await this.client.get('/history/variable-instance', {
+      params: { variableName: 'edocsWorkspaceId', processInstanceIdIn: ids.join(',') },
+    });
+    const found = (vars.data as Array<{ value: unknown }>)
+      .map((v) => (typeof v.value === 'string' ? v.value : ''))
+      .find((v) => v !== '' && v !== '—');
+    return found ?? null;
+  }
+
+  /** The model of a process definition, through the same cache. */
+  async getProcessDefinitionXml(processDefinitionId: string): Promise<string> {
+    return this.getCachedBpmnXml(processDefinitionId);
+  }
+
+  /** Open user tasks of one instance: which steps can act right now. */
+  async getOpenTasksOfInstance(
+    processInstanceId: string
+  ): Promise<Array<{ id: string; taskDefinitionKey: string; name: string }>> {
+    const res = await this.client.get('/task', { params: { processInstanceId } });
+    return (res.data as Task[]).map((t) => ({
+      id: t.id,
+      taskDefinitionKey: t.taskDefinitionKey,
+      name: t.name,
+    }));
   }
 
   /**
