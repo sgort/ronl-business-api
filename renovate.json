@@ -168,22 +168,6 @@
     },
     {
       "description": [
-        "Node 24 is deferred here while both App Services run NODE|22-lts.",
-        "Verified on 2026-09-24: ronl-business-api-acc and ronl-business-api-prod",
-        "are both NODE|22-lts, and .nvmrc is 22.23.2, so the tree is consistent",
-        "today. Taking 24 in .nvmrc alone would build the deployed backend on a",
-        "major the host does not run — the exact mismatch #36 closed.",
-        "linked-data-explorer did take Node 24, in that order: its App Services",
-        "moved to NODE|24-lts first, then the bump merged.",
-        "Revisit by switching both App Services to NODE|24-lts, then removing this",
-        "rule in the same change as the .nvmrc bump."
-      ],
-      "matchDepNames": ["node"],
-      "matchUpdateTypes": ["major"],
-      "enabled": false
-    },
-    {
-      "description": [
         "The local Redis image is held on the 7.2 line, the last BSD-3-Clause",
         "release. Redis 7.4 and later are RSALv2/SSPLv1, and 8.x adds AGPLv3 as",
         "a third option; none of these is BSD-3, which is what docker-compose.yml",
@@ -221,7 +205,10 @@
         "majors - express 5, react 19, typescript 7, vite 8, jest 30, eslint 10,",
         "tailwindcss 4, node 24, postgres 18 - which nobody merges on autopilot",
         "anyway. Behind this rule they stay checkboxes; the four genuine",
-        "minor/patch updates flow normally under the 14-day cooldown."
+        "minor/patch updates flow normally under the 14-day cooldown.",
+        "A Node major (26, say) must not be ticked until each App Service runs",
+        "that major: switch ACC before merging into acc, PROD before promoting",
+        "(SECURITY-PIPELINE.md, \"The App Service runtime\")."
       ],
       "matchUpdateTypes": ["major"],
       "dependencyDashboardApproval": true
@@ -314,6 +301,8 @@
         "satisfies it (npm versioning getNewValue: >=22 stays >=22), so Renovate",
         "has nothing to raise. The exact runtime lives in .nvmrc, which stays",
         "maintained.",
+        "The npm floor is the cooldown's: the first npm that enforces",
+        "min-release-age, and the npm Renovate derives its own from; see .npmrc.",
         "minimumReleaseAge repeats the top-level 14 days and changes nothing:",
         "Semgrep's renovate-missing-minimum-release-age flags any rule matching",
         "on matchDepTypes that does not set it locally, whatever the top level",

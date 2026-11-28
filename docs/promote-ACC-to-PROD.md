@@ -44,6 +44,12 @@ two minutes and tells you whether anything moved overnight.
   PROD. This has to be decided explicitly (**D1**).
 - **PROD's App Service runs Node 20; the code needs 22.** `operaton-mcp` 1.1.0
   declares `engines.node >=22.0.0`, and ACC has run `NODE|22-lts` since March.
+  _Note, 27 November 2026:_ `>=22.0.0` is a floor, not a ceiling; it never
+  meant "cannot run 24". The repository has since moved to Node 24 (`.nvmrc`
+  24.22.2, `engines.node >=24.22.1`) so that npm enforces the `.npmrc` cooldown,
+  and both App Services move to `NODE|24-lts` (ACC before that change merges,
+  PROD before its promotion). See
+  `docs/superpowers/specs/2026-11-27-npm-cooldown-node-24-design.md`.
 - **Two of the four deploy targets do not exist in production yet — and both
   are in scope (D2).** Public site and PA demo have no production Static Web
   App, no deploy token secret and no DNS. `plato.open-regels.nl` currently
@@ -805,6 +811,11 @@ curl -s https://api.open-regels.nl/v1/health | jq '.data | {version, status}'   
 
 - [ ] 3.8.2 healthy on Node 22. It already depends on `operaton-mcp`, which
       wants 22, so this is the direction it needs anyway.
+
+_Note, 27 November 2026:_ historical step. Both App Services now move to
+`NODE|24-lts` with the repository's move to Node 24 (see the note under the
+Node 20 finding above); `operaton-mcp`'s `>=22.0.0` is a floor and does not
+hold them on 22.
 
 #### 3.3 Settings
 
