@@ -286,6 +286,287 @@ check(
   false,
 );
 
+// ── register section ────────────────────────────────────────────────────────
+
+{
+  const base = { repository: "x", quarter: "2026-Q4", rows: [], date: NOW };
+  const register = {
+    dependencies: [
+      {
+        name: "left-pad",
+        manifest: "package.json",
+        status: "override",
+        outcome: "keep",
+        followUp: null,
+        override: { reason: "r", issue: 7 },
+      },
+      {
+        name: "old-lib",
+        manifest: "packages/a/package.json",
+        status: "approved",
+        outcome: "replace",
+        followUp: 42,
+      },
+      {
+        name: "fine",
+        manifest: "package.json",
+        status: "approved",
+        outcome: "keep",
+        followUp: null,
+      },
+    ],
+    cooldownOverrides: [
+      { package: "zod", version: "4.1.0", reason: "fix", issue: 9 },
+    ],
+  };
+  const open = R.renderReview({ ...base, register });
+  check(
+    "review lists open overrides",
+    open.includes("### Register: still open") &&
+      open.includes("`left-pad`") &&
+      !open.includes("`fine`"),
+    true,
+  );
+  check(
+    "review lists replace outcomes with follow-up",
+    open.includes("`old-lib`") && open.includes("#42"),
+    true,
+  );
+  check(
+    "review lists cooldown overrides",
+    open.includes("`zod`") && open.includes("4.1.0") && open.includes("#9"),
+    true,
+  );
+  check(
+    'review without register says "no register entries open"',
+    R.renderReview(base).includes("No register entries open"),
+    true,
+  );
+  const sec = R.renderReview({
+    ...base,
+    securityQuarter: "2026-Q3",
+    securityExceptions: [
+      {
+        number: 12,
+        title: "Update foo [SECURITY]",
+        mergedAt: "2026-10-05T10:00:00Z",
+      },
+    ],
+  });
+  check(
+    "review lists security exceptions",
+    sec.includes("### Renovate security exceptions, 2026-Q3") &&
+      sec.includes("#12") &&
+      sec.includes("2026-10-05"),
+    true,
+  );
+  check(
+    "review without a quarter still has a heading",
+    R.renderReview(base).includes(
+      "### Renovate security exceptions, previous quarter",
+    ),
+    true,
+  );
+  check(
+    "review notes a failed security search",
+    R.renderReview({ ...base, securityExceptionsError: "boom" }).includes(
+      "could not list security exceptions: boom",
+    ),
+    true,
+  );
+}
+
+// ── security exceptions search (no network) ────────────────────────────────
+
+{
+  check(
+    "no token, no search",
+    await R.securityExceptionsOf("o/r", "2026-07-01", "2026-09-30", ""),
+    { items: [], error: null },
+  );
+  let url;
+  const ok = async (u) => {
+    url = u;
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        items: [
+          {
+            number: 5,
+            title: "t",
+            pull_request: { merged_at: "2026-10-02T00:00:00Z" },
+          },
+        ],
+      }),
+    };
+  };
+  check(
+    "the search lists merged security PRs",
+    await R.securityExceptionsOf("o/r", "2026-07-01", "2026-09-30", "tok", {
+      fetchImpl: ok,
+    }),
+    {
+      items: [{ number: 5, title: "t", mergedAt: "2026-10-02T00:00:00Z" }],
+      error: null,
+    },
+  );
+  check(
+    "the search is scoped to the quarter, both ends",
+    decodeURIComponent(url).includes("merged:2026-07-01..2026-09-30"),
+    true,
+  );
+  const bad = async () => ({ ok: false, status: 403, json: async () => ({}) });
+  const failed = await R.securityExceptionsOf(
+    "o/r",
+    "2026-07-01",
+    "2026-09-30",
+    "tok",
+    { fetchImpl: bad, sleep: async () => {} },
+  );
+  check(
+    "a failed search is reported, not thrown",
+    failed.items.length === 0 && /403/.test(failed.error),
+    true,
+  );
+  check(
+    "quarterStart",
+    R.quarterStart(new Date("2026-11-27T00:00:00Z")),
+    "2026-10-01",
+  );
+  // The cron runs on the second day of a quarter: list the quarter just ended.
+  check(
+    "previousQuarter on 2 January is the last quarter of the year before",
+    R.previousQuarter(new Date("2026-01-02T06:23:00Z")),
+    { quarter: "2025-Q4", since: "2025-10-01", until: "2025-12-31" },
+  );
+  check(
+    "previousQuarter on 2 April",
+    R.previousQuarter(new Date("2026-04-02T06:23:00Z")),
+    { quarter: "2026-Q1", since: "2026-01-01", until: "2026-03-31" },
+  );
+}
+
+// ── fetchJson: retry (no network) ───────────────────────────────────────────
+
+{
+  const res = (status, body = {}) => ({
+    ok: status < 400,
+    status,
+    json: async () => body,
+  });
+  const noSleep = async () => {};
+  let calls = 0;
+  const flaky = async () => (++calls <= 2 ? res(429) : res(200, { a: 1 }));
+  check(
+    "fetchJson retries 429 twice then succeeds",
+    await R.fetchJson(
+      "https://x.test/a",
+      {},
+      { fetchImpl: flaky, sleep: noSleep },
+    ),
+    { a: 1 },
+  );
+  check("fetchJson made three calls", calls, 3);
+  let n = 0;
+  const down = async () => (n++, res(503));
+  let err = null;
+  try {
+    await R.fetchJson(
+      "https://x.test/a",
+      {},
+      { fetchImpl: down, sleep: noSleep },
+    );
+  } catch (e) {
+    err = e;
+  }
+  check("fetchJson gives up after 3", [n, err?.status], [3, 503]);
+  n = 0;
+  const gone = async () => (n++, res(404));
+  err = null;
+  try {
+    await R.fetchJson(
+      "https://x.test/a",
+      {},
+      { fetchImpl: gone, sleep: noSleep },
+    );
+  } catch (e) {
+    err = e;
+  }
+  check("fetchJson does not retry a 404", [n, err?.status], [1, 404]);
+  // Pauses: 2 s then 5 s by default, or what Retry-After asks for.
+  const pauses = [];
+  const record = async (ms) => {
+    pauses.push(ms);
+  };
+  n = 0;
+  await R.fetchJson(
+    "https://x.test/a",
+    {},
+    {
+      fetchImpl: async () => (n++, res(503)),
+      sleep: record,
+    },
+  ).catch(() => {});
+  check("fetchJson backs off 2 s then 5 s", pauses, [2000, 5000]);
+  pauses.length = 0;
+  n = 0;
+  const limited = async () =>
+    ++n === 1
+      ? { ...res(429), headers: new Headers({ "retry-after": "7" }) }
+      : res(200, { ok: 1 });
+  await R.fetchJson(
+    "https://x.test/a",
+    {},
+    {
+      fetchImpl: limited,
+      sleep: record,
+    },
+  );
+  check("fetchJson honours Retry-After", pauses, [7000]);
+  check("retryAfterMs is capped", R.retryAfterMs("3600"), 60000);
+  check("retryAfterMs without a value", R.retryAfterMs(null), null);
+  let signal;
+  await R.fetchJson(
+    "https://x.test/a",
+    {},
+    {
+      fetchImpl: async (u, init) => ((signal = init.signal), res(200, {})),
+    },
+  );
+  check(
+    "fetchJson gives each request a timeout signal",
+    signal instanceof AbortSignal,
+    true,
+  );
+  n = 0;
+  const hangs = async () => {
+    n++;
+    const e = new Error("The operation was aborted due to timeout");
+    e.name = "TimeoutError";
+    throw e;
+  };
+  err = null;
+  await R.fetchJson(
+    "https://x.test/a",
+    {},
+    {
+      fetchImpl: hangs,
+      sleep: noSleep,
+    },
+  ).catch((e) => (err = e));
+  check(
+    "fetchJson retries a timeout, then gives up",
+    [n, err?.name],
+    [3, "TimeoutError"],
+  );
+  check(
+    "mapLimited keeps order",
+    await R.mapLimited([3, 1, 2], 2, async (x) => x * 2),
+    [6, 2, 4],
+  );
+}
+
 // ── summary ─────────────────────────────────────────────────────────────────
 if (failures.length) {
   console.error(

@@ -1,0 +1,84 @@
+{
+  "$comment": "The dependency register: one assessment per direct dependency per manifest, against the six criteria in linked-data-explorer's docs/dependency-criteria.md. Read by scripts/dependency-gate.mjs in the lockfile-review job, which fails a pull request that adds a direct dependency without an entry here, or with an entry the registry evidence contradicts; and by scripts/dependency-review.mjs, which lists open overrides and replacements every quarter. The first three entries were assessed after the fact on 28 November 2026.",
+  "dependencies": [
+    {
+      "name": "stylelint",
+      "manifest": "(root)",
+      "field": "devDependencies",
+      "added": { "date": "2026-10-12", "pr": 376 },
+      "assessed": { "date": "2026-11-28", "version": "17.16.0" },
+      "criteria": {
+        "maintained": {
+          "holds": true,
+          "why": "25 releases in the twelve months to 27 November 2026; the locked 17.16.0 is of 1 October 2026, and 18.1.0 followed on 20 November."
+        },
+        "maintainers": {
+          "holds": true,
+          "why": "Four npm maintainers, and the repository belongs to the stylelint organisation, with about 488 contributors."
+        },
+        "licence": { "holds": true },
+        "releasePolicy": {
+          "holds": true,
+          "why": "Semver with a migration guide per major, and 17.16.0 and 18.1.0 carry npm provenance from a trusted publisher; the gap is that neither the repository nor stylelint/.github has a SECURITY.md (one advisory published)."
+        },
+        "footprint": {
+          "holds": false,
+          "why": "No install script in its tree, but 120 transitive packages, 58 of them only through it, which is a lot for a CSS linter; one of them, svg-tags 1.0.0, has no licence recorded (#499). The 18.x line drops about 16 direct dependencies."
+        },
+        "needed": {
+          "holds": true,
+          "why": "packages/frontend/src/css-hex.test.ts calls stylelint.lint as the colour-no-hex gate, and the custom rule rba/selector-root-class runs under it (npm run test:stylelint in CI); nothing else in the tree is a CSS linter (postcss, used by scripts/css-colour, only parses)."
+        }
+      },
+      "outcome": "keep",
+      "followUp": 499,
+      "status": "assessed"
+    },
+    {
+      "name": "@axe-core/playwright",
+      "manifest": "packages/public-site",
+      "field": "devDependencies",
+      "added": { "date": "2026-08-06", "pr": null, "commit": "47fbd47" },
+      "assessed": { "date": "2026-11-28", "version": "4.14.0" },
+      "criteria": {
+        "maintained": { "holds": true },
+        "maintainers": { "holds": true },
+        "licence": {
+          "holds": false,
+          "why": "MPL-2.0, as is axe-core 4.14.0 that it brings, and not on the allow-list. Kept, as the quarterly review #362 decided on 10 October 2026: used unmodified in the public-site Playwright tests only, never bundled or distributed, so MPL's file-level copyleft is not triggered."
+        },
+        "releasePolicy": { "holds": true },
+        "footprint": { "holds": true },
+        "needed": {
+          "holds": true,
+          "why": "packages/public-site/e2e/publiek.spec.ts runs AxeBuilder with the wcag2a and wcag2aa tags on the public pages; it is Deque's own Playwright integration, and injecting axe-core by hand would bring in the same MPL-2.0 code."
+        }
+      },
+      "outcome": "keep",
+      "status": "assessed"
+    },
+    {
+      "name": "@axe-core/playwright",
+      "manifest": "packages/frontend",
+      "field": "devDependencies",
+      "added": { "date": "2026-11-03", "pr": 413 },
+      "assessed": { "date": "2026-11-28", "version": "4.14.0" },
+      "criteria": {
+        "maintained": { "holds": true },
+        "maintainers": { "holds": true },
+        "licence": {
+          "holds": false,
+          "why": "MPL-2.0, as is axe-core 4.14.0 that it brings, and not on the allow-list. #362 kept it for public-site on 10 October 2026; re-checked for the frontend: only e2e/helpers/a11y.ts imports it, outside the Vite build, so no MPL-2.0 code is shipped or distributed."
+        },
+        "releasePolicy": { "holds": true },
+        "footprint": { "holds": true },
+        "needed": {
+          "holds": true,
+          "why": "packages/frontend/e2e/helpers/a11y.ts wraps AxeBuilder for the accessibility checks in the frontend E2E suite (#409), the same integration public-site already uses; axe-core by hand would bring the same MPL-2.0 code."
+        }
+      },
+      "outcome": "keep",
+      "status": "assessed"
+    }
+  ]
+}
