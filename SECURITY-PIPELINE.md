@@ -52,28 +52,35 @@ failing a merge.
 | `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                                  |
 | `actions/upload-artifact` (×3)      | `cf430e030ddbb5b0abf93d22962f4752f3646cd9`          | v7.0.2            | Renovate                                                                                      |
 | `azure/login` (×2)                  | `a641126d1b8aa4d1fa005f4f92df94a3a4c4c906`          | v3.1.0            | Renovate                                                                                      |
-| `zizmorcore/zizmor-action`          | `53290badfa369cb0bf7ad16342cb62c2fa47ac7b`          | v0.8.0            | Renovate                                                                                      |
+| `zizmorcore/zizmor-action`          | `45d7276c9ca790aabd705e31ca99c6185c3e76dd`          | v0.8.1            | Renovate                                                                                      |
 | zizmor itself                       | `version: '1.29.0'` input, not `latest`             | 1.29.0            | Renovate — as the image `ghcr.io/zizmorcore/zizmor`, in the `github actions` group; see below |
 | `renovate-config-validator`         | `npx --package renovate@44.50.3`                    | 44.50.3           | **manual** — an inline npx argument, not a manifest entry                                     |
 | Semgrep itself                      | `pip install semgrep==1.176.1`                      | 1.176.1           | **manual** — a version inside a `run:` block, which no Renovate manager parses                |
 | npm dependencies                    | `package-lock.json`, `sha512` integrity per package | lockfileVersion 3 | Renovate                                                                                      |
 
-The zizmor pin is stronger than it looks: `zizmor-action` resolves the requested
-version through an internal digest table and runs
-`ghcr.io/zizmorcore/zizmor:1.29.0@sha256:863026d5…` — a genuine container digest
-pin.
+The zizmor pin is stronger than it looks. Since v0.8.0, `zizmor-action` installs
+zizmor from the lock file it ships for the requested version
+(`support/locks/zizmor-1.29.0.txt`), which pins every zizmor wheel for that
+release by `sha256`, with `pip download --require-hashes`. pip picks the wheel for
+the runner and refuses it unless its hash is listed: the same guarantee the
+digest-pinned container (`ghcr.io/zizmorcore/zizmor:1.29.0@sha256:863026d5…`) gave
+before v0.8.0. The lock files live in the action's repository, so the action's own
+pin fixes them. Until November 2026 this section still described the container;
+linked-data-explorer `c0065c8` and ttl-editor `69be5ac` made the same correction.
 
 **Renovate maintains that input, although this table said `manual` until
 15 September 2026.** Its `github-actions` manager does not parse action inputs in
 general, but it maps `zizmor-action` to the Docker image
 `ghcr.io/zizmorcore/zizmor` (`known-actions.ts` in Renovate), and the Dependency
 Dashboard (#16) lists `ghcr.io/zizmorcore/zizmor 1.29.0` with 1.30.1 queued.
-linked-data-explorer#139 and ttl-editor#144 corrected the same claim. Two things
-follow:
+linked-data-explorer#139 and ttl-editor#144 corrected the same claim. That mapping
+is only how Renovate notices a release: the action does not run the image. Two
+things follow:
 
 - **The image and the action must move together.** `zizmor-action` runs only the
-  zizmor versions in its own digest table: 1.30.1 is in v0.6.4's and not in
-  v0.6.3's. This repository is already on v0.6.4, so the queued 1.30.1 is safe.
+  zizmor versions it ships a lock file for: 1.32.0 is in v0.8.1's `support/locks/`
+  and not in v0.8.0's (before v0.8.0 its digest table played that part, and 1.30.1
+  needed v0.6.4).
   In general the `github actions` group, which collects minor, patch and digest
   updates for every `github-actions` dependency, brings both in one pull request.
   Not always: each clears the 14-day cooldown on its own clock, and zizmor
