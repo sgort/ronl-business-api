@@ -21,6 +21,16 @@ on:
   # environments against a three-environment ceiling, which five open pull
   # requests exhausted on 2026-08-28 and again on 2026-09-02. Identical
   # syntax, opposite consequence when removed.
+  #
+  # The default types only (opened, synchronize, reopened), deliberately NOT
+  # labeled/unlabeled. A pull request opened with labels (every Renovate pull
+  # request) would start two runs on one commit. In linked-data-explorer, whose
+  # copy of this workflow cancels in progress, the ruleset read the cancelled
+  # audit and lockfile-review as failed and blocked the merge (its #368,
+  # 2026-11-27); here, with no concurrency group, every check would run twice.
+  # Renovate's `security` label arrives a second or so after `opened`, so the
+  # dependency gate waits for Renovate's labels through the API instead of a
+  # second run.
   pull_request:
   push:
     branches:
@@ -54,9 +64,9 @@ jobs:
         # would then run on whatever Node the runner defaulted to.
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24.22.2'
+          node-version: '24.22.3'
       - name: Run zizmor
-        uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+        uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
         with:
           # The action's `version` input defaults to "latest". Pinning it is
           # the whole point of this exercise — and it keeps CI's findings
@@ -65,7 +75,7 @@ jobs:
           # input to the Docker image ghcr.io/zizmorcore/zizmor, and the
           # "github actions" group normally moves it in the same pull request
           # as the zizmor-action bump it depends on -- the action runs only
-          # versions in its own digest table, and 1.30.1 needs v0.6.4's. The
+          # versions it ships a pip lock file for, and 1.32.0 needs v0.8.1's. The
           # two clear the cooldown separately, so a group branch can hold the
           # image update alone for a while; audit fails until the action joins
           # it. See SECURITY-PIPELINE.md.
@@ -339,12 +349,28 @@ jobs:
   # Two jobs, for the trust boundary: this one runs code from the head ref
   # (the script and the lockfile) with a READ-ONLY token; the comment job
   # holds the write token and runs no repository code at all.
+  #
+  # The dependency gate (scripts/dependency-gate.mjs) runs in this same job,
+  # not a new one: a new required check would need a ruleset change, and the
+  # comment job already carries one report per pull request. It blocks a new
+  # direct dependency that fails the criteria without a register entry, and a
+  # lockfile version younger than the cooldown; see "New dependencies: the
+  # register gate" in SECURITY-PIPELINE.md, and the design in
+  # linked-data-explorer's
+  # docs/superpowers/specs/2026-11-27-dependency-register-gate-design.md.
   lockfile-review:
     name: lockfile-review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      # The gate asks whether the issue an override or a cooldown exception
+      # cites is still open (spec §4.4), and, for a pull request by Renovate,
+      # who put the `security` label on it: both through the issues API, which
+      # answers for pull requests too. Read-only, like the rest of the job.
+      issues: read
+      # The issues endpoints for a pull request's number may need it with the installation token.
+      pull-requests: read
     outputs:
       changed: ${{ steps.diff.outputs.changed }}
       report: ${{ steps.diff.outputs.report }}
@@ -355,14 +381,30 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24.22.2"
+          node-version: "24.22.3"
       - name: Test the lockfile diff
         # Tested where it runs, like promotion-targets.test.mjs.
         run: node scripts/lockfile-diff.test.mjs
+      - name: Test the dependency gate
+        # Before the comparison step, which exits early on an unchanged
+        # lockfile: a malformed register must fail the check even then
+        # (spec §4.4), or it would sit broken until the next lockfile change.
+        run: |
+          node scripts/dependency-gate.test.mjs
+          node scripts/dependency-gate.mjs --check-register
       - name: Compare package-lock.json with the base
         id: diff
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          # Values reach the script through the environment only, never
+          # interpolated into the shell. The token is read-only (see the job's
+          # permissions). The author and number let the gate ask the API
+          # whether renovate[bot] labelled this pull request `security`, which
+          # logs a young version instead of blocking it; the payload's labels
+          # are not used, because they are stale on the run that matters.
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           git fetch --no-tags --depth=1 origin "$BASE_SHA"
           if git diff --quiet "$BASE_SHA" HEAD -- package-lock.json; then
@@ -382,15 +424,39 @@ jobs:
           status=0
           node scripts/lockfile-diff.mjs "$RUNNER_TEMP/base-lock.json" package-lock.json \
             --config lockfile-review.json \
-            --out "$RUNNER_TEMP/report.md" --comment "$RUNNER_TEMP/comment.md" || status=$?
-          if [ -f "$RUNNER_TEMP/report.md" ]; then
-            cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
+            --out "$RUNNER_TEMP/report.md" || status=$?
+          # The gate runs whatever the diff said, so one comment shows both
+          # findings; the step then fails on the larger status. On exit 2 the
+          # gate writes its own "could not run" section, saying why.
+          gate_status=0
+          node scripts/dependency-gate.mjs "$RUNNER_TEMP/base-lock.json" package-lock.json \
+            --config lockfile-review.json \
+            --out "$RUNNER_TEMP/gate.md" || gate_status=$?
+          if [ ! -f "$RUNNER_TEMP/gate.md" ]; then
+            # No report means the gate did not run, whatever its status said.
+            gate_status=2
+            printf '#### Dependency gate\n\n**✗ The dependency gate could not run** — the check fails. See the job log.\n' > "$RUNNER_TEMP/gate.md"
           fi
-          if [ -f "$RUNNER_TEMP/comment.md" ]; then
-            # A delimiter per run, so no report content can end the value early.
-            delim="EOF_$(openssl rand -hex 16)"
-            { echo "report<<$delim"; cat "$RUNNER_TEMP/comment.md"; echo; echo "$delim"; } >> "$GITHUB_OUTPUT"
-          fi
+          # One report: the gate's section right under the verdict, so cutting
+          # it to fit a comment never cuts the gate, and no "✓ No blocking
+          # findings" above a gate that blocks. It starts with the marker the
+          # comment job finds it by. A failure here fails the step (exit 2).
+          GATE_STATUS="$gate_status" node -e '
+            const fs = require("fs");
+            import("./scripts/dependency-gate.mjs").then(({ combineComment }) => {
+              const t = process.env.RUNNER_TEMP;
+              const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, "utf8") : "");
+              const { summary, comment } = combineComment(
+                read(t + "/report.md"), read(t + "/gate.md"), Number(process.env.GATE_STATUS));
+              fs.writeFileSync(t + "/summary.md", summary);
+              fs.writeFileSync(t + "/comment.md", comment);
+            }).catch((e) => { console.error(e); process.exit(2); });
+          '
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          # A delimiter per run, so no report content can end the value early.
+          delim="EOF_$(openssl rand -hex 16)"
+          { echo "report<<$delim"; cat "$RUNNER_TEMP/comment.md"; echo; echo "$delim"; } >> "$GITHUB_OUTPUT"
+          if [ "$gate_status" -gt "$status" ]; then status=$gate_status; fi
           exit "$status"
 
   lockfile-review-comment:

@@ -112,6 +112,95 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.11.7',
+      status: 'Released',
+      date: '28 nov 2026',
+      scope: ['frontend', 'backend', 'pa-demo', 'ci'],
+      commits: [
+        {
+          sha: '7c14cb1',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'GitHub Actions: Node 24.22.3 pins and zizmor-action v0.8.1 (#461)',
+          details: [
+            'The pinned Node of the audit, review, SBOM, upstream-certificates and supply-chain workflows moves to 24.22.3, and zizmorcore/zizmor-action to v0.8.1. The audit failed on it until the pin register recorded v0.8.1 (fe3b601, on the same pull request), which also corrects how SECURITY-PIPELINE.md describes the action: since v0.8.0 it installs zizmor from a pip lock file with --require-hashes, not from a digest-pinned container.',
+          ],
+        },
+        {
+          sha: 'e3b4957',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'prettier 3.10.1 (#507)',
+          details: ['Root dev tooling; check-format stays clean, so no file is reformatted.'],
+        },
+        {
+          sha: '71cf00d',
+          author: 'renovate[bot]',
+          type: 'fix',
+          subject: 'axios ^1.21.1 in pa-cockpit (#506)',
+          details: [
+            'The range follows the version the lock file maintenance already locked; the lockfile does not move. pa-cockpit is compiled into the frontend and the PA demo.',
+          ],
+        },
+        {
+          sha: '267f09a',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'Local redis:7.2-alpine digest (#492)',
+          details: [
+            'docker-compose.yml only, for the local stack; ACC and PROD run Azure Cache for Redis.',
+          ],
+        },
+        {
+          sha: '2bba2a9',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'Node.js 24.22.3 (#502)',
+          details: [
+            '.nvmrc moves from 24.22.2, so the deploy workflows build on 24.22.3 for the NODE|24-lts App Service. npm stays 11.19.1.',
+          ],
+        },
+        {
+          sha: 'a9a7767',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: '@testing-library/user-event ^14.6.10 in pa-cockpit (#493)',
+          details: ['Test dependency; nothing deployed changes.'],
+        },
+        {
+          sha: 'af70da6',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'Lock file maintenance (#458)',
+          details: [
+            'The refresh of the transitive tree: 130 packages updated, 38 of them runtime, and 2 removed, none downgraded. Every changed version was at least 14 days old, checked by the dependency gate on the rebased branch.',
+            'Runtime updates include the bpmn-io stack (@bpmn-io/properties-panel 3.59.0, diagram-js 15.29.0), axios 1.21.1, follow-redirects 1.16.3, express-rate-limit 8.7.4, hono 4.13.18, fast-xml-parser 5.12.1, jose 6.2.17, marked 18.2.0 and the mdast/markdown packages.',
+          ],
+        },
+        {
+          sha: '85b0718',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'New direct dependencies need a recorded assessment before they merge (#503)',
+          details: [
+            'Ports the dependency register gate from linked-data-explorer (#368). The required lockfile-review check now blocks a new direct dependency, per manifest, until dependency-register.json holds an entry that agrees with what the npm registry and GitHub say, and blocks any package version the lockfile adds or changes that is younger than 14 days. Ways through, each logged: a committed override with an open issue, or a Renovate security pull request whose security label renovate[bot] applied (ICTU recommendations 1 and 6).',
+            'The register starts with stylelint (#376; svg-tags licence, #499) and @axe-core/playwright in public-site and frontend (MPL-2.0, test-only, as #362 decided). The frontend entry is the one #413 added without a checklist, because the old rule treated a package already direct in another manifest as vetted. .npmrc and SECURITY-PIPELINE.md now say the PR-time cooldown check is live, covering what npm ci does not.',
+          ],
+        },
+        {
+          sha: '41a76b5',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Node 24, so npm enforces the 14-day cooldown (#501)',
+          details: [
+            '.npmrc sets min-release-age=14, but .nvmrc named Node 22.23.4, whose npm 10.9.9 ignores the setting without a warning, so every npm install on a workstation resolved versions published minutes ago. .nvmrc is now 24.22.2 (npm 11.19.1); engines are node >=24.22.1 and npm >=11.10.0, which is also where hosted Renovate takes its npm from. The Renovate hold on Node majors is removed; the ACC App Service runs NODE|24-lts.',
+            'check-deps.sh fails, instead of warning, below npm 11.10. scripts/cooldown-proof.mjs proves npm refuses a version younger than the cooldown, against a control with the cooldown off, and runs daily in dependency-audit.yml: npm 10.9.9 did not refuse, npm 11.19.1 and 12.2.2 do. The docs no longer claim a "stricter cutoff" or an ETARGET retry: Renovate passes no --before when .npmrc sets min-release-age.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.11.6',
       status: 'Released',
       date: '27 nov 2026',

@@ -14,6 +14,7 @@
  *
  * The same file in linked-data-explorer, ttl-editor and ronl-business-api;
  * each repository's policy is lockfile-review.json at its root.
+ * Copied from linked-data-explorer 67bd0ae.
  *
  * Usage:
  *   node scripts/lockfile-diff.mjs <base-lockfile> <head-lockfile>
@@ -282,6 +283,7 @@ const DIRECT_FIELDS = [
   "dependencies",
   "devDependencies",
   "optionalDependencies",
+  "peerDependencies",
 ];
 
 /**
@@ -310,17 +312,28 @@ export function directDependencies(doc) {
 }
 
 /**
- * Packages that are a direct dependency in head and nowhere in base (ICTU
- * recommendation 1; #250). A package already direct elsewhere in the
- * repository was vetted when it arrived, and moving one between fields
- * (dependencies → devDependencies) is not adding it.
+ * Direct dependencies that are new to a manifest: a package declared in a
+ * manifest of head that the same manifest did not declare in base, under any
+ * field (ICTU recommendation 1; #250). Moving a package between fields of one
+ * manifest is not adding it. A package already direct in another manifest
+ * still counts when it spreads to a new one: a new manifest changes where it
+ * runs (@axe-core/playwright reached packages/frontend that way, #413).
  */
 export function newDirectDependencies(baseDoc, headDoc) {
-  const base = directDependencies(baseDoc);
+  const key = (name, manifest) => `${name}\u0000${manifest}`;
+  const base = new Set();
+  for (const [name, places] of directDependencies(baseDoc)) {
+    for (const { manifest } of places) base.add(key(name, manifest));
+  }
   const added = [];
   for (const [name, places] of directDependencies(headDoc)) {
-    if (base.has(name)) continue;
-    for (const place of places) added.push({ name, ...place });
+    const seen = new Set();
+    for (const place of places) {
+      const k = key(name, place.manifest);
+      if (base.has(k) || seen.has(k)) continue;
+      seen.add(k);
+      added.push({ name, ...place });
+    }
   }
   return added.sort(
     (x, y) =>
@@ -328,7 +341,7 @@ export function newDirectDependencies(baseDoc, headDoc) {
   );
 }
 
-/** lockfile-review.json: { "allowLicenses": [SPDX ids] }. */
+/** lockfile-review.json: { "allowLicenses": [SPDX ids], "minReleaseAgeDays": n }. */
 export function parseConfig(text, label) {
   let doc;
   try {
@@ -342,7 +355,13 @@ export function parseConfig(text, label) {
       `${label} needs "allowLicenses": an array of SPDX ids`,
     );
   }
-  return { allow: new Set(list) };
+  const days = doc.minReleaseAgeDays;
+  if (!Number.isInteger(days) || days < 0) {
+    throw new InputError(
+      `${label} needs "minReleaseAgeDays": an integer of 0 or more`,
+    );
+  }
+  return { allow: new Set(list), minReleaseAgeDays: days };
 }
 
 export const MARKER = "<!-- lockfile-review -->";
@@ -354,7 +373,7 @@ export const COMMENT_LIMIT = 65536;
 // backtick or line break in one would close its code span and let a package
 // write its own lines into the bot's comment — "✓ approved" included — so
 // both are neutralised (#248 final review).
-const code = (s) =>
+export const code = (s) =>
   `\`${String(s)
     .replace(/[\r\n]+/g, " ")
     .replace(/`/g, "'")}\``;
@@ -412,19 +431,13 @@ export function renderReport({ blocking, diff, review, newDirect = [] }) {
       ? [
           "#### New direct dependencies",
           "",
-          `Vet each against the [dependency criteria](${CRITERIA_URL}) before ` +
-            "merging (ICTU recommendation 1), and tick what holds. Anything " +
-            "that does not hold needs a sentence in the pull request saying why " +
-            "the package is still the right choice.",
+          "Each needs an entry in `dependency-register.json`, checked by the " +
+            `dependency gate (its own section of this report) against the [dependency criteria](${CRITERIA_URL}) ` +
+            "(ICTU recommendation 1).",
           "",
-          ...newDirect.flatMap((d) => [
-            `- ${code(d.name)} in ${code(d.manifest)} (${d.field})`,
-            "  - [ ] Maintained: a release in the last 12 months, not deprecated, repository not archived",
-            "  - [ ] Maintainers: more than one, or a backing organisation",
-            "  - [ ] Licence on the allow-list in lockfile-review.json",
-            "  - [ ] Release policy and footprint: semver, install scripts, native builds, transitive weight",
-            "  - [ ] Needed: no existing dependency or a few lines of our own would do",
-          ]),
+          ...newDirect.map(
+            (d) => `- ${code(d.name)} in ${code(d.manifest)} (${d.field})`,
+          ),
           "",
         ]
       : []),

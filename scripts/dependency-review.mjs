@@ -14,19 +14,23 @@
  * asks the npm registry and the GitHub API. Installs nothing.
  *
  * The same file in linked-data-explorer, ttl-editor and ronl-business-api.
+ * Copied from linked-data-explorer 67bd0ae.
  *
  * Usage:
  *   node scripts/dependency-review.mjs [--out review.md] [--quarter 2026-Q4]
  *     [--lockfile package-lock.json] [--config lockfile-review.json]
+ *     [--register dependency-register.json]
  * GITHUB_TOKEN, when set, is used for the GitHub API (60 calls an hour
  * without it, fewer than the direct dependencies of two of the three).
  *
  * Exit: 0 the review was written (whatever it found: a finding is for a
- * person, not a red run), 2 the lockfile or config could not be used.
+ * person, not a red run), 2 the lockfile, the config or the register could
+ * not be used.
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { parseRegister } from "./dependency-gate.mjs";
 import {
   CRITERIA_URL,
   directDependencies,
@@ -97,7 +101,7 @@ export function evidenceFrom(packument, installedVersion) {
   };
 }
 
-function monthsBetween(from, to) {
+export function monthsBetween(from, to) {
   const a = new Date(from);
   return (
     (to.getUTCFullYear() - a.getUTCFullYear()) * 12 +
@@ -158,8 +162,63 @@ function flagged(row, reasons) {
   ];
 }
 
+/**
+ * What the dependency register still holds open: overrides, replacements with
+ * a follow-up issue, and cooldown overrides (spec §4.5).
+ */
+function registerSection(register) {
+  const deps = register?.dependencies ?? [];
+  const overrides = deps.filter((e) => e.status === "override");
+  const replaces = deps.filter((e) => e.outcome === "replace");
+  const cooldown = register?.cooldownOverrides ?? [];
+  const lines = ["### Register: still open", ""];
+  if (!overrides.length && !replaces.length && !cooldown.length) {
+    return [...lines, "No register entries open.", ""];
+  }
+  const where = (e) => `${code(e.name)} in ${code(e.manifest)}`;
+  const issue = (n) => (n ? ` (#${n})` : "");
+  for (const e of overrides) {
+    lines.push(
+      `- override: ${where(e)} — ${text(e.override?.reason ?? "")}${issue(e.override?.issue)}`,
+    );
+  }
+  for (const e of replaces) {
+    lines.push(`- replace: ${where(e)}${issue(e.followUp)}`);
+  }
+  for (const o of cooldown) {
+    lines.push(
+      `- cooldown override: ${code(o.package)} ${code(o.version)} — ${text(o.reason)}${issue(o.issue)}`,
+    );
+  }
+  return [...lines, ""];
+}
+
+function securitySection(quarter, exceptions, error) {
+  const lines = [
+    `### Renovate security exceptions, ${quarter ?? "previous quarter"}`,
+    "",
+  ];
+  if (error) lines.push(`could not list security exceptions: ${text(error)}`);
+  else if (!exceptions?.length) lines.push("None.");
+  else {
+    for (const x of exceptions) {
+      lines.push(`- #${x.number} ${text(x.title)} — merged ${day(x.mergedAt)}`);
+    }
+  }
+  return [...lines, ""];
+}
+
 /** The issue body: what fails, what needs a judgement, then everything. */
-export function renderReview({ repository, quarter, rows, date }) {
+export function renderReview({
+  repository,
+  quarter,
+  rows,
+  date,
+  register,
+  securityQuarter,
+  securityExceptions,
+  securityExceptionsError,
+}) {
   const order = (x, y) =>
     Number(y.production) - Number(x.production) || x.name.localeCompare(y.name);
   const failing = rows.filter((r) => r.verdict.fail.length).sort(order);
@@ -205,6 +264,12 @@ export function renderReview({ repository, quarter, rows, date }) {
           "",
         ]
       : []),
+    ...registerSection(register),
+    ...securitySection(
+      securityQuarter,
+      securityExceptions,
+      securityExceptionsError,
+    ),
     "<details>",
     `<summary>All direct dependencies (${rows.length})</summary>`,
     "",
@@ -216,19 +281,69 @@ export function renderReview({ repository, quarter, rows, date }) {
   ].join("\n");
 }
 
-async function fetchJson(url, headers = {}) {
-  const res = await fetch(url, {
-    headers: { accept: "application/json", ...headers },
-  });
-  if (!res.ok) throw new Error(`${new URL(url).host} answered ${res.status}`);
-  return res.json();
+const sleepFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** The pause a Retry-After header asks for, in ms (capped), or null. */
+export function retryAfterMs(value, now = Date.now()) {
+  if (value === null || value === undefined || value === "") return null;
+  const seconds = Number(value);
+  const ms = Number.isFinite(seconds)
+    ? seconds * 1000
+    : new Date(String(value)).getTime() - now;
+  if (!Number.isFinite(ms)) return null;
+  return Math.min(Math.max(ms, 0), 60000);
 }
 
-async function gather(row, token) {
+/**
+ * GET and parse JSON. A 429 or 5xx (or a dropped or timed-out connection) is
+ * retried after 2 s and then 5 s, or after the server's Retry-After when it
+ * gives one; `retries` attempts in all, each with its own 30 s timeout. The
+ * error then carries the last HTTP `status` (when there was one) so a caller
+ * can tell a 404 apart.
+ */
+export async function fetchJson(
+  url,
+  headers = {},
+  {
+    fetchImpl = fetch,
+    retries = 3,
+    sleep = sleepFor,
+    timeoutMs = 30000,
+    backoff = [2000, 5000],
+  } = {},
+) {
+  let last;
+  let wait = null;
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    if (attempt > 1) {
+      await sleep(wait ?? backoff[Math.min(attempt - 2, backoff.length - 1)]);
+    }
+    wait = null;
+    try {
+      const res = await fetchImpl(url, {
+        headers: { accept: "application/json", ...headers },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (res.ok) return await res.json();
+      last = new Error(`${new URL(url).host} answered ${res.status}`);
+      last.status = res.status;
+      if (res.status !== 429 && res.status < 500) throw last;
+      wait = retryAfterMs(res.headers?.get?.("retry-after"));
+    } catch (err) {
+      if (err === last && last.status !== 429 && last.status < 500) throw err;
+      last = err;
+    }
+  }
+  throw last;
+}
+
+export async function gather(row, token, opts = {}) {
   let evidence;
   try {
     const packument = await fetchJson(
       `https://registry.npmjs.org/${row.name.replace("/", "%2f")}`,
+      {},
+      opts,
     );
     evidence = evidenceFrom(packument, row.version);
   } catch (err) {
@@ -244,6 +359,7 @@ async function gather(row, token) {
           ...(token ? { authorization: `Bearer ${token}` } : {}),
           "x-github-api-version": "2022-11-28",
         },
+        opts,
       );
       evidence.archived = Boolean(repo.archived);
       evidence.orgOwned = repo.owner?.type === "Organization";
@@ -254,7 +370,7 @@ async function gather(row, token) {
   return { ...row, evidence };
 }
 
-async function mapLimited(items, limit, fn) {
+export async function mapLimited(items, limit, fn) {
   const out = new Array(items.length);
   let next = 0;
   const worker = async () => {
@@ -267,6 +383,64 @@ async function mapLimited(items, limit, fn) {
     Array.from({ length: Math.min(limit, items.length) }, worker),
   );
   return out;
+}
+
+/** First day of the calendar quarter of `date`, as YYYY-MM-DD. */
+export function quarterStart(date) {
+  const month = Math.floor(date.getUTCMonth() / 3) * 3 + 1;
+  return `${date.getUTCFullYear()}-${String(month).padStart(2, "0")}-01`;
+}
+
+/**
+ * The calendar quarter before the one `date` is in: its name and its first
+ * and last day. The review runs on the second day of a quarter, so the
+ * quarter that has just ended is the one with something to list.
+ */
+export function previousQuarter(date) {
+  const start = new Date(`${quarterStart(date)}T00:00:00Z`);
+  const end = new Date(start.getTime() - 86400000);
+  return {
+    quarter: quarterOf(end),
+    since: quarterStart(end),
+    until: end.toISOString().slice(0, 10),
+  };
+}
+
+/**
+ * Merged Renovate pull requests labelled security between two days
+ * (inclusive): the cooldown exceptions of a quarter (spec §4.5). Only with a
+ * token; a failed search is said in the report, never a crash — the review is
+ * a report, not a gate.
+ */
+export async function securityExceptionsOf(
+  repository,
+  since,
+  until,
+  token,
+  opts = {},
+) {
+  if (!token) return { items: [], error: null };
+  const q = `repo:${repository} is:pr is:merged label:security author:app/renovate merged:${since}..${until}`;
+  try {
+    const found = await fetchJson(
+      `https://api.github.com/search/issues?q=${encodeURIComponent(q)}&per_page=100`,
+      {
+        authorization: `Bearer ${token}`,
+        "x-github-api-version": "2022-11-28",
+      },
+      opts,
+    );
+    return {
+      items: (found.items ?? []).map((i) => ({
+        number: i.number,
+        title: i.title,
+        mergedAt: i.pull_request?.merged_at ?? i.closed_at,
+      })),
+      error: null,
+    };
+  } catch (err) {
+    return { items: [], error: err.message };
+  }
 }
 
 function optionOf(args, name) {
@@ -301,7 +475,28 @@ async function main(argv) {
       ? { fail: [r.error], check: [] }
       : assess(r.evidence, now, allow),
   }));
-  const report = renderReview({ repository, quarter, rows, date: now });
+  const registerPath =
+    optionOf(args, "--register") ?? "dependency-register.json";
+  const register = existsSync(registerPath)
+    ? parseRegister(read(registerPath, "register"), registerPath)
+    : { dependencies: [], cooldownOverrides: [] };
+  const previous = previousQuarter(now);
+  const security = await securityExceptionsOf(
+    repository,
+    previous.since,
+    previous.until,
+    process.env.GITHUB_TOKEN,
+  );
+  const report = renderReview({
+    repository,
+    quarter,
+    rows,
+    date: now,
+    register,
+    securityQuarter: previous.quarter,
+    securityExceptions: security.items,
+    securityExceptionsError: security.error,
+  });
   const out = optionOf(args, "--out");
   if (out) writeFileSync(out, `${report}\n`);
   else process.stdout.write(`${report}\n`);

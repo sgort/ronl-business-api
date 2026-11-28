@@ -1,6 +1,6 @@
 {
   "name": "@ronl/backend",
-  "version": "2026.11.6",
+  "version": "2026.11.7",
   "description": "Secure Business API layer for Dutch municipality BPMN services",
   "main": "dist/index.js",
   "scripts": {
@@ -95,7 +95,7 @@
     "yaml": "^2.9.0"
   },
   "engines": {
-    "node": ">=22",
-    "npm": ">=10.0.0"
+    "node": ">=24.22.1",
+    "npm": ">=11.10.0"
   }
 }

@@ -19,6 +19,8 @@ on:
     paths:
       - '.github/workflows/dependency-audit.yml'
       - 'scripts/audit-tree.mjs'
+      - 'scripts/cooldown-proof.mjs'
+      - 'scripts/cooldown-proof.test.mjs'
 
 permissions:
   contents: read
@@ -57,7 +59,30 @@ jobs:
           # `main` need not carry the same .nvmrc as `acc` -- it did not until
           # sgort/linked-data-explorer#179 was promoted (linked-data-explorer). The tool that reads the lockfile should not
           # change with the tree it is reading. Renovate maintains this pin.
-          node-version: '24.22.2'
+          node-version: '24.22.3'
+
+      # ICTU recommendation 6 (a cooldown before adopting new releases): prove
+      # daily that npm on this Node 24 toolchain really refuses a version younger
+      # than the .npmrc min-release-age, rather than trusting that the setting
+      # works (npm older than 11.10 ignores it silently). See
+      # docs/superpowers/specs/2026-11-27-npm-cooldown-node-24-design.md, 6.1.
+      # It runs BEFORE the audit step, which checks out other branches and
+      # replaces the tree. Its status is captured rather than failing the step,
+      # so the audit still runs and the tracking issue sees the worse of the two.
+      - name: Cooldown proof
+        id: proof
+        env:
+          PROOF_REPORT_FILE: ${{ runner.temp }}/cooldown-proof.txt
+        run: |
+          set -o pipefail
+          rc=0
+          { node scripts/cooldown-proof.test.mjs && node scripts/cooldown-proof.mjs; } 2>&1 \
+            | tee "$PROOF_REPORT_FILE" || rc=$?
+          # 0 refused (pass), 1 not refused or a failing test, 2 could not run.
+          # Anything else is also "could not run": never a pass.
+          if [ "$rc" -gt 2 ]; then rc=2; fi
+          echo "status=$rc" >> "$GITHUB_OUTPUT"
+          echo "Cooldown proof exit status: $rc"
 
       - name: Audit acc and main
         id: audit
@@ -95,11 +120,18 @@ jobs:
         if: ${{ always() && github.event_name != 'pull_request' }}
         env:
           GH_TOKEN: ${{ github.token }}
-          STATUS: ${{ steps.audit.outputs.status }}
+          AUDIT_STATUS: ${{ steps.audit.outputs.status }}
+          PROOF_STATUS: ${{ steps.proof.outputs.status }}
           TITLE: 'Daily dependency audit: production high or critical advisory'
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           REPORT: ${{ runner.temp }}/audit.md
+          PROOF_REPORT: ${{ runner.temp }}/cooldown-proof.txt
         run: |
+          # The worse of the two (0 < 1 < 2). A missing output is "could not run",
+          # never a clean result.
+          STATUS=${AUDIT_STATUS:-2}
+          proof=${PROOF_STATUS:-2}
+          if [ "$proof" -gt "$STATUS" ]; then STATUS=$proof; fi
           existing=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number,title \
             --jq "[.[] | select(.title == \"$TITLE\")] | .[0].number // empty")
           {
@@ -107,14 +139,23 @@ jobs:
             echo
             echo "It fails on a **high or critical advisory in production dependencies**, on \`acc\` or \`main\`."
             echo "Advisories below moderate severity, and dev-only ones, are listed but do not fail it."
+            echo "It also fails when the **npm cooldown proof** fails: npm accepted a package version younger than the \`min-release-age\` in \`.npmrc\`, or the proof could not run (ICTU recommendation 6)."
             echo
+            if [ "$proof" != "0" ]; then
+              echo "### Cooldown proof failed (exit $proof; 1 = not refused or a failing unit test, 2 = could not run)"
+              echo
+              echo '```'
+              cat "$PROOF_REPORT" 2>/dev/null || echo 'The proof produced no output; see the run.'
+              echo '```'
+              echo
+            fi
             cat "$REPORT" 2>/dev/null || echo '_The audit produced no report; see the run._'
             echo
             echo "Run: $RUN_URL"
           } > body.md
           if [ "${STATUS:-2}" = "0" ]; then
             if [ -n "$existing" ]; then
-              gh issue comment "$existing" --body "The audit is clean as of $(date -u '+%Y-%m-%d'): no high or critical advisory in production dependencies on either branch. Closing. Run: $RUN_URL"
+              gh issue comment "$existing" --body "The audit is clean as of $(date -u '+%Y-%m-%d'): no high or critical advisory in production dependencies on either branch, and the npm cooldown proof passes. Closing. Run: $RUN_URL"
               gh issue close "$existing"
               echo "Closed #$existing"
             else
@@ -133,8 +174,13 @@ jobs:
       # The expression goes through env rather than into the run block: an
       # expression interpolated into a shell is the shape zizmor flags, and the
       # habit is worth keeping even where the value is a digit this workflow set.
-      - name: Fail when a production high or critical advisory is present
+      - name: Fail when an advisory is present or the cooldown proof fails
         if: ${{ always() }}
         env:
-          STATUS: ${{ steps.audit.outputs.status }}
-        run: exit "${STATUS:-2}"
+          AUDIT_STATUS: ${{ steps.audit.outputs.status }}
+          PROOF_STATUS: ${{ steps.proof.outputs.status }}
+        run: |
+          STATUS=${AUDIT_STATUS:-2}
+          proof=${PROOF_STATUS:-2}
+          if [ "$proof" -gt "$STATUS" ]; then STATUS=$proof; fi
+          exit "$STATUS"
