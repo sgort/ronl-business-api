@@ -10,7 +10,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18.2-61dafb?logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-5.0-646cff?logo=vite)](https://vitejs.dev/)
-[![Node.js](https://img.shields.io/badge/Node.js-20-339933?logo=node.js)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=node.js)](https://nodejs.org/)
 [![Express](https://img.shields.io/badge/Express-4.18-000000?logo=express)](https://expressjs.com/)
 [![Keycloak](https://img.shields.io/badge/Keycloak-23.0-4d4d4d?logo=keycloak)](https://www.keycloak.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?logo=postgresql)](https://www.postgresql.org/)
@@ -55,7 +55,7 @@ The system is hosted across two platforms. Azure hosts the stateless application
 | Layer            | Technology                                                    |
 | ---------------- | ------------------------------------------------------------- |
 | Frontend         | React 18, TypeScript, Vite, CSS Custom Properties             |
-| Backend          | Node.js 20, Express 4, TypeScript                             |
+| Backend          | Node.js 24, Express 4, TypeScript                             |
 | Authentication   | Keycloak 23, OIDC Authorization Code Flow                     |
 | Business rules   | Operaton BPMN/DMN engine                                      |
 | Database         | Azure PostgreSQL Flexible Server (audit logs)                 |

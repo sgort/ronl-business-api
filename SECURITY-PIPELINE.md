@@ -205,7 +205,7 @@ November and checked against it, and the UI comments now repeat them.
 | `postcss-selector-parser` 6.0.10 | quadratic flat-selector parsing                                                   | acc 1006253194, main 1010302896                 | accepted, 30 Sep 2026               | Build time only, parsing our own CSS. `@tailwindcss/typography` 0.5.20, the latest, pins exactly 6.0.10, so no update can move it. Dependabot #251 dismissed with the same reason on 17 Nov 2026.                                                          | `@tailwindcss/typography` drops the exact pin                                          |
 | `minimatch` 10.2.6               | globparts amplification (DoS)                                                     | acc 1055948512                                  | accepted, 17 Nov 2026               | Development only: `typescript-eslint` 8 requires `^10.2.2`, and the fix is only in 11.0.1. It matches our own lint configuration's globs. Dependabot #262 dismissed with the same reason.                                                                  | `typescript-eslint` allows minimatch 11                                                |
 | `minimatch` 9.0.3                | globparts amplification (DoS); ReDoS ×2 and globstar backtracking (High)          | acc 1055948513, 964887742, 964887743, 964887744 | accepted until Phase 3, 17 Nov 2026 | Development only, through `@typescript-eslint` 6 in the frontend workspaces; matches our own lint globs. Dependabot #5 (ReDoS, same package) stays open as the reminder.                                                                                   | The typescript-eslint 8 / ESLint 10 move (#363, Phase 3)                               |
-| `playwright-core` 1.64.1         | Brotli decoder out-of-bounds write (CVE-2026-111497; Semgrep GHSA-cust-0000-0034) | acc 1063438103                                  | false positive, 17 Nov 2026         | The npm package carries no Brotli C code: it runs on the host's Node, pinned in `.nvmrc` to 22.23.4, the October 2026 security release that fixes this CVE. Used only by the e2e suite, whose browsers load our own local and ACC sites.                   | `.nvmrc` moves to a Node line without the fix, or Playwright starts bundling a runtime |
+| `playwright-core` 1.64.1         | Brotli decoder out-of-bounds write (CVE-2026-111497; Semgrep GHSA-cust-0000-0034) | acc 1063438103                                  | false positive, 17 Nov 2026         | The npm package carries no Brotli C code: it runs on the host's Node, pinned in `.nvmrc` to 24.22.2, on the 24.22 line whose 24.22.1 release (October 2026) fixes this CVE. Used only by the e2e suite, whose browsers load our own local and ACC sites.   | `.nvmrc` moves to a Node line without the fix, or Playwright starts bundling a runtime |
 
 Not in the table, because they are fixed rather than accepted: the seven `hono`
 and `@hono/node-server` findings and the `fast-xml-parser` one, cleared by #469
@@ -305,13 +305,13 @@ on the Dependency Dashboard before relying on that.
 **Reachable from our side:** the release, yes, and done; the image, no.
 **Accepted risk** for the image, reviewed when this document is next revised.
 
-### The App Service runtime — `NODE|22-lts` pins a major, and that is all Azure offers
+### The App Service runtime — `NODE|<major>-lts` pins a major, and that is all Azure offers
 
-This repository's two App Services run `NODE|22-lts`. Linked Data Explorer's
-two run `NODE|24-lts`, since its Node 24 move in sgort/linked-data-explorer#80 --
-read from Azure with `az webapp config show --query linuxFxVersion` on
-27 September 2026, after this sentence had claimed all four were `NODE|22-lts`
-(iou-architectuur#105). ICTU
+This repository's two App Services ran `NODE|22-lts` until the move to Node 24
+on 27 November 2026 (below). Linked Data Explorer's two run `NODE|24-lts`, since
+its Node 24 move in sgort/linked-data-explorer#80 -- read from Azure with
+`az webapp config show --query linuxFxVersion` on 27 September 2026, after this
+sentence had claimed all four were `NODE|22-lts` (iou-architectuur#105). ICTU
 recommendation 2 asks for a pin at the highest precision the platform allows.
 Here the platform allows very little: `az webapp list-runtimes --os linux`
 returns, for Node, exactly
@@ -320,25 +320,42 @@ returns, for Node, exactly
 NODE|22-lts   NODE|24-lts   NODE|26
 ```
 
-Major-level only. There is no `NODE|22.23.2`, no digest, and no setting that
+Major-level only. There is no `NODE|24.22.2`, no digest, and no setting that
 takes one. **So the answer to "pin exactly" is that it cannot be done, and this
 paragraph is the record of why** — the resolution linked-data-explorer#119 asks
 for when the platform will not cooperate.
 
 What remains reachable is the thing that actually bites: keeping the App
-Service's major in step with `.nvmrc`'s. Today both are 22 and they agree. They
+Service's major in step with the `.nvmrc` the deployed code was built on. They
 can disagree, and the failure is quiet — the build runs on one major and the
 host runs the artifact on another, which is the mismatch #36 closed for the
-workflows and this document's `node-version` section describes. It is live right
-now in the other repository: linked-data-explorer#80 bumps `.nvmrc` from 22 to
-24 and is held open precisely because merging it alone would build on 24 and run
-on 22.
+workflows and this document's `node-version` section describes. It was live in
+the other repository too: linked-data-explorer#80 bumped `.nvmrc` from 22 to 24
+and was held open because merging it alone would have built on 24 and run on 22.
+
+**Where things stand, 27 November 2026.** `.nvmrc` names 24.22.2, so that npm
+enforces the `.npmrc` cooldown (see "The package-manager cooldown" below).
+
+- **ACC** is switched to `NODE|24-lts` right before the pull request that bumps
+  `.nvmrc` merges into `acc`. From that merge on, ACC builds on 24 and runs on 24.
+- **PROD** stays on `NODE|22-lts` and keeps running the Node-22-built code from
+  `main`, which is consistent. It is switched to `NODE|24-lts` right before the
+  ACC→PROD promotion pull request is opened.
+
+That leaves a short window on each tier, between its switch and the merge (ACC)
+or the promotion (PROD), in which a deploy can put code built on 22 on a host
+running 24. **Accepted:** the production backend tree has no native addon, so
+nothing is compiled against Node 22's ABI, and linked-data-explorer moved in the
+same order. The dangerous direction — built on 24, running on 22 — cannot happen
+in this order. The window is kept short by switching each tier immediately
+before its merge.
 
 **The ordering is therefore part of the pin.** A Node major bump changes two
-things in two places, and the App Service must move first:
+things in two places, and on each tier the App Service must move first:
 
-1. switch both App Services to the new `NODE|<major>-lts`,
-2. then merge the `.nvmrc` bump.
+1. switch the tier's App Service to the new `NODE|<major>-lts`,
+2. then merge what deploys the `.nvmrc` bump to that tier — the pull request
+   into `acc` for ACC, the promotion pull request for PROD.
 
 No pull-request check runs against an App Service, so nothing enforces this. It
 is a written rule, and it is written here because this is the file that is read
@@ -388,26 +405,75 @@ pulls on it.
 
 Renovate's `minimumReleaseAge` covers only the updates Renovate proposes.
 Lock-file maintenance hands the refresh to npm, which is where the transitive
-tree moves, and Renovate documents that its own cooldown cannot apply there.
-Since [linked-data-explorer#119](https://github.com/sgort/linked-data-explorer/issues/119),
+tree moves. Since [linked-data-explorer#119](https://github.com/sgort/linked-data-explorer/issues/119),
 the root `.npmrc` sets `min-release-age=14`, so npm itself will not resolve a
-version younger than 14 days. For its own update pull requests Renovate uses
-whichever cutoff is stricter, and if npm answers `ETARGET` on a security fix it
-retries without the cutoff. ICTU recommendation 6.
+version younger than 14 days. ICTU recommendation 6.
 
-Three places it does not reach, all measured on 19 September 2026:
+npm enforces the key from 11.10.0 (npm/cli changelog, 11.10.0, 11 February
+2026). Older npm reads it and ignores it without a warning. Until the move to
+Node 24 this repository ran Node 22.23.4, which bundles npm 10.9.9, so on a
+workstation the setting did nothing. The repository moved to Node 24 then:
+`.nvmrc` names 24.22.2 (npm 11.19.1), and `engines` requires
+`"node": ">=24.22.1"` and `"npm": ">=11.10.0"`.
 
-- **`npm ci`** ignores it on purpose (npm/cli#9281). CI's test and build jobs
-  only run `npm ci`, so they cannot fail on it, and are not protected by it.
-- **npm older than 11.10** ignores it without a warning. Node 22.23.4, which
-  `.nvmrc` names, bundles npm 10.9.9. `scripts/check-deps.sh` warns about this at
-  every dev-server start and push, and names `npm install -g npm@11`.
+Where it applies now:
+
+- **`npm install` and `npm update` on a workstation.** `scripts/check-deps.sh`
+  fails below npm 11.10 at every dev-server start and push, and names `nvm use`.
+  On the pinned toolchain it passes; it fires only when another Node is active.
+- **Renovate's update pull requests and lock-file maintenance.** Renovate
+  passes no `--before` when `.npmrc` sets `min-release-age` and lets npm enforce
+  it (Renovate 44.228.0, `lib/modules/manager/npm/post-update/npm.ts` L171-179).
+  An earlier version of this section said Renovate takes the stricter of two
+  cutoffs and retries without one on `ETARGET`. Neither happens here: the
+  stricter-cutoff branch applies only to a `before=` key, and the retry needs
+  the `--before` flag Renovate does not pass (`npm.ts` L333). Security updates
+  pass no minimum release age to npm, by design (Renovate docs,
+  `minimumReleaseAgePackageManager`).
+- **Which npm Renovate runs.** The hosted app installs npm per job. It takes
+  the constraint from `constraints.npm`, then `packageManager`, then the
+  lockfile version, then `engines.npm` (`npm.ts` L122-131 with
+  `lib/modules/manager/util.ts` `resolveToolConstraint` L119-131), and installs
+  the newest stable match (`lib/util/exec/containerbase.ts` L385-387). This
+  repository sets neither `constraints` nor `packageManager`, and lockfile v3
+  gives no constraint, so `engines.npm` decides: npm 12.2.3 on 27 November 2026. That
+  derivation is read from Renovate's source, not confirmed from a job log: the
+  Mend log needs a sign-in we do not have here.
+  That npm was itself 9.8 days old: installing the tool is outside
+  `min-release-age`, the resolution it then performs is inside it. The
+  `engines.npm` floor of 11.10.0 is the cooldown's, not a version to chase. A
+  `packageManager` field or `constraints.npm` below it would turn the cooldown
+  off for Renovate without a word.
+
+**The proof.** `scripts/cooldown-proof.mjs` picks a version of a
+frequently published package (`@types/node` first) younger than the cooldown
+and asks npm to install it in a temporary directory with a copy of `.npmrc`.
+It passes only if npm refuses, and the same command with `--min-release-age=0`
+succeeds, so a network failure can never pass as a refusal. The daily
+`dependency-audit.yml` runs it as the "Cooldown proof" step; a failure reaches
+the same tracking issue as the audit. Measured on 27 November 2026: npm 10.9.9
+did not refuse (`@types/node` 26.6.11, 1.8 days old, would have installed);
+npm 12.2.2 refused with `ETARGET` "No matching version found … with a date
+before …". Run it locally with `node scripts/cooldown-proof.mjs`.
+
+The one place it does not reach:
+
+- **`npm ci`** ignores it on purpose (npm/cli#9281) and installs the committed
+  lockfile. Every deploy and every CI install uses `npm ci`. Accepted,
+  because the lockfile changes only through a pull request into `acc`. The
+  pull-request-time cover is the lockfile gate's cooldown check: every package
+  version added or changed in the lockfile diff must be at least 14 days old,
+  with Renovate's own security pull requests exempt (author `renovate[bot]` and
+  label `security`) and any other urgent fix needing a committed override with
+  an open issue. That check arrives with the port of the dependency register
+  gate from linked-data-explorer (its PR #368); it is not live here yet.
 - **The break-glass deploy scripts** used to install in `packages/backend/deploy/`,
   outside this file's reach and without a lockfile. They were retired on
   27 November 2026; see the closed exception below.
 
-**Reachable from our side:** yes, and done for the first two as far as npm
-allows. The third is closed: the scripts it described are gone.
+**Reachable from our side:** yes, closed by the move to Node 24 for the workstation
+and Renovate; the daily proof runs from then on. `npm ci` stays the one written-down exception,
+covered at pull-request time once the lockfile gate is ported.
 
 ### ~~The backend is deployed outside CI, and its dependencies are unpinned~~ — closed 2026-11-27
 

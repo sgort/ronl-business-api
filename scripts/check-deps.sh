@@ -75,17 +75,21 @@ fi
 # 2. The package-manager cooldown in .npmrc (min-release-age) needs npm 11.10
 # or newer. Older npm ignores the setting without a word, so an `npm install`
 # on this machine would resolve versions published minutes ago. Node 22's
-# bundled npm 10 is such a version. A warning, not a failure: check 1 is what
-# keeps the install matching the lockfile; this is about what the next install
-# here would resolve. sgort/linked-data-explorer#119.
+# bundled npm 10 is such a version. This is a failure: the repo pins Node 24
+# (npm 11.19) in .nvmrc, so on the pinned toolchain the check passes and it
+# only fires when a different Node is active, where the next `npm install`
+# would resolve without the cooldown. Check 1 still guards the lockfile match.
+# Design: docs/superpowers/specs/2026-11-27-npm-cooldown-node-24-design.md.
+# sgort/linked-data-explorer#119.
 NPM_VERSION=$(npm --version 2>/dev/null || echo "unknown")
+NPM_TOO_OLD=false
 if ! node -e '
   const [major, minor] = process.argv[1].split(".").map(Number);
   process.exit(major > 11 || (major === 11 && minor >= 10) ? 0 : 1);
 ' "$NPM_VERSION"; then
-  echo -e "${YELLOW}⚠ npm $NPM_VERSION ignores the min-release-age cooldown in .npmrc${NC} — it needs npm 11.10 or newer:"
+  NPM_TOO_OLD=true
+  echo -e "${RED}✗ npm $NPM_VERSION ignores the min-release-age cooldown in .npmrc; it needs 11.10 or newer. Run: nvm use   (.nvmrc → Node 24.22.2, npm 11.19)${NC}"
   echo ""
-  echo "  npm install -g npm@11"
 fi
 
 echo ""
@@ -105,6 +109,10 @@ if [ "$STALE" = true ]; then
   echo ""
   echo "  npm ci removes node_modules first, so stop any running dev servers."
   echo ""
+  exit 1
+fi
+
+if [ "$NPM_TOO_OLD" = true ]; then
   exit 1
 fi
 
