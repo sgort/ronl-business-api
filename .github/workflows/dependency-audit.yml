@@ -59,7 +59,7 @@ jobs:
           # `main` need not carry the same .nvmrc as `acc` -- it did not until
           # sgort/linked-data-explorer#179 was promoted (linked-data-explorer). The tool that reads the lockfile should not
           # change with the tree it is reading. Renovate maintains this pin.
-          node-version: '24.22.2'
+          node-version: '24.22.3'
 
       # ICTU recommendation 6 (a cooldown before adopting new releases): prove
       # daily that npm on this Node 24 toolchain really refuses a version younger
