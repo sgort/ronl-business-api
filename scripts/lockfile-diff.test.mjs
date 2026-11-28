@@ -367,12 +367,41 @@ check(
 
 check(
   "config yields the allow-list",
-  [...L.parseConfig('{"allowLicenses":["MIT"]}', "cfg").allow],
+  [
+    ...L.parseConfig('{"allowLicenses":["MIT"],"minReleaseAgeDays":14}', "cfg")
+      .allow,
+  ],
   ["MIT"],
+);
+check(
+  "config: minReleaseAgeDays read",
+  L.parseConfig('{"allowLicenses":["MIT"],"minReleaseAgeDays":14}', "cfg")
+    .minReleaseAgeDays,
+  14,
+);
+throws(
+  "config: missing minReleaseAgeDays is refused",
+  () => L.parseConfig('{"allowLicenses":["MIT"]}', "cfg"),
+  L.InputError,
+  /minReleaseAgeDays/,
+);
+throws(
+  "config: non-integer minReleaseAgeDays is refused",
+  () =>
+    L.parseConfig('{"allowLicenses":["MIT"],"minReleaseAgeDays":1.5}', "cfg"),
+  L.InputError,
+  /minReleaseAgeDays/,
+);
+throws(
+  "config: negative minReleaseAgeDays is refused",
+  () =>
+    L.parseConfig('{"allowLicenses":["MIT"],"minReleaseAgeDays":-1}', "cfg"),
+  L.InputError,
+  /minReleaseAgeDays/,
 );
 throws(
   "config without allowLicenses is refused",
-  () => L.parseConfig("{}", "cfg"),
+  () => L.parseConfig('{"minReleaseAgeDays":14}', "cfg"),
   L.InputError,
   /allowLicenses/,
 );
@@ -453,7 +482,10 @@ const run = (...args) => {
     return err.status;
   }
 };
-const cfg = write("cfg.json", { allowLicenses: ["MIT"] });
+const cfg = write("cfg.json", {
+  allowLicenses: ["MIT"],
+  minReleaseAgeDays: 14,
+});
 const okBase = write("base.json", lock({ [nm("a")]: pkg("a", "1.0.0") }));
 const okHead = write("head.json", lock({ [nm("a")]: pkg("a", "1.0.1") }));
 const outFile = join(dir, "out.md");
@@ -721,11 +753,14 @@ check(
     },
     { name: "husky", manifest: "(root)", field: "devDependencies" },
     { name: "left-pad", manifest: "packages/frontend", field: "dependencies" },
+    { name: "react", manifest: "packages/backend", field: "dependencies" },
   ],
 );
 check(
-  "a package already direct elsewhere in the repository is not new (react)",
-  L.newDirectDependencies(wsBase, wsHead).some((d) => d.name === "react"),
+  "a package already direct in the same manifest is not new (react in frontend)",
+  L.newDirectDependencies(wsBase, wsHead).some(
+    (d) => d.name === "react" && d.manifest === "packages/frontend",
+  ),
   false,
 );
 check(
@@ -773,9 +808,83 @@ check(
   true,
 );
 check(
-  "each new direct dependency gets its own checklist",
-  (withNew.match(/- \[ \] Maintained/g) || []).length,
-  4,
+  "report: no checkboxes, points at the register",
+  !withNew.includes("- [ ]") && withNew.includes("dependency-register.json"),
+  true,
+);
+check(
+  "new-direct: spread to another manifest",
+  L.newDirectDependencies(
+    manifests(
+      {},
+      {
+        "packages/public-site": {
+          name: "@fixture/site",
+          devDependencies: { "@axe-core/playwright": "^4.0.0" },
+        },
+      },
+    ),
+    manifests(
+      {},
+      {
+        "packages/public-site": {
+          name: "@fixture/site",
+          devDependencies: { "@axe-core/playwright": "^4.0.0" },
+        },
+        "packages/frontend": {
+          name: "@fixture/frontend",
+          devDependencies: { "@axe-core/playwright": "^4.0.0" },
+        },
+      },
+    ),
+  ),
+  [
+    {
+      name: "@axe-core/playwright",
+      manifest: "packages/frontend",
+      field: "devDependencies",
+    },
+  ],
+);
+check(
+  "new-direct: field move in one manifest is not new",
+  L.newDirectDependencies(
+    manifests(
+      {},
+      {
+        "packages/backend": {
+          name: "@fixture/backend",
+          dependencies: { zod: "^4.0.0" },
+        },
+      },
+    ),
+    manifests(
+      {},
+      {
+        "packages/backend": {
+          name: "@fixture/backend",
+          devDependencies: { zod: "^4.0.0" },
+        },
+      },
+    ),
+  ),
+  [],
+);
+check(
+  "new-direct: peerDependencies count",
+  L.newDirectDependencies(
+    manifests({}, { "packages/a": { name: "@fixture/a" } }),
+    manifests(
+      {},
+      {
+        "packages/a": {
+          name: "@fixture/a",
+          peerDependencies: { react: "^19.0.0" },
+        },
+      },
+    ),
+  ),
+  [{ name: "react", manifest: "packages/a", field: "peerDependencies" }],
 );
 check(
   "a report without new direct dependencies has no such section",

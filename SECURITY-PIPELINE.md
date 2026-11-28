@@ -157,8 +157,53 @@ licence and whether its repository is archived. It installs nothing.
 | Re-run in a quarter | adds the fresh evidence as a comment; the issue body, with its outcomes, stays put |
 | Node                | an exact literal, like the daily audit                                             |
 
-The same criteria are applied when a dependency is added: the `lockfile-review`
-comment lists each new **direct** dependency with a checklist of them.
+### New dependencies: the register gate
+
+The same criteria are applied when a dependency is added, and there they block.
+Every new **direct** dependency, per manifest, needs an entry in
+[`dependency-register.json`](dependency-register.json) in the same pull request:
+a verdict and a reason for each of the six criteria, the version assessed, and
+an outcome. Until November 2026 the `lockfile-review` comment offered a
+checklist instead, and nothing made the boxes matter: `stylelint` arrived in
+#376 with not one ticked, and `@axe-core/playwright` arrived in the frontend in
+#413 with no checklist at all, because the old rule skipped any package already
+direct in another workspace (`packages/public-site` has had it since 6 August
+2026). "New" now means new to that manifest, so each of the two has its own
+entry. The three were assessed after the fact on 28 November 2026; the one
+open question they left, `svg-tags` (through `stylelint`) with no licence
+recorded, is #499.
+
+`scripts/dependency-gate.mjs` (the same file in all three repositories) runs in
+the required `lockfile-review` job and fails the pull request when an entry is
+missing, malformed, or contradicts the evidence it gathers itself from the npm
+registry, the GitHub API and the lockfile: an entry may not claim a criterion
+holds that the evidence says does not, every unmet criterion and `needed` need
+a sentence, the assessed major must match the locked one, and a cited issue
+must be open. The same step fails a package version younger than the 14-day
+cooldown (`minReleaseAgeDays` in `lockfile-review.json`), whatever wrote the
+lockfile. The rules are in linked-data-explorer's
+[`docs/dependency-criteria.md`](https://github.com/sgort/linked-data-explorer/blob/acc/docs/dependency-criteria.md#adding-a-dependency-r1).
+
+There is no label a person can set and no bypass. A person's urgent fix goes
+through a committed override with an open issue (an issue, not a pull request):
+`"status": "override"` for a dependency still to assess, a `cooldownOverrides`
+entry for a version too young. Renovate's security pull requests pass
+automatically: the author is `renovate[bot]`, the `security` label is on the
+pull request, and the GitHub API's history of the pull request shows
+`renovate[bot]` adding it. The gate asks the API when it runs and, because
+Renovate labels a pull request a second or so after opening it, waits up to 60
+seconds for Renovate's labels. The workflow deliberately does not run on
+`labeled`: a pull request opened with labels would start two runs on one
+commit (in linked-data-explorer, where the second cancels the first, the
+cancelled required check blocked the merge). The gate logs each young version
+in a _Cooldown exceptions_ section of the comment and job summary. The
+quarterly review lists open overrides, replacements and the previous quarter's
+security exceptions until they are dealt with.
+
+Two limits are known: the job runs the pull request's own copy of the gate, and
+the rulesets require no approvals, so a pull request can weaken the gate by
+editing it; and a lockfile entry hand-marked `"inBundle": true` skips the
+origin, integrity and cooldown checks. Both show in the diff.
 
 ## Upstream certificates, daily
 
@@ -463,17 +508,19 @@ The one place it does not reach:
   because the lockfile changes only through a pull request into `acc`. The
   pull-request-time cover is the lockfile gate's cooldown check: every package
   version added or changed in the lockfile diff must be at least 14 days old,
-  with Renovate's own security pull requests exempt (author `renovate[bot]` and
-  label `security`) and any other urgent fix needing a committed override with
-  an open issue. That check arrives with the port of the dependency register
-  gate from linked-data-explorer (its PR #368); it is not live here yet.
+  with Renovate's own security pull requests exempt (author `renovate[bot]`, and the
+  `security` label added by `renovate[bot]`, as the pull request's history in
+  the GitHub API shows) and any other urgent fix needing a committed override with
+  an open issue. That check is `scripts/dependency-gate.mjs`, ported from
+  linked-data-explorer (its PR #368); see
+  [New dependencies: the register gate](#new-dependencies-the-register-gate).
 - **The break-glass deploy scripts** used to install in `packages/backend/deploy/`,
   outside this file's reach and without a lockfile. They were retired on
   27 November 2026; see the closed exception below.
 
 **Reachable from our side:** yes, closed by the move to Node 24 for the workstation
 and Renovate; the daily proof runs from then on. `npm ci` stays the one written-down exception,
-covered at pull-request time once the lockfile gate is ported.
+covered at pull-request time by the lockfile gate's cooldown check.
 
 ### ~~The backend is deployed outside CI, and its dependencies are unpinned~~ — closed 2026-11-27
 

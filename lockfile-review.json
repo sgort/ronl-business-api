@@ -1,5 +1,6 @@
 {
-  "$comment": "Read by scripts/lockfile-diff.mjs (#248). A NEW package whose licence this list does not allow is a review prompt in the lockfile-review comment, not a failure. The initial list is the permissive set already present in the tree on 5 October 2026; MPL-2.0 and custom licences (bpmn.io's 'SEE LICENSE IN LICENSE') are left off on purpose, so a new one gets looked at.",
+  "$comment": "Read by scripts/lockfile-diff.mjs (#248). A NEW package whose licence this list does not allow is a review prompt in the lockfile-review comment, not a failure. The initial list is the permissive set already present in the tree on 5 October 2026; MPL-2.0 and custom licences (bpmn.io's 'SEE LICENSE IN LICENSE') are left off on purpose, so a new one gets looked at. minReleaseAgeDays is the cooldown scripts/dependency-gate.mjs checks: a package version the lockfile adds or changes must have been published at least that many days before the run, the same 14 days Renovate and npm wait (exceptions in linked-data-explorer's docs/dependency-criteria.md). The allow-list also feeds the gate's licence signal for a new direct dependency.",
+  "minReleaseAgeDays": 14,
   "allowLicenses": [
     "MIT",
     "ISC",
